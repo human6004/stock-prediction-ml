@@ -112,6 +112,12 @@ database/
 
 Chứa SQLite database và script sync dữ liệu/report.
 
+```text
+docs/
+```
+
+Chứa tài liệu giải thích project, sơ đồ kiến trúc và các file HTML export của sơ đồ. Hai file nên đọc trước là `docs/GIAI_THICH_PROJECT.md` và `docs/SO_DO_KIEN_TRUC_HE_THONG.md`.
+
 ## 4. Dữ liệu OHLCV là gì?
 
 OHLCV là dữ liệu giá và khối lượng giao dịch theo ngày:
@@ -609,6 +615,10 @@ python app.py
 | `reports/feature_importance.csv` | Độ quan trọng feature |
 | `reports/best_params.json` | Bộ tham số tốt nhất |
 | `reports/train_test_summary.csv` | Tóm tắt train/test |
+| `reports/pipeline_summary.json` | Tóm tắt toàn bộ lần chạy pipeline |
+| `database/stock_prediction.db` | SQLite sync dữ liệu/report và lưu lịch sử dự báo |
+
+Các file trong `models/`, `reports/` và `data/processed/` đang được giữ lại để web demo chạy được ngay và để phục vụ bảo vệ. `.venv/` và `__pycache__/` không phải tài liệu/code nguồn nên đã được đưa vào `.gitignore`.
 
 ## 25. Một vài lưu ý khi học/bảo vệ
 
@@ -626,7 +636,7 @@ Không nói kết quả là khuyến nghị đầu tư. Đây là demo học thu
 
 ## 26. Một vài điểm code nên nhớ
 
-File `GIAI_THICH_PROJECT_CHO_NGUOI_MOI.md` và `SO_DO_KIEN_TRUC_HE_THONG.md` trong repo có vài chi tiết cũ, ví dụ từng nói chưa có SQLite hoặc mốc split khác. Khi cần trình bày, hãy ưu tiên tài liệu cập nhật này cùng `README.md`, `config/settings.py`, `reports/model_comparison.csv`, `models/model_metadata.json`.
+Tài liệu chính hiện nằm trong `docs/`. Khi cần trình bày, hãy ưu tiên `README.md`, `docs/GIAI_THICH_PROJECT.md`, `docs/SO_DO_KIEN_TRUC_HE_THONG.md`, `config/settings.py`, `reports/model_comparison.csv` và `models/model_metadata.json`.
 
 Trong `templates/index.html`, phần technical panel có nhắc `selected_report_model` và `model_match`, nhưng `services/prediction_service.py` hiện chưa trả hai field này. Vì vậy phần kỹ thuật đó có thể hiển thị chưa chuẩn. Phần dự báo chính vẫn dùng `final_model.pkl` và `model_metadata.json`.
 

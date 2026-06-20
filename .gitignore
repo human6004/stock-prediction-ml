@@ -1,3 +1,24 @@
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local editor/tooling state
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated pipeline outputs kept out unless intentionally committed
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
 database/stock_prediction.db
