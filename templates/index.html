@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dự báo xu hướng cổ phiếu HOSE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <nav class="topbar">
+            <div>
+                <p class="eyebrow">HOSE ML</p>
+                <h1>Dự báo xu hướng cổ phiếu</h1>
+                <p class="subtitle">
+                    Dự báo mã có tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên giao dịch kế tiếp
+                    (tính từ ngày tham chiếu).
+                </p>
+            </div>
+            <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
+        </nav>
+
+        {% if dataset_max_date %}
+        <p class="dataset-banner">
+            Dữ liệu offline (đã xử lý) đến ngày: <strong>{{ dataset_max_date }}</strong>
+            — {{ symbol_count }} mã. Không cập nhật realtime.
+        </p>
+        {% endif %}
+
+        <section class="workspace">
+            <form class="predict-panel" method="post" action="{{ url_for('predict') }}">
+                <label for="symbol">Mã cổ phiếu</label>
+                <div class="input-row">
+                    <input id="symbol" name="symbol" type="text" list="symbol-list"
+                           placeholder="VD: FPT" maxlength="12" required
+                           value="{{ result.symbol if result else '' }}">
+                    <datalist id="symbol-list">
+                        {% for sym in symbols %}
+                        <option value="{{ sym }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    <button type="submit">Dự báo</button>
+                </div>
+                <p class="model-chip">
+                    Model đang dùng: {{ selected_model or "Chưa có báo cáo — chạy pipeline trước" }}
+                </p>
+            </form>
+
+            {% if error %}
+            <section class="alert" role="alert">{{ error }}</section>
+            {% endif %}
+
+            {% if result %}
+            <section class="result-panel">
+                <p class="summary-line">{{ result.summary_sentence }}</p>
+
+                <div class="verdict-card verdict-{{ result.prediction|lower }}">
+                    <p class="section-label">Kết luận</p>
+                    <p class="verdict-title">{{ result.prediction_label_vi }}</p>
+                    <p class="verdict-hint">{{ result.prediction_short_vi }}</p>
+                    <div class="prob-row">
+                        <span>Xác suất lớp UP</span>
+                        {% if result.probability_up is not none %}
+                        <div class="prob-bar" role="meter"
+                             aria-valuenow="{{ (result.probability_up * 100)|round(1) }}"
+                             aria-valuemin="0" aria-valuemax="100"
+                             aria-label="Xác suất lớp UP">
+                            <div class="prob-fill" style="width: {{ (result.probability_up * 100)|round(1) }}%;"></div>
+                        </div>
+                        <strong class="prob-value">{{ "%.1f"|format(result.probability_up * 100) }}%</strong>
+                        {% else %}
+                        <strong class="prob-value">Không hỗ trợ</strong>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="context-card">
+                    <p class="section-label">Căn cứ dữ liệu</p>
+                    <dl class="context-list">
+                        <div>
+                            <dt>Ngày tham chiếu (t)</dt>
+                            <dd>{{ result.reference_date }}</dd>
+                        </div>
+                        <div>
+                            <dt>Giá đóng cửa tại (t)</dt>
+                            <dd>{{ "%.2f"|format(result.close_at_reference) }}</dd>
+                        </div>
+                        <div>
+                            <dt>Mã cổ phiếu</dt>
+                            <dd>{{ result.symbol }}</dd>
+                        </div>
+                    </dl>
+                    <div class="timeline" aria-label="Mốc thời gian dự báo">
+                        <div class="timeline-step timeline-step-active">
+                            <span class="timeline-dot"></span>
+                            <span class="timeline-title">Ngày t</span>
+                            <span class="timeline-desc">{{ result.reference_date }}</span>
+                        </div>
+                        <div class="timeline-connector">5 phiên giao dịch</div>
+                        <div class="timeline-step">
+                            <span class="timeline-dot"></span>
+                            <span class="timeline-title">Ngày t+5</span>
+                            <span class="timeline-desc">Chưa biết lúc dự báo (chỉ có sau khi đủ 5 phiên)</span>
+                        </div>
+                        <div class="timeline-step timeline-step-result">
+                            <span class="timeline-dot"></span>
+                            <span class="timeline-title">Kết quả dự báo</span>
+                            <span class="timeline-desc">{{ result.prediction_label_vi }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <p class="section-label">Giải thích nhãn</p>
+                    <p>
+                        Với mỗi mã, hệ thống tính
+                        <code>future_return = close(t+5) / close(t) − 1</code>.
+                        Nhãn <strong>UP</strong> khi return &gt; {{ threshold_percent }}%
+                        (tức tăng hơn {{ threshold_percent }}% sau {{ horizon }} phiên giao dịch).
+                    </p>
+                    <p>
+                        Đây là <strong>dự báo xu hướng</strong> trong cửa sổ 5 phiên sau ngày tham chiếu,
+                        không phải dự báo giá đúng một ngày lịch cụ thể.
+                    </p>
+                </div>
+
+                <details class="technical-panel">
+                    <summary>Thông tin kỹ thuật</summary>
+                    <dl class="context-list">
+                        <div>
+                            <dt>Model trong artifact</dt>
+                            <dd>{{ result.model_name }}</dd>
+                        </div>
+                        <div>
+                            <dt>Model trong báo cáo (selected)</dt>
+                            <dd>{{ result.selected_report_model or "—" }}</dd>
+                        </div>
+                        <div>
+                            <dt>Kiểm tra khớp backend / báo cáo</dt>
+                            <dd class="{{ 'match-text' if result.model_match else 'mismatch-text' }}">
+                                {{ "Khớp" if result.model_match else "Không khớp" }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Số phiên dự báo</dt>
+                            <dd>{{ result.horizon_sessions }}</dd>
+                        </div>
+                        <div>
+                            <dt>Ngưỡng UP</dt>
+                            <dd>{{ result.threshold_percent }}%</dd>
+                        </div>
+                    </dl>
+                    <p><a href="{{ url_for('evaluation') }}">Xem bảng so sánh 4 model</a></p>
+                </details>
+            </section>
+            {% endif %}
+        </section>
+
+        <p class="disclaimer">
+            Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
+        </p>
+    </main>
+</body>
+</html>

@@ -1,0 +1,3 @@
+data/processed/ml_dataset.csv
+data/processed/hose_stock_features.csv
+database/stock_prediction.db

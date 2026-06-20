@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đánh giá model — HOSE ML</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <nav class="topbar">
+            <div>
+                <p class="eyebrow">Đánh giá</p>
+                <h1>Bảng so sánh model</h1>
+                <p class="subtitle">
+                    Model cuối được chọn theo <strong>F1 (lớp UP)</strong> trên tập kiểm thử.
+                    Dummy Classifier chỉ là baseline, không được chọn làm model triển khai.
+                </p>
+            </div>
+            <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
+        </nav>
+
+        {% if dataset_max_date %}
+        <p class="dataset-banner">
+            Dữ liệu đánh giá dựa trên tập test (ngày &gt; {{ split_date }}). Dataset xử lý đến: {{ dataset_max_date }}.
+        </p>
+        {% endif %}
+
+        <section class="workspace">
+            <p class="model-chip">
+                Model đang dùng: {{ selected_model or "Chưa có báo cáo" }}
+            </p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Model</th>
+                            <th>Độ chính xác</th>
+                            <th>Precision (lớp UP)</th>
+                            <th>Recall (lớp UP)</th>
+                            <th>F1 (lớp UP)</th>
+                            <th>CV F1 (UP)</th>
+                            <th>Precision (NOT_UP)</th>
+                            <th>Recall (NOT_UP)</th>
+                            <th>F1 (NOT_UP)</th>
+                            <th>Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{{ 'selected-row' if row.status else '' }}">
+                            <td>{{ row.model_id }}</td>
+                            <td>{{ row.model_name }}</td>
+                            <td>{{ "%.4f"|format(row.accuracy) }}</td>
+                            <td>{{ "%.4f"|format(row.precision_up) }}</td>
+                            <td>{{ "%.4f"|format(row.recall_up) }}</td>
+                            <td>{{ "%.4f"|format(row.f1_up) }}</td>
+                            <td>{% if row.cv_f1_up is defined and row.cv_f1_up == row.cv_f1_up %}{{ "%.4f"|format(row.cv_f1_up) }}{% else %}—{% endif %}</td>
+                            <td>{{ "%.4f"|format(row.precision_not_up) }}</td>
+                            <td>{{ "%.4f"|format(row.recall_not_up) }}</td>
+                            <td>{{ "%.4f"|format(row.f1_not_up) }}</td>
+                            <td>{{ row.status }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="11" class="empty">
+                                Chưa có reports/model_comparison.csv. Hãy chạy pipeline trước.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="eval-note">
+                Tiêu chí chọn: F1 (lớp UP) cao nhất → nếu gần bằng thì Recall (lớp UP) → sau đó ưu tiên model đơn giản hơn.
+                <a href="{{ url_for('confusion_matrix_image') }}" target="_blank">Xem confusion matrix</a>
+                (hoặc mở <code>reports/confusion_matrix.png</code>).
+            </p>
+        </section>
+    </main>
+</body>
+</html>

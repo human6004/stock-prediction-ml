@@ -1,0 +1,54 @@
+{
+  "model_name": "Random Forest",
+  "model_id": 3,
+  "feature_order": [
+    "return_1d",
+    "return_3d",
+    "return_5d",
+    "close_open_return",
+    "sma5",
+    "sma20",
+    "sma50",
+    "close_vs_sma20",
+    "sma20_vs_sma50",
+    "rsi14",
+    "volatility_5d",
+    "volatility_20d",
+    "price_range",
+    "volume_change_1d",
+    "volume_ratio_20"
+  ],
+  "prediction_horizon": 5,
+  "up_threshold": 0.01,
+  "split_date": "2025-12-31",
+  "cv_config": {
+    "n_splits": 5,
+    "gap": 5
+  },
+  "best_params": {
+    "n_estimators": 120,
+    "min_samples_leaf": 50,
+    "max_features": 0.5,
+    "max_depth": 8
+  },
+  "cv_f1_up": 0.45396551689761966,
+  "test_metrics": {
+    "accuracy": 0.5900167361793693,
+    "precision_up": 0.3832357703325445,
+    "recall_up": 0.526748266712317,
+    "f1_up": 0.443675426264374,
+    "precision_not_up": 0.7438498957609451,
+    "recall_not_up": 0.6184899845916795,
+    "f1_not_up": 0.6754022504995267
+  },
+  "train_rows": 466973,
+  "test_rows": 37643,
+  "trained_at": "2026-06-12T18:27:55",
+  "selection": {
+    "selected_model_id": 3,
+    "selected_model_name": "Random Forest",
+    "selected_f1_up": 0.443675426264374,
+    "selected_recall_up": 0.526748266712317,
+    "selected_cv_f1_up": 0.45396551689761966
+  }
+}
