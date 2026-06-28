@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HOSE ML Pipeline Workflow",
+    "subtitle": "Fetch, clean, feature, train, evaluate, select, sync, and serve",
+    "output": "docs/diagrams/stock-workflow.html"
+  },
+  "lanes": [
+    { "id": "source", "label": "Data Source" },
+    { "id": "prep", "label": "Preprocess + Feature" },
+    { "id": "train", "label": "Training + Evaluation" },
+    { "id": "artifacts", "label": "Artifacts + Database" },
+    { "id": "serve", "label": "Serving" }
+  ],
+  "nodes": [
+    { "id": "fetch", "lane": "source", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock/KBS" },
+    { "id": "raw", "lane": "source", "col": 1, "type": "database", "label": "Raw CSV", "sublabel": "548074 rows" },
+    { "id": "validate", "lane": "prep", "col": 0, "type": "security", "label": "Validate", "sublabel": "OHLCV rules" },
+    { "id": "clean", "lane": "prep", "col": 2, "type": "backend", "label": "Clean", "sublabel": "396 symbols" },
+    { "id": "features", "lane": "prep", "col": 4, "type": "backend", "label": "Features", "sublabel": "15 signals" },
+    { "id": "split", "lane": "prep", "col": 5, "type": "security", "label": "Time Split", "sublabel": "label_end" },
+    { "id": "dummy", "lane": "train", "col": 0, "type": "backend", "label": "Dummy", "sublabel": "baseline" },
+    { "id": "tune", "lane": "train", "col": 2, "type": "backend", "label": "Tune ML", "sublabel": "3 models" },
+    { "id": "evaluate", "lane": "train", "col": 4, "type": "backend", "label": "Evaluate", "sublabel": "test metrics" },
+    { "id": "select", "lane": "train", "col": 5, "type": "backend", "label": "Select RF", "sublabel": "F1_UP gate" },
+    { "id": "processed", "lane": "artifacts", "col": 0, "type": "database", "label": "CSVs", "sublabel": "clean/features" },
+    { "id": "model", "lane": "artifacts", "col": 2, "type": "database", "label": "Model", "sublabel": "final pkl" },
+    { "id": "reports", "lane": "artifacts", "col": 4, "type": "database", "label": "Reports", "sublabel": "csv/png/json" },
+    { "id": "sqlite", "lane": "artifacts", "col": 5, "type": "database", "label": "SQLite", "sublabel": "sync/logs" },
+    { "id": "user", "lane": "serve", "col": 0, "type": "external", "label": "User", "sublabel": "symbol" },
+    { "id": "webcli", "lane": "serve", "col": 2, "type": "frontend", "label": "Web/CLI", "sublabel": "Flask + script" },
+    { "id": "predict", "lane": "serve", "col": 4, "type": "backend", "label": "Predict", "sublabel": "latest row" },
+    { "id": "result", "lane": "serve", "col": 5, "type": "frontend", "label": "Result", "sublabel": "UP/NOT_UP" }
+  ],
+  "edges": [
+    { "from": "fetch", "to": "raw", "variant": "emphasis" },
+    { "from": "raw", "to": "validate", "label": "dataset_check", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "validate", "to": "clean", "variant": "default" },
+    { "from": "clean", "to": "features", "label": "build + label", "variant": "emphasis", "labelDy": -18 },
+    { "from": "features", "to": "split", "variant": "security" },
+    { "from": "split", "to": "tune", "label": "train set", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.7, "labelSegment": 1 },
+    { "from": "dummy", "to": "evaluate", "variant": "dashed" },
+    { "from": "tune", "to": "evaluate", "variant": "emphasis" },
+    { "from": "evaluate", "to": "select", "variant": "emphasis" },
+    { "from": "features", "to": "processed", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "select", "to": "model", "label": "final_model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.65, "labelAt": [620, 410] },
+    { "from": "evaluate", "to": "reports", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "processed", "to": "sqlite", "variant": "dashed" },
+    { "from": "reports", "to": "sqlite", "variant": "dashed" },
+    { "from": "user", "to": "webcli", "variant": "emphasis" },
+    { "from": "webcli", "to": "predict", "label": "predict_symbol", "variant": "emphasis", "labelDy": -18 },
+    { "from": "model", "to": "predict", "label": "load model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "processed", "to": "predict", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.25 },
+    { "from": "predict", "to": "result", "variant": "emphasis" },
+    { "from": "predict", "to": "sqlite", "label": "log", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "up-channel", "labelSegment": 1 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Data Prep",
+      "items": [
+        "Raw CSV is validated for required OHLCV columns",
+        "Invalid OHLC rows are removed before feature building",
+        "Feature columns exclude future labels to prevent leakage"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Model Loop",
+      "items": [
+        "Dummy baseline is evaluated but cannot be selected",
+        "Logistic Regression, Random Forest, and Gradient Boosting are tuned",
+        "Final model is selected by F1_UP, then Recall_UP, then simplicity"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Serving",
+      "items": [
+        "Web and CLI reuse the saved Random Forest artifact",
+        "No retraining happens during prediction",
+        "Prediction history is inserted into SQLite when logging succeeds"
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@
     "path": "D:\\study\\niên luận\\shared_dataset\\hose_stock_raw.csv",
     "file_exists": true,
     "read_success": true,
-    "rows": 544451,
+    "rows": 549084,
     "columns": [
       "symbol",
       "trading_date",
@@ -22,7 +22,7 @@
     "missing_required_columns": [],
     "symbols": 400,
     "date_min": "2019-08-14",
-    "date_max": "2026-06-05",
+    "date_max": "2026-06-26",
     "missing_values": 0,
     "missing_by_column": {
       "symbol": 0,
@@ -43,34 +43,16 @@
       "data\\processed\\hose_stock_features.csv",
       "data\\processed\\ml_dataset.csv",
       "models\\dummy.pkl",
-      "models\\dummy_classifier.pkl",
-      "models\\final_model.pkl",
-      "models\\gradient_boosting.pkl",
-      "models\\gradient_boosting_tuned.pkl",
-      "models\\logistic_regression.pkl",
       "models\\logistic_regression_tuned.pkl",
-      "models\\random_forest.pkl",
       "models\\random_forest_tuned.pkl",
-      "reports\\classification_report.csv",
-      "reports\\confusion_matrix.csv",
-      "reports\\cv_fold_results.csv",
       "reports\\data_quality_report.csv",
       "reports\\eligible_symbols.csv",
       "reports\\excluded_symbols.csv",
-      "reports\\feature_importance.csv",
-      "reports\\final_model_evaluation.csv",
-      "reports\\model_comparison.csv",
+      "reports\\manual_tuning_gradient_boosting.csv",
+      "reports\\manual_tuning_logistic_regression.csv",
+      "reports\\manual_tuning_random_forest_stage_1.csv",
+      "reports\\manual_tuning_random_forest_stage_2.csv",
       "reports\\train_test_summary.csv",
-      "reports\\tuning_results.csv",
-      "reports\\confusion_matrix.png",
-      "reports\\system_architecture_diagram.png",
-      "reports\\system_architecture_simple.png",
-      "reports\\system_architecture_steps.png",
-      "reports\\system_architecture_vertical.png",
-      "reports\\model_selection_report.txt",
-      "reports\\hyperparameter_explanation.md",
-      "reports\\pipeline_summary.json",
-      "__pycache__",
       "config\\__pycache__",
       "database\\__pycache__",
       "services\\__pycache__"
@@ -81,90 +63,137 @@
     ]
   },
   "clean_report": {
-    "original_rows": 544451,
-    "rows_after_drop_missing": 544451,
-    "rows_after_drop_duplicates": 544451,
-    "rows_after_cleaning": 544225,
+    "original_rows": 549084,
+    "rows_after_drop_missing": 549084,
+    "rows_after_drop_duplicates": 549084,
+    "rows_after_cleaning": 548858,
     "rows_removed_by_cleaning": 226,
     "symbols_after_cleaning": 400,
     "eligible_symbols": 396,
     "excluded_symbols": 4,
-    "rows_after_symbol_filter": 543708,
+    "rows_after_symbol_filter": 548303,
     "min_trading_days": 250,
     "min_average_volume": 0
   },
   "feature_report": {
-    "rows_after_features": 506596,
+    "rows_after_features": 511191,
     "symbols_after_features": 396,
     "feature_count": 15
   },
   "label_report": {
     "horizon": 5,
     "threshold": 0.01,
-    "rows_after_labeling": 504616,
-    "up_count": 192267,
-    "not_up_count": 312349,
-    "up_ratio": 0.381016,
-    "not_up_ratio": 0.618984
+    "rows_after_labeling": 509211,
+    "up_count": 193561,
+    "not_up_count": 315650,
+    "up_ratio": 0.380119,
+    "not_up_ratio": 0.619881
   },
   "split_report": {
     "split_method": "label_end_date",
     "split_date": "2025-12-31",
     "shuffle": false,
     "train_rows": 466973,
-    "test_rows": 37643,
+    "test_rows": 42238,
     "train_date_min": "2019-10-23",
     "train_date_max": "2025-12-24",
     "train_label_end_max": "2025-12-31",
     "test_date_min": "2025-10-30",
-    "test_date_max": "2026-05-29",
+    "test_date_max": "2026-06-19",
     "test_label_end_min": "2026-01-05",
     "overlap_rows": 0
   },
   "tuning_report": {
     "tuned_models": 3,
-    "cv_n_splits": 5,
-    "cv_gap": 5
+    "cv_n_splits": 3,
+    "cv_gap_days": 5,
+    "train_subsample_fraction": 0.35,
+    "tuning_mode": "manual"
   },
   "tuning_results": [
     {
       "model_id": 2,
       "model_name": "Logistic Regression",
-      "cv_f1_up": 0.41723968859626914,
-      "best_score": 0.41723968859626914,
-      "n_iter": 12,
-      "cv_n_splits": 5,
-      "cv_gap": 5
+      "final_params_json": "{\"model__C\": 1.0, \"model__solver\": \"lbfgs\"}",
+      "cv_f1_up_mean": 0.41545490758097287,
+      "cv_f1_up_std": 0.050753420242746,
+      "cv_recall_up_mean": 0.41272048843635484,
+      "prob_threshold": 0.3,
+      "oof_f1_up_at_threshold": 0.5492642106478013,
+      "oof_mcc_at_threshold": 0.005438187989479266,
+      "oof_pr_auc": 0.42379094250417104
     },
     {
       "model_id": 3,
       "model_name": "Random Forest",
-      "cv_f1_up": 0.45396551689761966,
-      "best_score": 0.45396551689761966,
-      "n_iter": 12,
-      "cv_n_splits": 5,
-      "cv_gap": 5
+      "final_params_json": "{\"max_depth\": 6, \"max_features\": 0.3, \"min_samples_leaf\": 50, \"n_estimators\": 120}",
+      "cv_f1_up_mean": 0.4491454663094679,
+      "cv_f1_up_std": 0.026614054192687503,
+      "cv_recall_up_mean": 0.4707702976528283,
+      "prob_threshold": 0.4,
+      "oof_f1_up_at_threshold": 0.550908521586777,
+      "oof_mcc_at_threshold": 0.06620034513691211,
+      "oof_pr_auc": 0.42647707291007886
     },
     {
       "model_id": 4,
       "model_name": "Gradient Boosting",
-      "cv_f1_up": 0.18603687937994248,
-      "best_score": 0.18603687937994248,
-      "n_iter": 12,
-      "cv_n_splits": 5,
-      "cv_gap": 5
+      "final_params_json": "{\"learning_rate\": 0.1, \"max_depth\": 3, \"n_estimators\": 120}",
+      "cv_f1_up_mean": 0.20378250981915166,
+      "cv_f1_up_std": 0.1240224719529234,
+      "cv_recall_up_mean": 0.15194478329257535,
+      "prob_threshold": 0.3,
+      "oof_f1_up_at_threshold": 0.5518541751897813,
+      "oof_mcc_at_threshold": 0.0733728154270795,
+      "oof_pr_auc": 0.4314399619735869
     }
   ],
   "selection_report": {
-    "selected_model_id": 3,
-    "selected_model_name": "Random Forest",
-    "selected_f1_up": 0.443675426264374,
-    "selected_recall_up": 0.526748266712317,
-    "selected_cv_f1_up": 0.45396551689761966
+    "selected_model_id": 4,
+    "selected_model_name": "Gradient Boosting",
+    "selection_metric": "oof_f1_up_at_threshold (tie-break: MCC, PR-AUC)",
+    "tie_margin": 0.01,
+    "selected_oof_f1_up": 0.5518541751897813,
+    "selected_oof_mcc": 0.0733728154270795,
+    "selected_oof_pr_auc": 0.4314399619735869,
+    "selected_cv_f1_up": 0.20378250981915166,
+    "selected_prob_threshold": 0.3,
+    "selected_test_f1_up": 0.48239180569695206,
+    "selected_test_recall_up": 0.8945827232796486,
+    "selected_test_mcc": 0.11104533672737965,
+    "selected_test_pr_auc": 0.39565124394700374,
+    "selected_f1_up": 0.48239180569695206,
+    "selected_recall_up": 0.8945827232796486,
+    "cv_oof_table": [
+      {
+        "model_id": 2,
+        "model_name": "Logistic Regression",
+        "oof_f1_up_at_threshold": 0.5492642106478013,
+        "oof_mcc_at_threshold": 0.005438187989479266,
+        "oof_pr_auc": 0.42379094250417104,
+        "cv_f1_up": 0.41545490758097287
+      },
+      {
+        "model_id": 3,
+        "model_name": "Random Forest",
+        "oof_f1_up_at_threshold": 0.550908521586777,
+        "oof_mcc_at_threshold": 0.06620034513691211,
+        "oof_pr_auc": 0.42647707291007886,
+        "cv_f1_up": 0.4491454663094679
+      },
+      {
+        "model_id": 4,
+        "model_name": "Gradient Boosting",
+        "oof_f1_up_at_threshold": 0.5518541751897813,
+        "oof_mcc_at_threshold": 0.0733728154270795,
+        "oof_pr_auc": 0.4314399619735869,
+        "cv_f1_up": 0.20378250981915166
+      }
+    ]
   },
   "class_distribution_test": {
-    "NOT_UP": 25960,
-    "UP": 11683
+    "NOT_UP": 29261,
+    "UP": 12977
   },
   "output_files": [
     "data\\processed\\hose_stock_clean.csv",
@@ -173,12 +202,12 @@
     "models\\final_model.pkl"
   ],
   "confusion_matrix": {
-    "pred_NOT_UP_actual_NOT_UP": 16056,
-    "pred_UP_actual_NOT_UP": 9904,
-    "pred_NOT_UP_actual_UP": 5529,
-    "pred_UP_actual_UP": 6154,
-    "total": 37643,
-    "test_rows": 37643
+    "pred_NOT_UP_actual_NOT_UP": 5716,
+    "pred_UP_actual_NOT_UP": 23545,
+    "pred_NOT_UP_actual_UP": 1368,
+    "pred_UP_actual_UP": 11609,
+    "total": 42238,
+    "test_rows": 42238
   },
   "feature_importance_written": true,
   "report_files": [
@@ -193,10 +222,10 @@
     "feature_importance.csv"
   ],
   "database_sync": {
-    "raw_rows": 544451,
-    "clean_rows": 544225,
-    "feature_rows": 506596,
-    "tuning_rows": 3,
+    "raw_rows": 549084,
+    "clean_rows": 548858,
+    "feature_rows": 511191,
+    "tuning_rows": 0,
     "evaluation_rows": 4
   }
 }

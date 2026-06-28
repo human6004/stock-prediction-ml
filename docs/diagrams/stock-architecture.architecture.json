@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HOSE Stock Prediction Architecture",
+    "subtitle": "Offline ML pipeline, local artifacts, SQLite sync, and Flask/CLI prediction",
+    "output": "docs/diagrams/stock-architecture.html",
+    "viewBox": [1120, 760]
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "User", "sublabel": "Browser / CLI", "pos": [40, 410], "size": [120, 60] },
+    { "id": "fetch", "type": "external", "label": "vnstock KBS", "sublabel": "fetch_hose_data", "pos": [40, 90], "size": [130, 60] },
+    { "id": "raw", "type": "database", "label": "Raw HOSE CSV", "sublabel": "548074 rows", "pos": [250, 90], "size": [130, 60], "tag": "shared_dataset" },
+    { "id": "roadmap", "type": "external", "label": "Roadmap MD", "sublabel": "project rules", "pos": [250, 210], "size": [130, 60] },
+    { "id": "settings", "type": "security", "label": "Settings", "sublabel": "split + threshold", "pos": [470, 210], "size": [130, 60], "tag": "5d / 1%" },
+    { "id": "pipeline", "type": "backend", "label": "Run Pipeline", "sublabel": "scripts/run_pipeline", "pos": [470, 90], "size": [130, 60] },
+    { "id": "mlservices", "type": "backend", "label": "ML Services", "sublabel": "clean feature tune", "pos": [690, 90], "size": [130, 60] },
+    { "id": "processed", "type": "database", "label": "Processed CSVs", "sublabel": "clean/features/ml", "pos": [690, 230], "size": [130, 60], "tag": "510185 features" },
+    { "id": "modelstore", "type": "database", "label": "Model Store", "sublabel": "final_model.pkl", "pos": [690, 370], "size": [130, 60], "tag": "Random Forest" },
+    { "id": "reports", "type": "database", "label": "Reports", "sublabel": "metrics + plots", "pos": [690, 510], "size": [130, 60] },
+    { "id": "sqlite", "type": "database", "label": "SQLite DB", "sublabel": "sync + logs", "pos": [910, 370], "size": [130, 60] },
+    { "id": "web", "type": "frontend", "label": "Flask Web", "sublabel": "app.py + HTML", "pos": [250, 380], "size": [130, 60] },
+    { "id": "cli", "type": "external", "label": "CLI", "sublabel": "predict_stock.py", "pos": [250, 500], "size": [130, 60] },
+    { "id": "predsvc", "type": "backend", "label": "Prediction Svc", "sublabel": "latest features", "pos": [470, 420], "size": [130, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "stock-prediction-ml workspace", "wraps": ["settings", "pipeline", "mlservices", "processed", "modelstore", "reports", "sqlite", "web", "cli", "predsvc"] },
+    { "kind": "security-group", "label": "offline training artifacts", "wraps": ["processed", "modelstore", "reports"] }
+  ],
+  "connections": [
+    { "from": "fetch", "to": "raw", "label": "append OHLCV", "variant": "emphasis", "labelAt": [185, 78] },
+    { "from": "raw", "to": "pipeline", "label": "read", "variant": "emphasis", "labelAt": [380, 78] },
+    { "from": "roadmap", "to": "pipeline", "label": "check", "variant": "dashed", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-h", "labelAt": [410, 190] },
+    { "from": "settings", "to": "pipeline", "label": "config", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "straight", "labelAt": [555, 182] },
+    { "from": "pipeline", "to": "mlservices", "label": "orchestrate", "variant": "emphasis", "labelAt": [610, 78] },
+    { "from": "mlservices", "to": "processed", "label": "clean + feature", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [840, 190] },
+    { "from": "processed", "to": "modelstore", "label": "train/test", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [840, 330] },
+    { "from": "modelstore", "to": "reports", "label": "evaluate", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [840, 470] },
+    { "from": "mlservices", "to": "sqlite", "label": "sync tables", "variant": "dashed", "fromSide": "right", "toSide": "top", "route": "orthogonal-h", "via": [[870, 120], [975, 120], [975, 370]], "labelAt": [920, 105] },
+    { "from": "user", "to": "web", "label": "HTTP", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [190, 398] },
+    { "from": "user", "to": "cli", "label": "command", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [190, 525] },
+    { "from": "web", "to": "predsvc", "label": "POST /predict", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [430, 362] },
+    { "from": "cli", "to": "predsvc", "label": "predict_symbol", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [430, 585] },
+    { "from": "predsvc", "to": "processed", "label": "read clean", "variant": "default", "fromSide": "top", "toSide": "left", "route": "orthogonal-v", "labelAt": [580, 340] },
+    { "from": "predsvc", "to": "modelstore", "label": "load model", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [625, 405] },
+    { "from": "predsvc", "to": "sqlite", "label": "log prediction", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [745, 455] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Data Pipeline",
+      "items": [
+        "Raw 548074 rows -> clean 547848 rows",
+        "396 eligible symbols, 4 excluded for short history",
+        "510185 feature rows and 508205 ML rows"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Model Selection",
+      "items": [
+        "Dummy baseline plus 3 tuned models",
+        "TimeSeriesSplit uses 5 folds with gap 5",
+        "Random Forest selected by F1_UP 0.4391"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Serving Path",
+      "items": [
+        "Flask and CLI call services/prediction_service.py",
+        "Prediction recomputes latest features from clean data",
+        "SQLite stores synced tables and prediction history"
+      ]
+    }
+  ]
+}

@@ -1,17 +1,21 @@
 MODEL SELECTION REPORT:
 
-1. Tieu chi chinh: F1_UP cao nhat tren tap test.
-2. Tieu chi phu: Recall_UP cao hon neu F1_UP gan bang nhau.
-3. Tieu chi don gian: Logistic Regression < Random Forest < Gradient Boosting.
+1. Tieu chi chinh: OOF F1_UP @ threshold cao nhat tren tap train (out-of-fold).
+2. Tieu chi phu (trong khoang hoa F1): OOF MCC @ threshold cao hon.
+3. Tie-break tiep: OOF PR-AUC cao hon.
+4. Tieu chi don gian: Logistic Regression < Random Forest < Gradient Boosting.
 
-4. Xep hang theo F1_UP (giam dan), tie-break Recall_UP, roi do don gian:
-   1. Model: Random Forest, F1_UP: 0.443675, Recall_UP: 0.526748, Accuracy: 0.590017, CV_F1_UP: 0.453966
-   2. Model: Logistic Regression, F1_UP: 0.405553, Recall_UP: 0.436361, Accuracy: 0.602981, CV_F1_UP: 0.417240
-   3. Model: Gradient Boosting, F1_UP: 0.082771, Recall_UP: 0.045108, Accuracy: 0.689717, CV_F1_UP: 0.186037
+5. Xep hang theo OOF F1_UP (giam dan), tie-break MCC -> PR-AUC -> do don gian:
+   1. Model: Gradient Boosting, OOF_F1_UP: 0.551854, OOF_MCC: 0.073373, OOF_PR-AUC: 0.431440, CV_F1_UP: 0.203783
+   2. Model: Random Forest, OOF_F1_UP: 0.550909, OOF_MCC: 0.066200, OOF_PR-AUC: 0.426477, CV_F1_UP: 0.449145
+   3. Model: Logistic Regression, OOF_F1_UP: 0.549264, OOF_MCC: 0.005438, OOF_PR-AUC: 0.423791, CV_F1_UP: 0.415455
 
-6. Model duoc chon:
-   Model: Random Forest
-   F1_UP: 0.443675
-   Recall_UP: 0.526748
+6. Model duoc chon (theo OOF, khong dung test de chon):
+   Model: Gradient Boosting
+   OOF F1_UP @ threshold: 0.551854
+   OOF MCC @ threshold: 0.073373
+   OOF PR-AUC: 0.431440
+   Test F1_UP (bao cao 1 lan): 0.482392
+   Test MCC (bao cao 1 lan): 0.111045
 
 7. File model cuoi cung: models/final_model.pkl

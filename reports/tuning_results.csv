@@ -1,4 +1,0 @@
-model_id,model_name,cv_f1_up,best_score,n_iter,cv_n_splits,cv_gap
-2,Logistic Regression,0.41723968859626914,0.41723968859626914,12,5,5
-3,Random Forest,0.45396551689761966,0.45396551689761966,12,5,5
-4,Gradient Boosting,0.18603687937994248,0.18603687937994248,12,5,5

@@ -21,6 +21,8 @@
 - `subsample`: ty le mau dung moi stage.
 
 ## Tieu chi chon model
-1. F1_UP tren test cao nhat.
-2. Neu gan bang: Recall_UP cao hon.
-3. Neu van gan bang: model don gian hon (LogReg > RF > GB).
+1. OOF F1_UP @ threshold cao nhat tren tap train (out-of-fold).
+2. Neu gan bang (trong margin): OOF MCC @ threshold cao hon.
+3. Tie-break tiep: OOF PR-AUC cao hon.
+4. Neu van gan bang: model don gian hon (LogReg > RF > GB).
+5. Test set chi dung de bao cao 1 lan, khong dung de chon model.
