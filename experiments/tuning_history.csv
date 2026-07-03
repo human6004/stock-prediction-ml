@@ -1,0 +1,3 @@
+run_id,timestamp,model_key,model_name,params_json,cv_f1_up_mean,cv_f1_up_std,cv_f1_up_folds_json,train_seconds,dataset_fingerprint,status,note
+LR_20260629_165723,2026-06-29T16:57:25,logistic_regression,Logistic Regression,"{""C"": 1.0, ""solver"": ""lbfgs""}",0.4169172395337803,0.0596765177008435,"[0.49136456908344733, 0.4701289834206581, 0.36879589652754713, 0.33268631000414384, 0.42161043863310527]",2.511,4c2259e97b3f,ok,
+RF_20260629_165738,2026-06-29T16:58:50,random_forest,Random Forest,"{""n_estimators"": 120, ""max_depth"": 10, ""min_samples_leaf"": 20, ""max_features"": ""sqrt""}",0.4530859302442621,0.041363811657725874,"[0.49542605454853467, 0.4859987375910943, 0.4285189881866115, 0.38420665087862443, 0.47127922001644545]",72.195,4c2259e97b3f,ok,

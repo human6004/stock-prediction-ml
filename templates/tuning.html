@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tuning Lab — HOSE ML</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <nav class="topbar">
+            <div>
+                <p class="eyebrow">Tuning Lab</p>
+                <h1>Tự tìm cấu hình cho từng model</h1>
+                <p class="subtitle">
+                    Nhập hyperparameter, train và đánh giá CV F1 (lớp UP) chỉ trên tập TRAIN.
+                    Tập TEST chỉ dùng một lần ở pipeline chính thức.
+                </p>
+            </div>
+            <div class="nav-links">
+                <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
+                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
+            </div>
+        </nav>
+
+        <p class="dataset-banner">
+            Dataset fingerprint hiện tại: <strong>{{ current_fingerprint }}</strong>
+            — {{ fingerprint_parts.dataset_rows }} dòng,
+            đến ngày <strong>{{ fingerprint_parts.max_trading_date or "—" }}</strong>.
+            CV: TimeSeriesSplit(n_splits={{ manual_config.cv_settings.n_splits }},
+            gap={{ manual_config.cv_settings.gap }}), metric = F1_UP.
+        </p>
+
+        {% if error %}
+        <section class="alert" role="alert">{{ error }}</section>
+        {% endif %}
+
+        {% if pipeline_log %}
+        <section class="pipeline-log"><pre>{{ pipeline_log }}</pre></section>
+        {% endif %}
+
+        {% if config_stale %}
+        <section class="alert warn" role="alert">
+            Cấu hình đã chốt thuộc dataset khác (fingerprint {{ manual_config.dataset_fingerprint }}).
+            Dữ liệu hiện tại đã thay đổi — hãy train lại và chốt cấu hình mới.
+        </section>
+        {% endif %}
+
+        {% if eval_result %}
+        <section class="result-panel cv-result">
+            <p class="section-label">Kết quả CV vừa chạy — {{ eval_result.model_name }}</p>
+            <p class="summary-line">
+                CV F1_UP = <strong>{{ "%.4f"|format(eval_result.cv_f1_up_mean) }}</strong>
+                ± {{ "%.4f"|format(eval_result.cv_f1_up_std) }}
+                (Precision_UP {{ "%.4f"|format(eval_result.precision_up_mean) }},
+                Recall_UP {{ "%.4f"|format(eval_result.recall_up_mean) }},
+                {{ "%.2f"|format(eval_result.train_seconds) }}s)
+            </p>
+            <p class="folds">Điểm từng fold:
+                {% for f in eval_result.cv_f1_up_folds %}
+                <span class="fold-chip">{{ "%.4f"|format(f) }}</span>
+                {% endfor %}
+            </p>
+            <form method="post" action="{{ url_for('tuning_use_config') }}">
+                <input type="hidden" name="run_id" value="{{ eval_result.run_id }}">
+                <button type="submit">Dùng cấu hình này (run {{ eval_result.run_id }})</button>
+            </form>
+        </section>
+        {% endif %}
+
+        <section class="model-grid">
+            {% for model_id, model_key in model_key_map.items() %}
+            <div class="model-card" id="card-{{ model_key }}">
+                <h2>{{ manual_config.selected_models.get(model_key) and "★ " or "" }}
+                    {% if model_key == "logistic_regression" %}Logistic Regression
+                    {% elif model_key == "random_forest" %}Random Forest
+                    {% else %}Gradient Boosting{% endif %}</h2>
+                <form class="train-form" method="post" action="{{ url_for('tuning_evaluate') }}">
+                    <input type="hidden" name="model_key" value="{{ model_key }}">
+                    {% for field, spec in param_schema[model_key].items() %}
+                    <label for="{{ model_key }}-{{ field }}">{{ spec.label }}</label>
+                    {% if spec.type == "choice" %}
+                    <select id="{{ model_key }}-{{ field }}" name="{{ field }}">
+                        {% for choice in spec.choices %}
+                        <option value="{{ choice }}"
+                            {% if param_defaults[model_key][field] == choice %}selected{% endif %}>
+                            {{ choice }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input id="{{ model_key }}-{{ field }}" name="{{ field }}" type="text"
+                           value="{{ param_defaults[model_key][field] }}">
+                    {% endif %}
+                    {% endfor %}
+                    <button type="submit">Train &amp; đánh giá CV</button>
+                </form>
+                {% set chosen = manual_config.selected_models.get(model_key) %}
+                {% if chosen %}
+                <p class="model-chip">
+                    Đã chốt: {{ chosen.params }}
+                    {% if chosen.cv_f1_up_mean_when_selected is not none %}
+                    (CV F1_UP lúc chốt {{ "%.4f"|format(chosen.cv_f1_up_mean_when_selected) }})
+                    {% endif %}
+                </p>
+                {% else %}
+                <p class="model-chip muted">Chưa chốt cấu hình.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+
+        <section class="config-panel">
+            <p class="section-label">Cấu hình đã chốt &amp; chạy pipeline chính thức</p>
+            <ul class="config-summary">
+                {% for model_id, model_key in model_key_map.items() %}
+                {% set chosen = manual_config.selected_models.get(model_key) %}
+                <li>
+                    <strong>
+                        {% if model_key == "logistic_regression" %}Logistic Regression
+                        {% elif model_key == "random_forest" %}Random Forest
+                        {% else %}Gradient Boosting{% endif %}:
+                    </strong>
+                    {% if chosen %}
+                    <code>{{ chosen.params }}</code> (run {{ chosen.run_id }})
+                    {% else %}
+                    <em class="muted">chưa chốt</em>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            {% if test_locked %}
+            <p class="alert warn">
+                TEST của dataset hiện tại đã được dùng (đã khóa để tránh leakage).
+                Cập nhật dữ liệu để có fingerprint mới nếu cần đánh giá lại.
+            </p>
+            {% elif pipeline_running %}
+            <p class="alert warn">Pipeline đang chạy, vui lòng đợi hoàn tất.</p>
+            {% elif not config_complete %}
+            <p class="model-chip muted">
+                Cần chốt đủ 3 model trên dataset hiện tại mới chạy được pipeline.
+            </p>
+            {% endif %}
+
+            <form id="run-pipeline-form" method="post" action="{{ url_for('tuning_run_pipeline') }}">
+                <button type="submit" {% if not can_run %}disabled{% endif %}>
+                    Chạy pipeline chính thức (train + đánh giá TEST + chọn final)
+                </button>
+            </form>
+        </section>
+
+        <section class="history-panel">
+            <p class="section-label">Lịch sử huấn luyện ({{ history|length }} lần)</p>
+            <div class="table-wrap">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Thời điểm</th>
+                            <th>Model</th>
+                            <th>Tham số</th>
+                            <th>CV F1_UP</th>
+                            <th>±std</th>
+                            <th>Giây</th>
+                            <th>Dataset</th>
+                            <th>Trạng thái</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in history %}
+                        <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'stale-row' if row.dataset_fingerprint != current_fingerprint else '' }}">
+                            <td>{{ '★' if row.is_best else '' }}</td>
+                            <td>{{ row.timestamp }}</td>
+                            <td>{{ row.model_name }}</td>
+                            <td class="params-cell"><code>{{ row.params }}</code></td>
+                            <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
+                            <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
+                            <td>{{ row.status }}</td>
+                            <td>
+                                {% if row.status == 'ok' and row.dataset_fingerprint == current_fingerprint %}
+                                <form method="post" action="{{ url_for('tuning_use_config') }}">
+                                    <input type="hidden" name="run_id" value="{{ row.run_id }}">
+                                    <button type="submit" class="link-btn">Dùng</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not history %}
+                        <tr><td colspan="10" class="empty">Chưa có lần train nào. Hãy train thử ở các thẻ phía trên.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="eval-note">
+                ★ = cấu hình tốt nhất (CV F1_UP cao nhất, tie-break std nhỏ hơn) theo từng model
+                trong cùng dataset fingerprint. Chỉ cấu hình thuộc dataset hiện tại mới chốt được.
+            </p>
+        </section>
+
+        <p class="disclaimer">
+            Điểm trong Tuning Lab là CV trên tập TRAIN, chỉ dùng để chọn cấu hình.
+            Độ chính xác thật được đánh giá trên tập TEST ở pipeline chính thức.
+        </p>
+    </main>
+    <script>
+        document.querySelectorAll("form.train-form").forEach(function (form) {
+            form.addEventListener("submit", function () {
+                var btn = form.querySelector("button[type=submit]");
+                if (btn) { btn.disabled = true; btn.textContent = "Đang train..."; }
+            });
+        });
+        var runForm = document.getElementById("run-pipeline-form");
+        if (runForm) {
+            runForm.addEventListener("submit", function () {
+                var btn = runForm.querySelector("button[type=submit]");
+                if (btn) { btn.disabled = true; btn.textContent = "Đang chạy pipeline..."; }
+            });
+        }
+    </script>
+</body>
+</html>

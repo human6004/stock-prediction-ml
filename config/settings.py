@@ -67,12 +67,71 @@ MODEL_DEFINITIONS = {
 
 SIMPLICITY_RANK = {2: 1, 3: 2, 4: 3}
 
+MANUAL_CONFIG_SCHEMA_VERSION = 1
+
+MODEL_KEY = {
+    2: "logistic_regression",
+    3: "random_forest",
+    4: "gradient_boosting",
+}
+MODEL_KEY_TO_ID = {key: model_id for model_id, key in MODEL_KEY.items()}
+
+TUNABLE_PARAM_SCHEMA = {
+    "logistic_regression": {
+        "C": {"type": "float", "min": 0.0, "inclusive_min": False, "label": "C (nghịch đảo cường độ regularization)"},
+        "solver": {"type": "choice", "choices": ["lbfgs", "liblinear"], "label": "solver"},
+    },
+    "random_forest": {
+        "n_estimators": {"type": "int", "min": 1, "label": "n_estimators (số cây)"},
+        "max_depth": {"type": "int_or_none", "min": 1, "label": "max_depth (để trống = None)"},
+        "min_samples_leaf": {"type": "int", "min": 1, "label": "min_samples_leaf"},
+        "max_features": {
+            "type": "str_or_float",
+            "choices": ["sqrt", "log2"],
+            "min": 0.0,
+            "max": 1.0,
+            "inclusive_min": False,
+            "label": "max_features (sqrt/log2 hoặc số thực trong (0,1])",
+        },
+    },
+    "gradient_boosting": {
+        "n_estimators": {"type": "int", "min": 1, "label": "n_estimators (số boosting stage)"},
+        "learning_rate": {"type": "float", "min": 0.0, "max": 1.0, "inclusive_min": False, "label": "learning_rate (0,1]"},
+        "max_depth": {"type": "int", "min": 1, "label": "max_depth"},
+        "subsample": {"type": "float", "min": 0.0, "max": 1.0, "inclusive_min": False, "label": "subsample (0,1]"},
+    },
+}
+
+MANUAL_BASELINE_PARAMS = {
+    "logistic_regression": {"C": 1.0, "solver": "lbfgs"},
+    "random_forest": {
+        "n_estimators": 120,
+        "max_depth": 10,
+        "min_samples_leaf": 20,
+        "max_features": "sqrt",
+    },
+    "gradient_boosting": {
+        "n_estimators": 100,
+        "learning_rate": 0.05,
+        "max_depth": 3,
+        "subsample": 0.85,
+    },
+}
+
 DATA_DIR = BASE_DIR / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 MODELS_DIR = BASE_DIR / "models"
 REPORTS_DIR = BASE_DIR / "reports"
 DATABASE_DIR = BASE_DIR / "database"
 DATABASE_PATH = DATABASE_DIR / "stock_prediction.db"
+
+# Tuning Lab experiment state (kept outside cleanup_outputs() targets).
+EXPERIMENTS_DIR = BASE_DIR / "experiments"
+TUNING_HISTORY_PATH = EXPERIMENTS_DIR / "tuning_history.csv"
+MANUAL_CONFIG_PATH = EXPERIMENTS_DIR / "manual_config.json"
+TEST_EVAL_LOCK_PATH = EXPERIMENTS_DIR / "test_evaluation_lock.json"
+PIPELINE_LOCK_PATH = EXPERIMENTS_DIR / "pipeline.lock"
+LAST_PIPELINE_RUN_LOG = EXPERIMENTS_DIR / "last_pipeline_run.log"
 
 CLEANED_DATA_PATH = PROCESSED_DIR / "hose_stock_clean.csv"
 FEATURE_DATA_PATH = PROCESSED_DIR / "hose_stock_features.csv"

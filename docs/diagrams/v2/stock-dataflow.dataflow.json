@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "HOSE Stock Data Flow",
+    "subtitle": "OHLCV data becomes features, labels, model artifacts, reports, SQLite tables, and predictions",
+    "output": "docs/diagrams/v2/stock-dataflow.html",
+    "viewBox": [1080, 820]
+  },
+  "stages": [
+    { "label": "Source" },
+    { "label": "Clean" },
+    { "label": "Feature + Label" },
+    { "label": "Train + Evaluate" },
+    { "label": "Serve + Store" }
+  ],
+  "nodes": [
+    { "id": "raw", "type": "database", "label": "Raw CSV", "sublabel": "549084 rows", "stage": 0, "row": 1, "tag": "OHLCV" },
+    { "id": "clean", "type": "database", "label": "Clean CSV", "sublabel": "valid rows", "stage": 1, "row": 1, "tag": "valid OHLCV" },
+    { "id": "quality", "type": "database", "label": "Quality CSVs", "sublabel": "eligible/excluded", "stage": 1, "row": 3, "tag": ">=250 days" },
+    { "id": "features", "type": "database", "label": "Feature CSV", "sublabel": "15 signals", "stage": 2, "row": 0, "tag": "no leakage" },
+    { "id": "ml", "type": "database", "label": "ML Dataset", "sublabel": "509211 rows", "stage": 2, "row": 2, "tag": "target UP" },
+    { "id": "split", "type": "security", "label": "Time Split", "sublabel": "label_end_date", "stage": 2, "row": 4, "tag": "no shuffle" },
+    { "id": "tune", "type": "backend", "label": "Tune Models", "sublabel": "TS CV gap 5", "stage": 3, "row": 0, "tag": "3 + dummy" },
+    { "id": "model", "type": "database", "label": "Final Model", "sublabel": "Gradient Boosting", "stage": 3, "row": 2, "tag": "F1_UP 0.482" },
+    { "id": "reports", "type": "database", "label": "Reports", "sublabel": "metrics + plots", "stage": 3, "row": 4, "tag": "42238 test" },
+    { "id": "sqlite", "type": "database", "label": "SQLite DB", "sublabel": "sync tables", "stage": 4, "row": 1, "tag": "local" },
+    { "id": "serving", "type": "frontend", "label": "Flask/CLI", "sublabel": "predict symbol", "stage": 4, "row": 3, "tag": "offline" }
+  ],
+  "flows": [
+    { "from": "raw", "to": "clean", "label": "validated OHLCV", "classification": "invalid rows removed", "variant": "emphasis", "route": "straight", "labelAt": [206, 220] },
+    { "from": "clean", "to": "quality", "label": "symbol stats", "classification": "training eligibility", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [372, 342] },
+    { "from": "clean", "to": "features", "label": "eligible rows", "classification": "per-symbol groups", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[405, 271], [405, 157]], "labelAt": [420, 210] },
+    { "from": "features", "to": "ml", "label": "features + target", "classification": "future label only", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [590, 244] },
+    { "from": "ml", "to": "split", "label": "label_end_date", "classification": "time split", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [590, 470] },
+    { "from": "split", "to": "tune", "label": "train rows", "classification": "466973", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[640, 613], [640, 157]], "labelAt": [655, 382] },
+    { "from": "split", "to": "reports", "label": "test rows", "classification": "42238", "variant": "default", "route": "straight", "labelAt": [638, 610] },
+    { "from": "tune", "to": "model", "label": "best artifact", "classification": "Gradient Boosting", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [805, 246] },
+    { "from": "model", "to": "reports", "label": "metrics", "classification": "F1_UP / recall", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [805, 512] },
+    { "from": "reports", "to": "sqlite", "label": "evaluation rows", "classification": "sync", "variant": "dashed", "fromSide": "right", "toSide": "left", "via": [[862, 613], [862, 271]], "labelAt": [878, 420] },
+    { "from": "model", "to": "serving", "label": "final_model.pkl", "classification": "inference", "variant": "emphasis", "route": "straight", "labelAt": [895, 448] },
+    { "from": "clean", "to": "serving", "label": "symbol history", "classification": "latest features", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "route": "bottom-channel", "channelY": 700, "labelAt": [540, 712] },
+    { "from": "reports", "to": "serving", "label": "model table", "classification": "evaluation page", "variant": "default", "route": "straight", "labelAt": [852, 560] },
+    { "from": "serving", "to": "sqlite", "label": "prediction log", "classification": "history", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "straight", "labelAt": [1018, 430] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Source Data",
+      "items": [
+        "The authoritative raw CSV lives in shared_dataset outside the repo",
+        "fetch_hose_data.py appends incremental KBS/vnstock rows for 400 symbols",
+        "The current raw date range is 2019-08-14 to 2026-06-26"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Leakage Control",
+      "items": [
+        "future_close_5d and future_return_5d are label-only columns",
+        "Train/test split uses label_end_date around 2025-12-31",
+        "Prediction only uses the latest computed feature columns"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Consumers",
+      "items": [
+        "Flask reads model_comparison.csv for the evaluation page",
+        "Prediction loads final_model.pkl and model_metadata.json",
+        "SQLite mirrors data/report tables and stores prediction history"
+      ]
+    }
+  ]
+}

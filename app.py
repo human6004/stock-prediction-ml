@@ -1,9 +1,17 @@
+import subprocess
 import sys
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-from flask import Flask, render_template, request, send_from_directory
+from flask import (
+    Flask,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
@@ -12,7 +20,9 @@ if str(ROOT_DIR) not in sys.path:
 from config.settings import (  # noqa: E402
     CONFUSION_MATRIX_PNG_PATH,
     FEATURE_DATA_PATH,
+    LAST_PIPELINE_RUN_LOG,
     MODEL_COMPARISON_PATH,
+    MODEL_KEY,
     MODEL_METADATA_PATH,
     PREDICTION_HORIZON,
     REPORTS_DIR,
@@ -20,7 +30,27 @@ from config.settings import (  # noqa: E402
     UP_THRESHOLD,
 )
 from services.database_service import log_prediction  # noqa: E402
+from services.experiment_state import (  # noqa: E402
+    compute_dataset_fingerprint,
+    find_run,
+    is_config_complete,
+    is_pipeline_running,
+    is_test_locked,
+    mark_best,
+    read_history,
+    read_manual_config,
+    read_pipeline_log_tail,
+    save_selected_model,
+    write_pipeline_log,
+)
 from services.prediction_service import load_metadata, predict_symbol  # noqa: E402
+from services.tuning_lab import (  # noqa: E402
+    evaluate_single_config,
+    get_param_defaults,
+    get_param_schema,
+    load_train,
+    validate_params,
+)
 
 app = Flask(__name__)
 
@@ -141,6 +171,150 @@ def evaluation():
         dataset_max_date=get_dataset_meta()["dataset_max_date"],
         split_date=SPLIT_DATE,
     )
+
+
+def _tuning_context(**extra) -> dict:
+    fingerprint = compute_dataset_fingerprint()
+    cfg = read_manual_config()
+    history = mark_best(read_history())
+    history = sorted(history, key=lambda r: r.get("timestamp", ""), reverse=True)
+    complete = is_config_complete(cfg, fingerprint["hash"])
+    test_locked = is_test_locked(fingerprint["hash"])
+    pipeline_running = is_pipeline_running()
+    can_run = complete and not test_locked and not pipeline_running
+
+    config_fingerprint = cfg.get("dataset_fingerprint")
+    config_stale = bool(cfg.get("selected_models")) and config_fingerprint != fingerprint["hash"]
+
+    base = {
+        "param_schema": get_param_schema(),
+        "param_defaults": get_param_defaults(),
+        "model_key_map": MODEL_KEY,
+        "manual_config": cfg,
+        "current_fingerprint": fingerprint["hash"],
+        "fingerprint_parts": fingerprint["parts"],
+        "history": history,
+        "config_complete": complete,
+        "config_stale": config_stale,
+        "test_locked": test_locked,
+        "pipeline_running": pipeline_running,
+        "can_run": can_run,
+    }
+    base.update(extra)
+    return base
+
+
+@app.route("/tuning", methods=["GET"])
+def tuning():
+    return render_template("tuning.html", **_tuning_context())
+
+
+@app.route("/tuning/evaluate", methods=["POST"])
+def tuning_evaluate():
+    model_key = request.form.get("model_key", "")
+    if model_key not in get_param_schema():
+        return render_template(
+            "tuning.html",
+            **_tuning_context(error=f"Model không hợp lệ: {model_key}"),
+        ), 400
+    try:
+        params = validate_params(model_key, request.form.to_dict())
+        train = load_train()
+        result = evaluate_single_config(model_key, params, train)
+        return render_template(
+            "tuning.html",
+            **_tuning_context(eval_result=result, active_model=model_key),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return render_template(
+            "tuning.html",
+            **_tuning_context(error=str(exc), active_model=model_key),
+        ), 400
+
+
+@app.route("/tuning/use-config", methods=["POST"])
+def tuning_use_config():
+    run_id = request.form.get("run_id", "")
+    run = find_run(run_id)
+    if run is None:
+        return render_template(
+            "tuning.html",
+            **_tuning_context(error=f"Không tìm thấy run_id: {run_id}"),
+        ), 400
+
+    fingerprint = compute_dataset_fingerprint()
+    if run.get("dataset_fingerprint") != fingerprint["hash"]:
+        return render_template(
+            "tuning.html",
+            **_tuning_context(
+                error="Cấu hình này thuộc phiên bản dataset khác với hiện tại. "
+                "Hãy train lại trên dataset hiện tại trước khi chốt."
+            ),
+        ), 400
+    if run.get("status") != "ok":
+        return render_template(
+            "tuning.html",
+            **_tuning_context(error="Run này bị lỗi, không thể chốt làm cấu hình."),
+        ), 400
+
+    import json
+
+    params = json.loads(run.get("params_json") or "{}")
+    cv_mean = run.get("cv_f1_up_mean")
+    save_selected_model(
+        run["model_key"], run_id, params, cv_mean, fingerprint
+    )
+    return redirect(url_for("tuning"))
+
+
+@app.route("/tuning/run-pipeline", methods=["POST"])
+def tuning_run_pipeline():
+    fingerprint = compute_dataset_fingerprint()
+    cfg = read_manual_config()
+
+    if not is_config_complete(cfg, fingerprint["hash"]):
+        return render_template(
+            "tuning.html",
+            **_tuning_context(
+                error="Chưa đủ cấu hình cho cả 3 model trên dataset hiện tại, "
+                "hoặc cấu hình thuộc dataset khác. Hãy chốt đủ 3 model trước."
+            ),
+        ), 400
+    if is_test_locked(fingerprint["hash"]):
+        return render_template(
+            "tuning.html",
+            **_tuning_context(
+                error="TEST của dataset hiện tại đã được dùng. Không chạy lại để "
+                "tránh leakage. Hãy cập nhật dữ liệu để có fingerprint mới."
+            ),
+        ), 400
+    if is_pipeline_running():
+        return render_template(
+            "tuning.html",
+            **_tuning_context(error="Pipeline đang chạy. Vui lòng đợi hoàn tất."),
+        ), 409
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, "scripts/run_pipeline.py"],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        )
+        write_pipeline_log((proc.stdout or "") + "\n" + (proc.stderr or ""))
+        return redirect(url_for("evaluation"))
+    except subprocess.CalledProcessError as exc:
+        write_pipeline_log((exc.stdout or "") + "\n" + (exc.stderr or ""))
+        return render_template(
+            "tuning.html",
+            **_tuning_context(
+                error="Pipeline chạy thất bại. Xem log bên dưới.",
+                pipeline_log=read_pipeline_log_tail(),
+            ),
+        ), 500
 
 
 if __name__ == "__main__":

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "dataset_fingerprint": "4c2259e97b3f",
+  "dataset_fingerprint_parts": {
+    "dataset_rows": 509211,
+    "max_trading_date": "2026-06-19",
+    "split_date": "2025-12-31",
+    "prediction_horizon": 5,
+    "up_threshold": 0.01,
+    "feature_columns": [
+      "return_1d",
+      "return_3d",
+      "return_5d",
+      "close_open_return",
+      "sma5",
+      "sma20",
+      "sma50",
+      "close_vs_sma20",
+      "sma20_vs_sma50",
+      "rsi14",
+      "volatility_5d",
+      "volatility_20d",
+      "price_range",
+      "volume_change_1d",
+      "volume_ratio_20"
+    ]
+  },
+  "cv_settings": {
+    "n_splits": 5,
+    "gap": 5,
+    "metric": "f1_up"
+  },
+  "selected_models": {
+    "logistic_regression": {
+      "run_id": "LR_20260629_165723",
+      "params": {
+        "C": 1.0,
+        "solver": "lbfgs"
+      },
+      "cv_f1_up_mean_when_selected": 0.4169172395337803,
+      "selected_at": "2026-06-29T16:58:42"
+    }
+  }
+}

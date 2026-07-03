@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HOSE ML Pipeline Workflow",
+    "subtitle": "Tuning Lab config, guarded pipeline, model selection, sync, and serving",
+    "output": "docs/diagrams/v2/stock-workflow.html"
+  },
+  "lanes": [
+    { "id": "tuning", "label": "Tuning Lab (human-in-loop)" },
+    { "id": "prep", "label": "Fetch + Preprocess + Feature" },
+    { "id": "train", "label": "Train + Evaluate + Select" },
+    { "id": "artifacts", "label": "Artifacts + Database" },
+    { "id": "serve", "label": "Serving" }
+  ],
+  "nodes": [
+    { "id": "config", "lane": "tuning", "col": 0, "type": "frontend", "label": "Set Params", "sublabel": "3 models" },
+    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "CV on Train", "sublabel": "TS gap 5", "tag": "F1_UP" },
+    { "id": "lock", "lane": "tuning", "col": 4, "type": "security", "label": "Chot Config", "sublabel": "fingerprint", "tag": "manual_config" },
+    { "id": "fetch", "lane": "prep", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock/KBS" },
+    { "id": "validate", "lane": "prep", "col": 2, "type": "security", "label": "Validate", "sublabel": "OHLCV rules", "tag": "dataset_check" },
+    { "id": "clean", "lane": "prep", "col": 3, "type": "backend", "label": "Clean", "sublabel": "400 symbols" },
+    { "id": "features", "lane": "prep", "col": 5, "type": "backend", "label": "Feature+Label", "sublabel": "15 signals" },
+    { "id": "split", "lane": "train", "col": 0, "type": "security", "label": "Time Split", "sublabel": "label_end", "tag": "test lock" },
+    { "id": "tune", "lane": "train", "col": 2, "type": "backend", "label": "Re-CV+Fit", "sublabel": "3 models" },
+    { "id": "evaluate", "lane": "train", "col": 3, "type": "backend", "label": "Evaluate", "sublabel": "test metrics" },
+    { "id": "select", "lane": "train", "col": 5, "type": "backend", "label": "Select GB", "sublabel": "F1_UP gate", "tag": "final" },
+    { "id": "processed", "lane": "artifacts", "col": 0, "type": "database", "label": "CSVs", "sublabel": "clean/feat/ml" },
+    { "id": "model", "lane": "artifacts", "col": 2, "type": "database", "label": "Model", "sublabel": "final.pkl" },
+    { "id": "reports", "lane": "artifacts", "col": 3, "type": "database", "label": "Reports", "sublabel": "csv/png/json" },
+    { "id": "sqlite", "lane": "artifacts", "col": 5, "type": "database", "label": "SQLite", "sublabel": "sync/logs" },
+    { "id": "user", "lane": "serve", "col": 0, "type": "external", "label": "User", "sublabel": "symbol" },
+    { "id": "webcli", "lane": "serve", "col": 2, "type": "frontend", "label": "Web/CLI", "sublabel": "Flask + script" },
+    { "id": "predict", "lane": "serve", "col": 3, "type": "backend", "label": "Predict", "sublabel": "latest row" },
+    { "id": "result", "lane": "serve", "col": 5, "type": "frontend", "label": "Result", "sublabel": "UP/NOT_UP" }
+  ],
+  "edges": [
+    { "from": "config", "to": "cv", "variant": "default" },
+    { "from": "cv", "to": "lock", "label": "best run", "variant": "emphasis", "labelDy": -18 },
+    { "from": "fetch", "to": "validate", "label": "raw CSV", "variant": "emphasis", "labelDy": -18 },
+    { "from": "validate", "to": "clean", "variant": "security" },
+    { "from": "clean", "to": "features", "label": "build + label", "variant": "emphasis", "labelDy": -18 },
+    { "from": "lock", "to": "tune", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
+    { "from": "features", "to": "split", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.7 },
+    { "from": "split", "to": "tune", "label": "train set", "variant": "emphasis" },
+    { "from": "tune", "to": "evaluate", "variant": "emphasis" },
+    { "from": "evaluate", "to": "select", "label": "F1_UP", "variant": "emphasis", "labelDy": -18 },
+    { "from": "features", "to": "processed", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.3, "labelSegment": 1 },
+    { "from": "select", "to": "model", "label": "final_model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.6, "labelSegment": 1 },
+    { "from": "evaluate", "to": "reports", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.4 },
+    { "from": "processed", "to": "sqlite", "variant": "dashed" },
+    { "from": "reports", "to": "sqlite", "variant": "dashed" },
+    { "from": "user", "to": "webcli", "variant": "emphasis" },
+    { "from": "webcli", "to": "predict", "label": "predict_symbol", "variant": "emphasis", "labelDy": -18 },
+    { "from": "model", "to": "predict", "label": "load model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelSegment": 1 },
+    { "from": "processed", "to": "predict", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
+    { "from": "predict", "to": "result", "variant": "emphasis" },
+    { "from": "predict", "to": "sqlite", "label": "log", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "up-channel", "labelSegment": 1 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Tuning Lab",
+      "items": [
+        "Each model is cross-validated on TRAIN only with TimeSeriesSplit (gap 5)",
+        "Chosen params are saved to manual_config.json tied to a dataset fingerprint",
+        "The pipeline refuses to run until all 3 models are locked for the current data"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Guarded Pipeline",
+      "items": [
+        "Time split uses label_end_date and a one-time test lock to block leakage",
+        "Dummy baseline is scored but can never be chosen as the final model",
+        "Final model is selected by F1_UP, then Recall_UP, then simplicity"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Serving",
+      "items": [
+        "Web and CLI reuse the saved Gradient Boosting artifact, no retraining",
+        "Prediction recomputes the latest feature row from clean symbol history",
+        "Prediction history is inserted into SQLite when logging succeeds"
+      ]
+    }
+  ]
+}

@@ -22,3 +22,7 @@ Thumbs.db
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
 database/stock_prediction.db
+
+# Tuning Lab runtime-only state (history/config kept as evidence)
+experiments/pipeline.lock
+experiments/last_pipeline_run.log

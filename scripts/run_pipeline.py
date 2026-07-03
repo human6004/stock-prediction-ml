@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,6 +21,13 @@ from config.settings import (  # noqa: E402
     ROADMAP_PATH,
 )
 from services.database_service import sync_all  # noqa: E402
+from services.experiment_state import (  # noqa: E402
+    acquire_pipeline_lock,
+    compute_dataset_fingerprint,
+    is_test_locked,
+    release_pipeline_lock,
+    write_test_lock,
+)
 from services.feature_engineering import (  # noqa: E402
     build_features,
     create_labels,
@@ -46,6 +54,16 @@ def print_report(title: str, items: list[tuple[str, object]]) -> None:
 
 
 def main() -> None:
+    if not acquire_pipeline_lock():
+        print("Pipeline đang chạy ở tiến trình khác (experiments/pipeline.lock). Thoát.")
+        sys.exit(1)
+    try:
+        _run_pipeline()
+    finally:
+        release_pipeline_lock()
+
+
+def _run_pipeline() -> None:
     print("Starting HOSE stock prediction pipeline (roadmap-aligned)...")
     roadmap_report = read_roadmap()
     if not roadmap_report["read_success"]:
@@ -63,6 +81,16 @@ def main() -> None:
     verify_data_pipeline(train, test)
     write_feature_outputs(features, ml_dataset)
     write_train_test_summary(train, test)
+
+    fingerprint = compute_dataset_fingerprint()
+    allow_reeval = os.environ.get("STOCK_ALLOW_TEST_REEVAL") == "1"
+    if is_test_locked(fingerprint["hash"]) and not allow_reeval:
+        raise RuntimeError(
+            "TEST của dataset hiện tại đã được dùng "
+            f"(fingerprint={fingerprint['hash']}). Không đánh giá lại trên cùng "
+            "tập test để tránh leakage. Đổi/cập nhật dữ liệu để có fingerprint mới, "
+            "hoặc đặt STOCK_ALLOW_TEST_REEVAL=1 (chỉ dành cho debug)."
+        )
 
     fitted_artifacts, tuning_df, tuning_report = tune_models(train)
     comparison, fitted_artifacts = evaluate_tuned_models(train, test, fitted_artifacts)
@@ -112,6 +140,9 @@ def main() -> None:
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    summary["dataset_fingerprint"] = fingerprint["hash"]
+    write_test_lock(fingerprint["hash"], selection_report["selected_model_name"])
 
     print_report(
         "ROADMAP CHECK",

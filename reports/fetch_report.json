@@ -1,10 +1,10 @@
 {
-  "fetched_at": "2026-06-27T19:23:06",
+  "fetched_at": "2026-06-28T16:10:48",
   "raw_path": "D:\\study\\niên luận\\shared_dataset\\hose_stock_raw.csv",
   "symbols_in_csv": 400,
   "rows_before": 549084,
   "fetch_start": "2026-06-27",
-  "fetch_end": "2026-06-27",
+  "fetch_end": "2026-06-28",
   "fetch_source": "KBS",
   "should_fetch": true,
   "success_symbols": [
@@ -377,143 +377,143 @@
   "failed_symbols": [
     {
       "symbol": "BCG",
-      "error": "RetryError[<Future at 0x210c41cd6a0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a3108230 state=finished raised ValueError>]"
     },
     {
       "symbol": "BTT",
-      "error": "RetryError[<Future at 0x210c441f0b0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30fac60 state=finished raised ValueError>]"
     },
     {
       "symbol": "CCI",
-      "error": "RetryError[<Future at 0x210c53bff50 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a3f18d70 state=finished raised ValueError>]"
     },
     {
       "symbol": "CMV",
-      "error": "RetryError[<Future at 0x210c407f470 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30ea720 state=finished raised ValueError>]"
     },
     {
       "symbol": "COM",
-      "error": "RetryError[<Future at 0x210c53bff50 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x2569d7d26f0 state=finished raised ValueError>]"
     },
     {
       "symbol": "DMC",
-      "error": "RetryError[<Future at 0x210c41cf4a0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a323bef0 state=finished raised ValueError>]"
     },
     {
       "symbol": "DTT",
-      "error": "RetryError[<Future at 0x210c4119e80 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a324bc50 state=finished raised ValueError>]"
     },
     {
       "symbol": "DXV",
-      "error": "RetryError[<Future at 0x210c442cef0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a328d280 state=finished raised ValueError>]"
     },
     {
       "symbol": "GTA",
-      "error": "RetryError[<Future at 0x210c40e12b0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a349a5a0 state=finished raised ValueError>]"
     },
     {
       "symbol": "HNA",
-      "error": "RetryError[<Future at 0x210c41ccad0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30f82f0 state=finished raised ValueError>]"
     },
     {
       "symbol": "HRC",
-      "error": "RetryError[<Future at 0x210c407ee40 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a3108230 state=finished raised ValueError>]"
     },
     {
       "symbol": "HTL",
-      "error": "RetryError[<Future at 0x210c406fe60 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30f83b0 state=finished raised ValueError>]"
     },
     {
       "symbol": "HU1",
-      "error": "RetryError[<Future at 0x210c4337740 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30d8530 state=finished raised ValueError>]"
     },
     {
       "symbol": "LGC",
-      "error": "RetryError[<Future at 0x210c406c7d0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30d8da0 state=finished raised ValueError>]"
     },
     {
       "symbol": "LM8",
-      "error": "RetryError[<Future at 0x210c41489e0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30d8380 state=finished raised ValueError>]"
     },
     {
       "symbol": "MDG",
-      "error": "RetryError[<Future at 0x210c408c1d0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a31751f0 state=finished raised ValueError>]"
     },
     {
       "symbol": "NAV",
-      "error": "RetryError[<Future at 0x210c0d17a70 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30fb620 state=finished raised ValueError>]"
     },
     {
       "symbol": "NSC",
-      "error": "RetryError[<Future at 0x210c412b260 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a32488f0 state=finished raised ValueError>]"
     },
     {
       "symbol": "PMG",
-      "error": "RetryError[<Future at 0x210c41cd7f0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30d9160 state=finished raised ValueError>]"
     },
     {
       "symbol": "PNC",
-      "error": "RetryError[<Future at 0x210c4213470 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30daba0 state=finished raised ValueError>]"
     },
     {
       "symbol": "S4A",
-      "error": "RetryError[<Future at 0x210c4312420 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a328c5f0 state=finished raised ValueError>]"
     },
     {
       "symbol": "SAV",
-      "error": "RetryError[<Future at 0x210c407d040 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30f8380 state=finished raised ValueError>]"
     },
     {
       "symbol": "SBV",
-      "error": "RetryError[<Future at 0x210c41cd2b0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a3176f30 state=finished raised ValueError>]"
     },
     {
       "symbol": "SGT",
-      "error": "RetryError[<Future at 0x210c407cc50 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a31b5bb0 state=finished raised ValueError>]"
     },
     {
       "symbol": "SMA",
-      "error": "RetryError[<Future at 0x210c407c050 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a34b9490 state=finished raised ValueError>]"
     },
     {
       "symbol": "SRC",
-      "error": "RetryError[<Future at 0x210c48845f0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a349a5a0 state=finished raised ValueError>]"
     },
     {
       "symbol": "SSC",
-      "error": "RetryError[<Future at 0x210c408f1d0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30eac90 state=finished raised ValueError>]"
     },
     {
       "symbol": "SVT",
-      "error": "RetryError[<Future at 0x210c419dfd0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a32fd6a0 state=finished raised ValueError>]"
     },
     {
       "symbol": "TCD",
-      "error": "RetryError[<Future at 0x210c405ec90 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30fa6c0 state=finished raised ValueError>]"
     },
     {
       "symbol": "TIX",
-      "error": "RetryError[<Future at 0x210c40fa6c0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a328c620 state=finished raised ValueError>]"
     },
     {
       "symbol": "TTE",
-      "error": "RetryError[<Future at 0x210c41ccb30 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a324a4b0 state=finished raised ValueError>]"
     },
     {
       "symbol": "VCA",
-      "error": "RetryError[<Future at 0x210c4168fe0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30f8fb0 state=finished raised ValueError>]"
     },
     {
       "symbol": "VCF",
-      "error": "RetryError[<Future at 0x210c44c6ba0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a30eb830 state=finished raised ValueError>]"
     },
     {
       "symbol": "VDP",
-      "error": "RetryError[<Future at 0x210c41cc3b0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a34b9e80 state=finished raised ValueError>]"
     },
     {
       "symbol": "VMD",
-      "error": "RetryError[<Future at 0x210c53bff20 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x256a323bda0 state=finished raised ValueError>]"
     }
   ],
   "new_rows": 0,
