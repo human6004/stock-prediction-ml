@@ -1,48 +1,25 @@
 {
-  "tuning_mode": "manual",
-  "cv_n_splits": 3,
-  "cv_gap_days": 5,
-  "train_subsample_fraction": 0.35,
-  "scoring": "f1_up",
-  "selection_metric": "oof_f1_up_at_threshold (tie-break: MCC, PR-AUC)",
-  "manual_params": {
-    "logistic_regression": {
-      "model__C": 1.0,
-      "model__solver": "lbfgs"
+  "cv_n_splits": 5,
+  "cv_gap": 5,
+  "scoring": "f1",
+  "source": "manual_config",
+  "dataset_fingerprint": "f6cb3ac8f820",
+  "best_params": {
+    "Logistic Regression": {
+      "C": 6.586666666666666e-05,
+      "solver": "liblinear"
     },
-    "random_forest": {
-      "n_estimators": 120,
-      "max_features": 0.3,
-      "max_depth": 6,
-      "min_samples_leaf": 50
+    "Random Forest": {
+      "n_estimators": 130,
+      "max_depth": 4,
+      "min_samples_leaf": 25,
+      "max_features": 0.35
     },
-    "gradient_boosting": {
+    "Gradient Boosting": {
       "n_estimators": 120,
-      "learning_rate": 0.1,
-      "max_depth": 3
+      "learning_rate": 0.05,
+      "max_depth": 2,
+      "subsample": 1.0
     }
-  },
-  "randomized_params": null,
-  "final_params": {
-    "logistic_regression": {
-      "model__C": 1.0,
-      "model__solver": "lbfgs"
-    },
-    "random_forest": {
-      "n_estimators": 120,
-      "max_features": 0.3,
-      "max_depth": 6,
-      "min_samples_leaf": 50
-    },
-    "gradient_boosting": {
-      "n_estimators": 120,
-      "learning_rate": 0.1,
-      "max_depth": 3
-    }
-  },
-  "model_thresholds": {
-    "logistic_regression": 0.3,
-    "random_forest": 0.4,
-    "gradient_boosting": 0.3
   }
 }

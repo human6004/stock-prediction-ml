@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "HOSE Stock Data Flow v3",
+    "subtitle": "Raw OHLCV becomes clean data, leakage-safe labels, model artifacts, reports, SQLite tables, and user predictions",
+    "output": "docs/diagrams/v3/stock-dataflow.html",
+    "viewBox": [1080, 820]
+  },
+  "stages": [
+    { "label": "Source" },
+    { "label": "Clean" },
+    { "label": "Feature + Label" },
+    { "label": "Train + Evaluate" },
+    { "label": "Serve + Store" }
+  ],
+  "nodes": [
+    { "id": "raw", "type": "database", "label": "Raw CSV", "sublabel": "549084 rows", "stage": 0, "row": 1, "tag": "OHLCV" },
+    { "id": "clean", "type": "database", "label": "Clean CSV", "sublabel": "548858 rows", "stage": 1, "row": 1, "tag": "valid OHLCV" },
+    { "id": "quality", "type": "database", "label": "Quality CSVs", "sublabel": "396 eligible", "stage": 1, "row": 3, "tag": "4 excluded" },
+    { "id": "features", "type": "database", "label": "Feature CSV", "sublabel": "511191 rows", "stage": 2, "row": 0, "tag": "15 signals" },
+    { "id": "ml", "type": "database", "label": "ML Dataset", "sublabel": "509211 rows", "stage": 2, "row": 2, "tag": "UP target" },
+    { "id": "split", "type": "security", "label": "Time Split", "sublabel": "label_end_date", "stage": 2, "row": 4, "tag": "no shuffle" },
+    { "id": "tune", "type": "backend", "label": "Tune Models", "sublabel": "TS CV gap 5, balanced", "stage": 3, "row": 0, "tag": "3 + dummy" },
+    { "id": "model", "type": "database", "label": "Final Model", "sublabel": "Random Forest", "stage": 3, "row": 2, "tag": "F1_UP 0.4816" },
+    { "id": "reports", "type": "database", "label": "Reports", "sublabel": "metrics + plots", "stage": 3, "row": 4, "tag": "42238 test" },
+    { "id": "sqlite", "type": "database", "label": "SQLite DB", "sublabel": "sync tables", "stage": 4, "row": 1, "tag": "local" },
+    { "id": "serving", "type": "frontend", "label": "Flask/CLI", "sublabel": "predict symbol", "stage": 4, "row": 3, "tag": "offline" }
+  ],
+  "flows": [
+    { "from": "raw", "to": "clean", "label": "validated OHLCV", "classification": "invalid rows removed", "variant": "emphasis", "route": "straight", "labelAt": [206, 220] },
+    { "from": "clean", "to": "quality", "label": "symbol stats", "classification": "250-session filter", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [372, 342] },
+    { "from": "clean", "to": "features", "label": "eligible rows", "classification": "per-symbol groups", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[405, 271], [405, 157]], "labelAt": [420, 210] },
+    { "from": "features", "to": "ml", "label": "features + target", "classification": "future label only", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [590, 244] },
+    { "from": "ml", "to": "split", "label": "label_end_date", "classification": "time boundary", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [590, 470] },
+    { "from": "split", "to": "tune", "label": "train rows", "classification": "466973", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[640, 613], [640, 157]], "labelAt": [655, 382] },
+    { "from": "split", "to": "reports", "label": "test rows", "classification": "42238", "variant": "default", "route": "straight", "labelAt": [638, 610] },
+    { "from": "tune", "to": "model", "label": "best artifact", "classification": "f1_up>recall>simple", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [805, 246] },
+    { "from": "model", "to": "reports", "label": "test metrics", "classification": "F1_UP / recall", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [805, 512] },
+    { "from": "reports", "to": "sqlite", "label": "evaluation rows", "classification": "sync", "variant": "dashed", "fromSide": "right", "toSide": "left", "via": [[862, 613], [862, 271]], "labelAt": [878, 420] },
+    { "from": "model", "to": "serving", "label": "final_model.pkl", "classification": "inference", "variant": "emphasis", "route": "straight", "labelAt": [895, 448] },
+    { "from": "clean", "to": "serving", "label": "symbol history", "classification": "latest features", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "route": "bottom-channel", "channelY": 700, "labelAt": [540, 712] },
+    { "from": "reports", "to": "serving", "label": "model table", "classification": "evaluation page", "variant": "default", "route": "straight", "labelAt": [852, 560] },
+    { "from": "serving", "to": "sqlite", "label": "prediction log", "classification": "best effort", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "straight", "labelAt": [1018, 430] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Source + Cleaning",
+      "items": [
+        "fetch_hose_data.py normalizes vnstock/KBS columns and appends by symbol + trading_date",
+        "clean_data removes missing rows, duplicates, invalid prices, invalid OHLC, and negative volume",
+        "CRV, TCX, VCK, and VPX are excluded for fewer than 250 trading sessions"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Leakage Control",
+      "items": [
+        "future_close_5d and future_return_5d create target only and never enter FEATURE_COLUMNS",
+        "Train rows end at label_end_date 2025-12-31; test starts at label_end_date 2026-01-05",
+        "TimeSeriesSplit gap 5 mirrors the 5-session prediction horizon"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Model Training",
+      "items": [
+        "Class imbalance handled per model: LR class_weight=balanced, RF balanced_subsample, GB sample_weight=balanced into fit()",
+        "Decision threshold tuned for best F1 on each TRAIN fold, then applied to the VAL fold (no leak), and saved to the artifact",
+        "select_final_model drops the dummy and ranks by f1_up, then recall_up, then simplicity (LR < RF < GB)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Consumers",
+      "items": [
+        "Flask /evaluation reads model_comparison.csv and serves the confusion matrix image",
+        "Prediction loads final_model.pkl, model_metadata.json, and clean symbol history",
+        "SQLite mirrors raw, clean, features, tuning, evaluation, and prediction history"
+      ]
+    }
+  ]
+}

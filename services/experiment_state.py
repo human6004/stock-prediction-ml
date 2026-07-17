@@ -6,7 +6,9 @@ Centralizes all IO under ``experiments/``:
 - manual_config.json (the chosen config used by the official pipeline)
 - test_evaluation_lock.json (test set used once per dataset fingerprint)
 - pipeline.lock (prevents concurrent pipeline runs)
+- fetch.lock (prevents concurrent background data refresh)
 - last_pipeline_run.log (stdout/stderr of the most recent pipeline run)
+- last_fetch_run.log (stdout/stderr of the most recent fetch/refresh run)
 """
 
 import csv
@@ -23,6 +25,8 @@ from config.settings import (
     CV_N_SPLITS,
     EXPERIMENTS_DIR,
     FEATURE_COLUMNS,
+    FETCH_LOCK_PATH,
+    LAST_FETCH_RUN_LOG,
     LAST_PIPELINE_RUN_LOG,
     MANUAL_CONFIG_PATH,
     MANUAL_CONFIG_SCHEMA_VERSION,
@@ -44,6 +48,7 @@ HISTORY_COLUMNS = [
     "cv_f1_up_mean",
     "cv_f1_up_std",
     "cv_f1_up_folds_json",
+    "decision_threshold",
     "train_seconds",
     "dataset_fingerprint",
     "status",
@@ -394,6 +399,54 @@ def read_pipeline_log_tail(max_lines: int = 200) -> str:
         return ""
     try:
         text = Path(LAST_PIPELINE_RUN_LOG).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    return "\n".join(lines[-max_lines:])
+
+
+# --------------------------------------------------------------------------- #
+# Fetch lock (background data refresh)
+# --------------------------------------------------------------------------- #
+def _read_fetch_lock() -> dict | None:
+    if not Path(FETCH_LOCK_PATH).exists():
+        return None
+    try:
+        return json.loads(Path(FETCH_LOCK_PATH).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def is_fetch_running() -> bool:
+    lock = _read_fetch_lock()
+    if not lock:
+        return False
+    if _lock_is_stale(lock):
+        release_fetch_lock()
+        return False
+    return True
+
+
+def write_fetch_lock(pid: int) -> None:
+    ensure_experiments_dir()
+    payload = {"pid": int(pid), "started_at": _now_iso()}
+    Path(FETCH_LOCK_PATH).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def release_fetch_lock() -> None:
+    try:
+        Path(FETCH_LOCK_PATH).unlink()
+    except FileNotFoundError:
+        pass
+
+
+def read_fetch_log_tail(max_lines: int = 200) -> str:
+    if not Path(LAST_FETCH_RUN_LOG).exists():
+        return ""
+    try:
+        text = Path(LAST_FETCH_RUN_LOG).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
     lines = text.splitlines()

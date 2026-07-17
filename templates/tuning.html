@@ -112,6 +112,67 @@
             {% endfor %}
         </section>
 
+        <section class="config-panel fetch-panel">
+            <div class="fetch-panel-header">
+                <div>
+                    <p class="section-label fetch-eyebrow">Nhánh 1 · Làm mới dữ liệu</p>
+                    <h2 class="fetch-title">Fetch + build lại dataset</h2>
+                    <p class="fetch-lead">
+                        Tải OHLCV mới, preprocess và build lại <code>ml_dataset.csv</code>.
+                        Sau khi xong, fingerprint đổi — train lại 3 model trước khi chạy pipeline.
+                    </p>
+                </div>
+                {% if fetch_running %}
+                <span class="status-badge status-badge-running">
+                    <span class="live-dot" aria-hidden="true"></span>
+                    Đang chạy
+                </span>
+                {% elif pipeline_running %}
+                <span class="status-badge status-badge-warn">Pipeline đang chiếm lock</span>
+                {% else %}
+                <span class="status-badge status-badge-idle">Sẵn sàng</span>
+                {% endif %}
+            </div>
+
+            <div class="fetch-timeline timeline" aria-label="3 bước làm mới dữ liệu">
+                {% for step in fetch_progress.steps %}
+                <div class="timeline-step timeline-step-{{ step.state }}">
+                    <span class="timeline-dot" aria-hidden="true"></span>
+                    <span class="timeline-title">{{ step.id }}. {{ step.label }}</span>
+                    <span class="timeline-desc">{{ step.desc }}</span>
+                </div>
+                {% if not loop.last %}
+                <span class="timeline-connector" aria-hidden="true">→</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+
+            {% if fetch_running %}
+            <div class="fetch-progress-wrap" role="progressbar"
+                 aria-valuenow="{{ fetch_progress.percent }}"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-label="Tiến độ làm mới dữ liệu">
+                <div class="fetch-progress-bar">
+                    <div class="fetch-progress-fill" style="width: {{ fetch_progress.percent }}%;"></div>
+                </div>
+                <p class="fetch-progress-label">Ước tính ~20–25 phút · job chạy nền</p>
+            </div>
+            {% elif pipeline_running %}
+            <p class="alert warn">Pipeline đang chạy — không thể fetch trong lúc này.</p>
+            {% else %}
+            <p class="fetch-hint">Thời gian ước tính ~20–25 phút. Bạn có thể rời trang và xem tiến độ sau.</p>
+            {% endif %}
+
+            <div class="fetch-actions">
+                <form id="fetch-data-form" method="post" action="{{ url_for('tuning_fetch_data') }}">
+                    <button type="submit" class="btn-fetch" {% if fetch_running or pipeline_running %}disabled{% endif %}>
+                        Lấy dữ liệu mới
+                    </button>
+                </form>
+                <a class="btn-secondary" href="{{ url_for('tuning_fetch_status') }}">Xem tiến độ</a>
+            </div>
+        </section>
+
         <section class="config-panel">
             <p class="section-label">Cấu hình đã chốt &amp; chạy pipeline chính thức</p>
             <ul class="config-summary">
@@ -139,6 +200,8 @@
             </p>
             {% elif pipeline_running %}
             <p class="alert warn">Pipeline đang chạy, vui lòng đợi hoàn tất.</p>
+            {% elif fetch_running %}
+            <p class="alert warn">Đang làm mới dữ liệu — không thể chạy pipeline trong lúc này.</p>
             {% elif not config_complete %}
             <p class="model-chip muted">
                 Cần chốt đủ 3 model trên dataset hiện tại mới chạy được pipeline.
@@ -153,51 +216,82 @@
         </section>
 
         <section class="history-panel">
-            <p class="section-label">Lịch sử huấn luyện ({{ history|length }} lần)</p>
-            <div class="table-wrap">
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th></th>
-                            <th>Thời điểm</th>
-                            <th>Model</th>
-                            <th>Tham số</th>
-                            <th>CV F1_UP</th>
-                            <th>±std</th>
-                            <th>Giây</th>
-                            <th>Dataset</th>
-                            <th>Trạng thái</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in history %}
-                        <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'stale-row' if row.dataset_fingerprint != current_fingerprint else '' }}">
-                            <td>{{ '★' if row.is_best else '' }}</td>
-                            <td>{{ row.timestamp }}</td>
-                            <td>{{ row.model_name }}</td>
-                            <td class="params-cell"><code>{{ row.params }}</code></td>
-                            <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
-                            <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
-                            <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
-                            <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
-                            <td>{{ row.status }}</td>
-                            <td>
-                                {% if row.status == 'ok' and row.dataset_fingerprint == current_fingerprint %}
-                                <form method="post" action="{{ url_for('tuning_use_config') }}">
-                                    <input type="hidden" name="run_id" value="{{ row.run_id }}">
-                                    <button type="submit" class="link-btn">Dùng</button>
-                                </form>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        {% if not history %}
-                        <tr><td colspan="10" class="empty">Chưa có lần train nào. Hãy train thử ở các thẻ phía trên.</td></tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+            <p class="section-label">Lịch sử huấn luyện theo model</p>
+            <div class="history-tabs" role="tablist" aria-label="Lọc lịch sử huấn luyện theo model">
+                {% for model_id, model_key in model_key_map.items() %}
+                {% set model_rows = history_by_model.get(model_key, []) %}
+                <button
+                    type="button"
+                    id="history-tab-{{ model_key }}"
+                    class="history-tab {{ 'is-active' if model_key == active_history_model else '' }}"
+                    data-history-tab="{{ model_key }}"
+                    aria-controls="history-panel-{{ model_key }}"
+                    aria-selected="{{ 'true' if model_key == active_history_model else 'false' }}"
+                    role="tab"
+                >
+                    <span>{{ history_model_labels.get(model_key, model_key) }}</span>
+                    <span class="history-tab-count">({{ model_rows|length }} lần)</span>
+                </button>
+                {% endfor %}
             </div>
+
+            {% for model_id, model_key in model_key_map.items() %}
+            {% set model_rows = history_by_model.get(model_key, []) %}
+            <div
+                id="history-panel-{{ model_key }}"
+                class="history-tab-panel {{ 'is-active' if model_key == active_history_model else '' }}"
+                data-history-panel="{{ model_key }}"
+                aria-labelledby="history-tab-{{ model_key }}"
+                role="tabpanel"
+                {% if model_key != active_history_model %}hidden{% endif %}
+            >
+                <div class="table-wrap">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Thời điểm</th>
+                                <th>Model</th>
+                                <th>Tham số</th>
+                                <th>CV F1_UP</th>
+                                <th>±std</th>
+                                <th>Giây</th>
+                                <th>Dataset</th>
+                                <th>Trạng thái</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in model_rows %}
+                            <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'stale-row' if row.dataset_fingerprint != current_fingerprint else '' }}">
+                                <td>{{ '★' if row.is_best else '' }}</td>
+                                <td>{{ row.timestamp }}</td>
+                                <td>{{ row.model_name }}</td>
+                                <td class="params-cell"><code>{{ row.params }}</code></td>
+                                <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
+                                <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
+                                <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
+                                <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
+                                <td>{{ row.status }}</td>
+                                <td>
+                                    {% if row.status == 'ok' and row.dataset_fingerprint == current_fingerprint %}
+                                    <form method="post" action="{{ url_for('tuning_use_config') }}">
+                                        <input type="hidden" name="run_id" value="{{ row.run_id }}">
+                                        <button type="submit" class="link-btn">Dùng</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not model_rows %}
+                            <tr><td colspan="10" class="empty">Chưa có lần train nào cho model này.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+
             <p class="eval-note">
                 ★ = cấu hình tốt nhất (CV F1_UP cao nhất, tie-break std nhỏ hơn) theo từng model
                 trong cùng dataset fingerprint. Chỉ cấu hình thuộc dataset hiện tại mới chốt được.
@@ -223,6 +317,28 @@
                 if (btn) { btn.disabled = true; btn.textContent = "Đang chạy pipeline..."; }
             });
         }
+        var fetchForm = document.getElementById("fetch-data-form");
+        if (fetchForm) {
+            fetchForm.addEventListener("submit", function () {
+                var btn = fetchForm.querySelector("button[type=submit]");
+                if (btn) { btn.disabled = true; btn.textContent = "Đang khởi động fetch..."; }
+            });
+        }
+        document.querySelectorAll("[data-history-tab]").forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                var target = tab.getAttribute("data-history-tab");
+                document.querySelectorAll("[data-history-tab]").forEach(function (item) {
+                    var isActive = item.getAttribute("data-history-tab") === target;
+                    item.classList.toggle("is-active", isActive);
+                    item.setAttribute("aria-selected", isActive ? "true" : "false");
+                });
+                document.querySelectorAll("[data-history-panel]").forEach(function (panel) {
+                    var isActive = panel.getAttribute("data-history-panel") === target;
+                    panel.classList.toggle("is-active", isActive);
+                    panel.hidden = !isActive;
+                });
+            });
+        });
     </script>
 </body>
 </html>

@@ -61,6 +61,7 @@ def load_metadata() -> dict:
         "feature_order": artifact.get("feature_columns", FEATURE_COLUMNS),
         "prediction_horizon": artifact.get("prediction_horizon"),
         "up_threshold": artifact.get("up_threshold"),
+        "decision_threshold": artifact.get("decision_threshold", 0.5),
     }
 
 
@@ -75,15 +76,21 @@ def predict_symbol(symbol: str) -> dict:
     model = artifact["model"]
     feature_columns = metadata.get("feature_order", artifact.get("feature_columns", FEATURE_COLUMNS))
     x_latest = latest[feature_columns].to_frame().T
-    prediction = int(model.predict(x_latest)[0])
-    label = "UP" if prediction == 1 else "NOT_UP"
 
+    decision_threshold = metadata.get(
+        "decision_threshold", artifact.get("decision_threshold", 0.5)
+    )
     probability_up = None
     if hasattr(model, "predict_proba"):
         probabilities = model.predict_proba(x_latest)[0]
         classes = list(model.classes_)
         if 1 in classes:
             probability_up = float(probabilities[classes.index(1)])
+
+    if probability_up is not None:
+        label = "UP" if probability_up >= decision_threshold else "NOT_UP"
+    else:
+        label = "UP" if int(model.predict(x_latest)[0]) == 1 else "NOT_UP"
 
     horizon = metadata.get("prediction_horizon", artifact.get("prediction_horizon", 5))
     threshold = metadata.get("up_threshold", artifact.get("up_threshold", 0.01))

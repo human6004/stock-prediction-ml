@@ -1,0 +1,20 @@
+{
+  "status": "completed",
+  "run_id": "LR_COORD_20260708_082607",
+  "finished_at": "2026-07-08T08:30:22",
+  "elapsed_seconds": 251.0,
+  "dataset_fingerprint": "7e88c028946b",
+  "completed_new_runs": 30,
+  "reused_history_runs": 2,
+  "best": {
+    "params": {
+      "C": 0.00017249999999999996,
+      "solver": "liblinear"
+    },
+    "run_id": "LR_20260708_082937",
+    "f1_up_mean": 0.5439062387905451,
+    "f1_up_std": 0.01906055282603445,
+    "source": "new"
+  },
+  "log_path": "experiments\\logistic_regression_coordinate_search_20260708_082607.log"
+}

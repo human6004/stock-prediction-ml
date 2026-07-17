@@ -1,0 +1,31 @@
+{
+  "run_id": "LR_SEARCH_20260703_145526",
+  "started_at": "20260703_145526",
+  "finished_at": "2026-07-03T15:50:27",
+  "budget_seconds": 3300,
+  "elapsed_seconds": 3300.705,
+  "dataset_fingerprint": "4c2259e97b3f",
+  "current_selected_score_before": 0.4169172395337803,
+  "candidate_count": 970,
+  "completed": 908,
+  "errors": 0,
+  "best": {
+    "params": {
+      "C": 2.11348903984e-06,
+      "solver": "liblinear"
+    },
+    "cv_f1_up_mean": 0.43082305376653496,
+    "cv_f1_up_std": 0.057988987230283874,
+    "cv_precision_up_mean": 0.41394407047467796,
+    "cv_recall_up_mean": 0.4655576502235026,
+    "cv_f1_up_folds": [
+      0.49118787694770694,
+      0.49702349594352546,
+      0.40584613774700457,
+      0.3412780076016883,
+      0.41877975059274947
+    ]
+  },
+  "result_csv": "D:\\study\\niên luận\\stock-prediction-ml\\experiments\\logistic_regression_search_20260703_145526.csv",
+  "log_path": "D:\\study\\niên luận\\stock-prediction-ml\\experiments\\logistic_regression_search.log"
+}

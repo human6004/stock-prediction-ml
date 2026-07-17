@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Model Pipeline Lifecycle v3",
+    "subtitle": "From dataset readiness through config/test guards, model selection, serving, database sync, and terminal outcomes",
+    "output": "docs/diagrams/v3/stock-lifecycle.html",
+    "viewBox": [980, 700]
+  },
+  "lanes": [
+    { "id": "main", "label": "Pipeline phases" },
+    { "id": "checks", "label": "Guards + side effects" },
+    { "id": "terminal", "label": "Terminal outcomes" }
+  ],
+  "states": [
+    { "id": "raw_ready", "type": "start", "label": "Raw Ready", "sublabel": "549084 rows", "lane": "main", "col": 0, "step": "01", "tag": "input" },
+    { "id": "clean_feature", "type": "active", "label": "Clean+Feature", "sublabel": "15 signals", "lane": "main", "col": 1, "step": "02", "tag": "prep" },
+    { "id": "train_tune", "type": "active", "label": "Train/Tune", "sublabel": "3 models+dummy", "lane": "main", "col": 2, "step": "03", "tag": "CV gap 5, balanced" },
+    { "id": "evaluate", "type": "decision", "label": "Evaluate", "sublabel": "f1>recall>simple", "lane": "main", "col": 3, "step": "04", "tag": "test once" },
+    { "id": "serve", "type": "success", "label": "Serve", "sublabel": "Flask/CLI", "lane": "main", "col": 4, "step": "05", "tag": "offline" },
+    { "id": "config_guard", "type": "waiting", "label": "Config Guard", "sublabel": "3 models locked", "lane": "checks", "col": 0, "tag": "fingerprint" },
+    { "id": "split_guard", "type": "decision", "label": "Split Guard", "sublabel": "label_end_date", "lane": "checks", "col": 1, "tag": "no leakage" },
+    { "id": "db_sync", "type": "active", "label": "DB Sync", "sublabel": "SQLite tables", "lane": "checks", "col": 2, "tag": "sync/log" },
+    { "id": "blocked", "type": "failure", "label": "Pipeline Blocked", "sublabel": "config/test lock", "lane": "terminal", "col": 0, "tag": "stop" },
+    { "id": "logged", "type": "success", "label": "Prediction Log", "sublabel": "history stored", "lane": "terminal", "col": 1, "tag": "optional" },
+    { "id": "ready", "type": "success", "label": "Model Ready", "sublabel": "Random Forest", "lane": "terminal", "col": 2, "tag": "F1 0.4816" }
+  ],
+  "transitions": [
+    { "from": "raw_ready", "to": "config_guard", "label": "before run", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "config_guard", "to": "blocked", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "clean_feature", "to": "split_guard", "label": "verify", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "split_guard", "to": "train_tune", "label": "ok", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "left-channel", "labelSegment": 1 },
+    { "from": "evaluate", "to": "blocked", "variant": "security", "fromSide": "bottom", "toSide": "top", "via": [[556, 342], [402, 342]] },
+    { "from": "serve", "to": "db_sync", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "db_sync", "to": "logged", "label": "prediction", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "serve", "to": "ready", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Happy Path",
+      "items": [
+        "Raw data is validated, cleaned, featurized, labeled, split, trained, and evaluated",
+        "Random Forest becomes the ready model when it wins held-out F1_UP",
+        "Serving uses saved artifacts without retraining"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guard Rails",
+      "items": [
+        "Official run is blocked unless all 3 tunable model configs match the current fingerprint",
+        "verify_data_pipeline blocks label leakage into FEATURE_COLUMNS",
+        "test_evaluation_lock prevents reusing the same test set unless explicitly overridden for debug"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Side Effects",
+      "items": [
+        "cleanup_outputs removes generated model/report artifacts before a full run",
+        "Reports and model metadata are regenerated after evaluation",
+        "SQLite sync and prediction logging are useful side effects, not the source of truth for model choice"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Training Detail",
+      "items": [
+        "TimeSeriesSplit n=5, gap=5 mirrors the 5-session horizon; no shuffle",
+        "Imbalance: LR class_weight=balanced, RF balanced_subsample, GB sample_weight=balanced",
+        "Decision threshold tuned for best F1 on TRAIN folds, applied to VAL, then saved per model",
+        "select_final_model ranks f1_up, then recall_up, then simplicity (LR < RF < GB)"
+      ]
+    }
+  ]
+}

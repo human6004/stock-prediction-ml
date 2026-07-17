@@ -1,0 +1,51 @@
+START 20260704_105825 | budget=10500s | dataset=4c2259e97b3f | train_rows=466973 | candidates=5544
+BEST index=1/5544 params={'n_estimators': 80, 'max_depth': 4, 'min_samples_leaf': 100, 'max_features': 0.6} f1=0.448886 std=0.047284 elapsed=46.3s
+PROGRESS tested=5 errors=0 index=5/5544 elapsed=167.7s best_f1=0.448886
+BEST index=6/5544 params={'n_estimators': 80, 'max_depth': 4, 'min_samples_leaf': 100, 'max_features': 0.7} f1=0.449008 std=0.046911 elapsed=227.3s
+BEST index=9/5544 params={'n_estimators': 80, 'max_depth': 4, 'min_samples_leaf': 80, 'max_features': 0.6} f1=0.449236 std=0.046962 elapsed=362.6s
+BEST index=10/5544 params={'n_estimators': 80, 'max_depth': 5, 'min_samples_leaf': 100, 'max_features': 0.5} f1=0.450419 std=0.046967 elapsed=413.6s
+PROGRESS tested=10 errors=0 index=10/5544 elapsed=413.6s best_f1=0.450419
+PROGRESS tested=15 errors=0 index=15/5544 elapsed=642.4s best_f1=0.450419
+PROGRESS tested=20 errors=0 index=20/5544 elapsed=881.9s best_f1=0.450419
+BEST index=21/5544 params={'n_estimators': 80, 'max_depth': 5, 'min_samples_leaf': 100, 'max_features': 0.6} f1=0.451008 std=0.047093 elapsed=970.6s
+PROGRESS tested=25 errors=0 index=25/5544 elapsed=1105.0s best_f1=0.451008
+BEST index=26/5544 params={'n_estimators': 80, 'max_depth': 5, 'min_samples_leaf': 100, 'max_features': 0.7} f1=0.451614 std=0.045941 elapsed=1183.0s
+PROGRESS tested=30 errors=0 index=30/5544 elapsed=1410.5s best_f1=0.451614
+BEST index=31/5544 params={'n_estimators': 80, 'max_depth': 6, 'min_samples_leaf': 100, 'max_features': 'sqrt'} f1=0.451969 std=0.048406 elapsed=1441.5s
+PROGRESS tested=35 errors=0 index=35/5544 elapsed=1701.9s best_f1=0.451969
+BEST index=37/5544 params={'n_estimators': 80, 'max_depth': 6, 'min_samples_leaf': 100, 'max_features': 0.4} f1=0.452251 std=0.044925 elapsed=1842.1s
+BEST index=38/5544 params={'n_estimators': 80, 'max_depth': 6, 'min_samples_leaf': 100, 'max_features': 0.5} f1=0.452480 std=0.045261 elapsed=1919.6s
+PROGRESS tested=40 errors=0 index=40/5544 elapsed=2007.1s best_f1=0.452480
+PROGRESS tested=45 errors=0 index=45/5544 elapsed=2209.7s best_f1=0.452480
+PROGRESS tested=50 errors=0 index=50/5544 elapsed=2416.8s best_f1=0.452480
+PROGRESS tested=55 errors=0 index=55/5544 elapsed=2663.5s best_f1=0.452480
+PROGRESS tested=60 errors=0 index=60/5544 elapsed=2971.3s best_f1=0.452480
+PROGRESS tested=65 errors=0 index=65/5544 elapsed=3217.4s best_f1=0.452480
+PROGRESS tested=70 errors=0 index=70/5544 elapsed=3462.6s best_f1=0.452480
+BEST index=71/5544 params={'n_estimators': 80, 'max_depth': 7, 'min_samples_leaf': 100, 'max_features': 0.6} f1=0.453229 std=0.041997 elapsed=3544.2s
+BEST index=73/5544 params={'n_estimators': 80, 'max_depth': 7, 'min_samples_leaf': 100, 'max_features': 0.3} f1=0.453730 std=0.044117 elapsed=3642.8s
+PROGRESS tested=75 errors=0 index=75/5544 elapsed=3741.8s best_f1=0.453730
+PROGRESS tested=80 errors=0 index=80/5544 elapsed=4101.1s best_f1=0.453730
+PROGRESS tested=85 errors=0 index=85/5544 elapsed=4319.5s best_f1=0.453730
+PROGRESS tested=90 errors=0 index=90/5544 elapsed=4614.2s best_f1=0.453730
+PROGRESS tested=95 errors=0 index=95/5544 elapsed=4932.1s best_f1=0.453730
+PROGRESS tested=100 errors=0 index=100/5544 elapsed=5281.6s best_f1=0.453730
+PROGRESS tested=105 errors=0 index=105/5544 elapsed=5599.4s best_f1=0.453730
+PROGRESS tested=110 errors=0 index=110/5544 elapsed=5914.3s best_f1=0.453730
+PROGRESS tested=115 errors=0 index=115/5544 elapsed=6128.3s best_f1=0.453730
+PROGRESS tested=120 errors=0 index=120/5544 elapsed=6343.4s best_f1=0.453730
+PROGRESS tested=125 errors=0 index=125/5544 elapsed=6544.0s best_f1=0.453730
+PROGRESS tested=130 errors=0 index=130/5544 elapsed=6807.0s best_f1=0.453730
+BEST index=134/5544 params={'n_estimators': 80, 'max_depth': 8, 'min_samples_leaf': 100, 'max_features': 0.5} f1=0.455110 std=0.041734 elapsed=7037.7s
+PROGRESS tested=135 errors=0 index=135/5544 elapsed=7061.9s best_f1=0.455110
+PROGRESS tested=140 errors=0 index=140/5544 elapsed=7266.6s best_f1=0.455110
+BEST index=142/5544 params={'n_estimators': 80, 'max_depth': 8, 'min_samples_leaf': 100, 'max_features': 0.4} f1=0.455114 std=0.041024 elapsed=7369.2s
+PROGRESS tested=145 errors=0 index=145/5544 elapsed=7527.0s best_f1=0.455114
+PROGRESS tested=150 errors=0 index=150/5544 elapsed=7754.3s best_f1=0.455114
+PROGRESS tested=155 errors=0 index=155/5544 elapsed=8064.4s best_f1=0.455114
+PROGRESS tested=160 errors=0 index=160/5544 elapsed=8422.9s best_f1=0.455114
+PROGRESS tested=165 errors=0 index=165/5544 elapsed=8794.1s best_f1=0.455114
+PROGRESS tested=170 errors=0 index=170/5544 elapsed=9143.8s best_f1=0.455114
+PROGRESS tested=175 errors=0 index=175/5544 elapsed=9542.5s best_f1=0.455114
+PROGRESS tested=180 errors=0 index=180/5544 elapsed=9882.4s best_f1=0.455114
+PROGRESS tested=185 errors=0 index=185/5544 elapsed=10143.4s best_f1=0.455114

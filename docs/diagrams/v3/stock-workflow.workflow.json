@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HOSE ML Pipeline Workflow v3",
+    "subtitle": "Manual CV config, guarded official run, Random Forest selection, artifact sync, and offline serving",
+    "output": "docs/diagrams/v3/stock-workflow.html"
+  },
+  "lanes": [
+    { "id": "tuning", "label": "Tuning Lab" },
+    { "id": "prep", "label": "Fetch + Prepare Data" },
+    { "id": "train", "label": "Train + Evaluate + Select" },
+    { "id": "artifacts", "label": "Artifacts + Database" },
+    { "id": "serve", "label": "Serving" }
+  ],
+  "nodes": [
+    { "id": "params", "lane": "tuning", "col": 0, "type": "frontend", "label": "Set Params", "sublabel": "3 models" },
+    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "CV on TRAIN", "sublabel": "TS gap 5", "tag": "F1_UP" },
+    { "id": "config", "lane": "tuning", "col": 4, "type": "security", "label": "Lock Config", "sublabel": "fingerprint", "tag": "manual" },
+    { "id": "fetch", "lane": "prep", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock KBS" },
+    { "id": "check", "lane": "prep", "col": 2, "type": "security", "label": "Check Raw", "sublabel": "required cols", "tag": "OHLCV" },
+    { "id": "clean", "lane": "prep", "col": 3, "type": "backend", "label": "Clean", "sublabel": "396 symbols" },
+    { "id": "feature", "lane": "prep", "col": 5, "type": "backend", "label": "Feature+Label", "sublabel": "15 signals" },
+    { "id": "split", "lane": "train", "col": 0, "type": "security", "label": "Time Split", "sublabel": "label_end", "tag": "no shuffle" },
+    { "id": "fit", "lane": "train", "col": 2, "type": "backend", "label": "Re-CV+Fit", "sublabel": "3 + dummy, balanced" },
+    { "id": "test", "lane": "train", "col": 3, "type": "backend", "label": "Test Metrics", "sublabel": "42238 rows" },
+    { "id": "select", "lane": "train", "col": 5, "type": "backend", "label": "Select RF", "sublabel": "F1_UP gate", "tag": "final" },
+    { "id": "csvs", "lane": "artifacts", "col": 0, "type": "database", "label": "CSVs", "sublabel": "clean/feat/ml" },
+    { "id": "model", "lane": "artifacts", "col": 2, "type": "database", "label": "Model", "sublabel": "final.pkl" },
+    { "id": "reports", "lane": "artifacts", "col": 3, "type": "database", "label": "Reports", "sublabel": "csv/png/json" },
+    { "id": "sqlite", "lane": "artifacts", "col": 5, "type": "database", "label": "SQLite", "sublabel": "sync/logs" },
+    { "id": "user", "lane": "serve", "col": 0, "type": "external", "label": "User", "sublabel": "symbol" },
+    { "id": "surface", "lane": "serve", "col": 2, "type": "frontend", "label": "Web/CLI", "sublabel": "Flask + script" },
+    { "id": "predict", "lane": "serve", "col": 3, "type": "backend", "label": "Predict", "sublabel": "latest row" },
+    { "id": "result", "lane": "serve", "col": 5, "type": "frontend", "label": "Result", "sublabel": "UP/NOT_UP" }
+  ],
+  "edges": [
+    { "from": "params", "to": "cv", "variant": "default" },
+    { "from": "cv", "to": "config", "label": "best run", "variant": "emphasis", "labelDy": -18 },
+    { "from": "fetch", "to": "check", "label": "raw CSV", "variant": "emphasis", "labelDy": -18 },
+    { "from": "check", "to": "clean", "variant": "security" },
+    { "from": "clean", "to": "feature", "label": "build + target", "variant": "emphasis", "labelDy": -18 },
+    { "from": "config", "to": "fit", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
+    { "from": "feature", "to": "split", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.72 },
+    { "from": "split", "to": "fit", "label": "TRAIN", "variant": "emphasis", "labelDy": -18 },
+    { "from": "fit", "to": "test", "variant": "emphasis" },
+    { "from": "test", "to": "select", "label": "F1_UP", "variant": "emphasis", "labelDy": -18 },
+    { "from": "feature", "to": "csvs", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.3 },
+    { "from": "select", "to": "model", "label": "final_model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.6, "labelSegment": 1 },
+    { "from": "test", "to": "reports", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.4 },
+    { "from": "csvs", "to": "sqlite", "variant": "dashed" },
+    { "from": "reports", "to": "sqlite", "variant": "dashed" },
+    { "from": "user", "to": "surface", "variant": "emphasis" },
+    { "from": "surface", "to": "predict", "label": "predict_symbol", "variant": "emphasis", "labelDy": -18 },
+    { "from": "model", "to": "predict", "label": "load RF", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelSegment": 1 },
+    { "from": "csvs", "to": "predict", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
+    { "from": "predict", "to": "result", "variant": "emphasis" },
+    { "from": "predict", "to": "sqlite", "label": "log", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "up-channel", "labelSegment": 1 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Manual Config Gate",
+      "items": [
+        "Tuning Lab validates hyperparameters server-side before each CV run",
+        "Each selected run is tied to dataset fingerprint 4c2259e97b3f",
+        "The official pipeline requires all 3 tunable models to be locked first"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Guarded Pipeline",
+      "items": [
+        "Features and labels are created per symbol; label columns are excluded from FEATURE_COLUMNS",
+        "Train/test split uses label_end_date with no shuffle around 2025-12-31",
+        "Dummy is evaluated as a baseline but cannot become the final model"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Imbalance + Selection",
+      "items": [
+        "Class imbalance: LR class_weight=balanced, RF balanced_subsample, GB sample_weight=balanced into fit()",
+        "Decision threshold is tuned for best F1 on each TRAIN fold, then applied to VAL (no leak)",
+        "select_final_model ranks by f1_up, then recall_up, then simplicity (LR < RF < GB)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Current Result",
+      "items": [
+        "Random Forest wins on held-out test F1_UP 0.4816",
+        "The selected decision threshold is 0.4049 for P(UP)",
+        "Serving uses saved artifacts only; no training occurs inside prediction"
+      ]
+    }
+  ]
+}

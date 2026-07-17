@@ -1,0 +1,17 @@
+MODEL SELECTION REPORT:
+
+1. Tieu chi chinh: F1_UP cao nhat tren tap test.
+2. Tieu chi phu: Recall_UP cao hon neu F1_UP gan bang nhau.
+3. Tieu chi don gian: Logistic Regression < Random Forest < Gradient Boosting.
+
+4. Xep hang theo F1_UP (giam dan), tie-break Recall_UP, roi do don gian:
+   1. Model: Gradient Boosting, F1_UP: 0.505315, Recall_UP: 0.917595, Accuracy: 0.410800, CV_F1_UP: 0.545268
+   2. Model: Random Forest, F1_UP: 0.504059, Recall_UP: 0.942432, Accuracy: 0.391804, CV_F1_UP: 0.548766
+   3. Model: Logistic Regression, F1_UP: 0.502401, Recall_UP: 0.933190, Accuracy: 0.393761, CV_F1_UP: 0.548977
+
+6. Model duoc chon:
+   Model: Gradient Boosting
+   F1_UP: 0.505315
+   Recall_UP: 0.917595
+
+7. File model cuoi cung: models/final_model.pkl

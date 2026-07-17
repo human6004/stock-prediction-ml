@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "dataset_fingerprint": "4c2259e97b3f",
+  "dataset_fingerprint": "f6cb3ac8f820",
   "dataset_fingerprint_parts": {
-    "dataset_rows": 509211,
-    "max_trading_date": "2026-06-19",
-    "split_date": "2025-12-31",
+    "dataset_rows": 512828,
+    "max_trading_date": "2026-07-03",
+    "split_date": "2025-06-30",
     "prediction_horizon": 5,
     "up_threshold": 0.01,
     "feature_columns": [
@@ -22,7 +22,12 @@
       "volatility_20d",
       "price_range",
       "volume_change_1d",
-      "volume_ratio_20"
+      "volume_ratio_20",
+      "return_10d",
+      "return_20d",
+      "dist_high20",
+      "dist_low20",
+      "month"
     ]
   },
   "cv_settings": {
@@ -32,13 +37,35 @@
   },
   "selected_models": {
     "logistic_regression": {
-      "run_id": "LR_20260629_165723",
+      "run_id": "LR_20260711_123644",
       "params": {
-        "C": 1.0,
-        "solver": "lbfgs"
+        "C": 6.586666666666666e-05,
+        "solver": "liblinear"
       },
-      "cv_f1_up_mean_when_selected": 0.4169172395337803,
-      "selected_at": "2026-06-29T16:58:42"
+      "cv_f1_up_mean_when_selected": 0.5489947075071198,
+      "selected_at": "2026-07-16T20:02:55"
+    },
+    "random_forest": {
+      "run_id": "RF_20260716_211429",
+      "params": {
+        "n_estimators": 130,
+        "max_depth": 4,
+        "min_samples_leaf": 25,
+        "max_features": 0.35
+      },
+      "cv_f1_up_mean_when_selected": 0.5491317453101531,
+      "selected_at": "2026-07-16T21:45:36"
+    },
+    "gradient_boosting": {
+      "run_id": "GB_20260716_212612",
+      "params": {
+        "n_estimators": 120,
+        "learning_rate": 0.05,
+        "max_depth": 2,
+        "subsample": 1.0
+      },
+      "cv_f1_up_mean_when_selected": 0.5452628846832767,
+      "selected_at": "2026-07-16T21:45:45"
     }
   }
 }

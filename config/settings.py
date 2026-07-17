@@ -6,7 +6,7 @@ ROADMAP_PATH = r"D:\study\niên luận\shared_dataset\roadmap_nien_luan_HOSE_5_p
 RAW_DATA_PATH = r"D:\study\niên luận\shared_dataset\hose_stock_raw.csv"
 
 RANDOM_STATE = 42
-SPLIT_DATE = "2025-12-31"
+SPLIT_DATE = "2025-06-30"
 PREDICTION_HORIZON = 5
 UP_THRESHOLD = 0.01
 MIN_TRADING_DAYS = 250
@@ -48,6 +48,11 @@ FEATURE_COLUMNS = [
     "price_range",
     "volume_change_1d",
     "volume_ratio_20",
+    "return_10d",
+    "return_20d",
+    "dist_high20",
+    "dist_low20",
+    "month",
 ]
 
 LABEL_COLUMNS = [
@@ -132,6 +137,8 @@ MANUAL_CONFIG_PATH = EXPERIMENTS_DIR / "manual_config.json"
 TEST_EVAL_LOCK_PATH = EXPERIMENTS_DIR / "test_evaluation_lock.json"
 PIPELINE_LOCK_PATH = EXPERIMENTS_DIR / "pipeline.lock"
 LAST_PIPELINE_RUN_LOG = EXPERIMENTS_DIR / "last_pipeline_run.log"
+FETCH_LOCK_PATH = EXPERIMENTS_DIR / "fetch.lock"
+LAST_FETCH_RUN_LOG = EXPERIMENTS_DIR / "last_fetch_run.log"
 
 CLEANED_DATA_PATH = PROCESSED_DIR / "hose_stock_clean.csv"
 FEATURE_DATA_PATH = PROCESSED_DIR / "hose_stock_features.csv"

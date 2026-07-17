@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if running %}
+    <meta http-equiv="refresh" content="5">
+    {% endif %}
+    <title>Tiến độ fetch — HOSE ML</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <nav class="topbar">
+            <div>
+                <p class="eyebrow fetch-eyebrow-top">Nhánh 1 · Data refresh</p>
+                <h1>Tiến độ làm mới dữ liệu</h1>
+                <p class="subtitle">
+                    Fetch OHLCV → preprocess → build features.
+                    {% if running %}Trang tự làm mới mỗi 5 giây.{% else %}Job đã dừng hoặc chưa khởi chạy.{% endif %}
+                </p>
+            </div>
+            <div class="nav-links">
+                <a class="nav-link" href="{{ url_for('tuning') }}">← Tuning Lab</a>
+            </div>
+        </nav>
+
+        <section class="fetch-hero {% if fetch_progress.status == 'completed' %}fetch-hero-done{% elif fetch_progress.status == 'failed' %}fetch-hero-failed{% elif running %}fetch-hero-running{% endif %}">
+            <div class="fetch-hero-main">
+                {% if running %}
+                <span class="status-badge status-badge-running">
+                    <span class="live-dot" aria-hidden="true"></span>
+                    Đang chạy
+                </span>
+                <h2 class="fetch-hero-title">Job làm mới dữ liệu đang chạy nền</h2>
+                <p class="fetch-hero-desc">Bước hiện tại có thể mất 20–25 phút ở giai đoạn fetch. Bạn có thể đóng tab và quay lại sau.</p>
+                {% elif fetch_progress.status == 'completed' %}
+                <span class="status-badge status-badge-success">Hoàn tất</span>
+                <h2 class="fetch-hero-title">Dataset đã được làm mới</h2>
+                <p class="fetch-hero-desc">Quay lại Tuning Lab để train lại 3 model trên fingerprint mới, rồi chạy pipeline chính thức.</p>
+                {% elif fetch_progress.status == 'failed' %}
+                <span class="status-badge status-badge-error">Dừng giữa chừng</span>
+                <h2 class="fetch-hero-title">Job có thể đã lỗi hoặc bị dừng</h2>
+                <p class="fetch-hero-desc">Xem log bên dưới để biết chi tiết, sau đó thử chạy lại từ Tuning Lab.</p>
+                {% else %}
+                <span class="status-badge status-badge-idle">Chưa chạy</span>
+                <h2 class="fetch-hero-title">Chưa có job đang chạy</h2>
+                <p class="fetch-hero-desc">Bấm "Lấy dữ liệu mới" trên Tuning Lab để bắt đầu chuỗi 3 bước.</p>
+                {% endif %}
+            </div>
+
+            <div class="fetch-progress-wrap" role="progressbar"
+                 aria-valuenow="{{ fetch_progress.percent }}"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-label="Tiến độ tổng thể">
+                <div class="fetch-progress-bar">
+                    <div class="fetch-progress-fill {% if running %}fetch-progress-fill-active{% endif %}"
+                         style="width: {{ fetch_progress.percent }}%;"></div>
+                </div>
+                <p class="fetch-progress-label">{{ fetch_progress.percent }}% · 3 bước</p>
+            </div>
+        </section>
+
+        <section class="config-panel fetch-steps-panel">
+            <p class="section-label">Tiến trình 3 bước</p>
+            <div class="fetch-timeline timeline">
+                {% for step in fetch_progress.steps %}
+                <div class="timeline-step timeline-step-{{ step.state }}">
+                    <span class="timeline-dot" aria-hidden="true"></span>
+                    <span class="timeline-title">{{ step.id }}. {{ step.label }}</span>
+                    <span class="timeline-desc">{{ step.desc }}</span>
+                    {% if step.state == 'active' %}
+                    <span class="step-chip step-chip-active">Đang chạy</span>
+                    {% elif step.state == 'done' %}
+                    <span class="step-chip step-chip-done">Xong</span>
+                    {% elif step.state == 'error' %}
+                    <span class="step-chip step-chip-error">Lỗi / dừng</span>
+                    {% endif %}
+                </div>
+                {% if not loop.last %}
+                <span class="timeline-connector" aria-hidden="true">→</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if fetch_report %}
+        <section class="config-panel">
+            <div class="fetch-report-header">
+                <p class="section-label">Báo cáo fetch</p>
+                <p class="fetch-report-note">
+                    {% if running %}
+                    Số liệu dưới đây là lần fetch trước; cập nhật khi bước [1/3] hoàn tất.
+                    {% else %}
+                    Lần gần nhất: {{ fetch_report.fetched_at or "—" }}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="fetch-stats">
+                <article class="fetch-stat-card">
+                    <p class="fetch-stat-label">Dòng mới</p>
+                    <p class="fetch-stat-value">{{ fetch_report.new_rows if fetch_report.new_rows is not none else "—" }}</p>
+                </article>
+                <article class="fetch-stat-card">
+                    <p class="fetch-stat-label">Trước → sau</p>
+                    <p class="fetch-stat-value fetch-stat-value-sm">
+                        {{ fetch_report.rows_before or "—" }} → {{ fetch_report.rows_after or "—" }}
+                    </p>
+                </article>
+                <article class="fetch-stat-card">
+                    <p class="fetch-stat-label">Mã OK</p>
+                    <p class="fetch-stat-value fetch-stat-value-ok">
+                        {{ fetch_report.success_symbols|length if fetch_report.success_symbols else 0 }}
+                    </p>
+                </article>
+                <article class="fetch-stat-card">
+                    <p class="fetch-stat-label">Mã lỗi</p>
+                    <p class="fetch-stat-value {% if fetch_report.failed_symbols and fetch_report.failed_symbols|length %}fetch-stat-value-err{% endif %}">
+                        {{ fetch_report.failed_symbols|length if fetch_report.failed_symbols else 0 }}
+                    </p>
+                </article>
+                <article class="fetch-stat-card fetch-stat-card-wide">
+                    <p class="fetch-stat-label">Khoảng fetch</p>
+                    <p class="fetch-stat-value fetch-stat-value-sm">
+                        {{ fetch_report.fetch_start or "—" }} → {{ fetch_report.fetch_end or "—" }}
+                    </p>
+                </article>
+                <article class="fetch-stat-card">
+                    <p class="fetch-stat-label">date_max</p>
+                    <p class="fetch-stat-value fetch-stat-value-sm">{{ fetch_report.date_max_after or "—" }}</p>
+                </article>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="fetch-log-panel pipeline-log">
+            <div class="fetch-log-header">
+                <p class="section-label fetch-log-title">Log thực thi</p>
+                {% if running %}
+                <span class="fetch-log-live"><span class="live-dot" aria-hidden="true"></span> Live · 200 dòng cuối</span>
+                {% else %}
+                <span class="fetch-log-live muted">200 dòng cuối</span>
+                {% endif %}
+            </div>
+            <pre>{% if log %}{{ log }}{% else %}Chưa có log. Hãy bắt đầu job từ Tuning Lab.{% endif %}</pre>
+        </section>
+
+        <div class="fetch-actions fetch-actions-footer">
+            <a class="btn-secondary" href="{{ url_for('tuning') }}">← Quay lại Tuning Lab</a>
+            {% if fetch_progress.status == 'completed' %}
+            <a class="btn-fetch btn-fetch-link" href="{{ url_for('tuning') }}">Train lại trên dataset mới</a>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

@@ -160,7 +160,7 @@ def evaluate_single_config(
     run_id = _make_run_id(model_key)
     started = time.perf_counter()
     try:
-        cv = run_cv_metrics(estimator, X, y)
+        cv = run_cv_metrics(estimator, X, y, model_id=model_id)
     except Exception as exc:  # noqa: BLE001 - record failure then re-raise
         append_history(
             {
@@ -191,6 +191,7 @@ def evaluate_single_config(
             "cv_f1_up_mean": cv["f1_up_mean"],
             "cv_f1_up_std": cv["f1_up_std"],
             "cv_f1_up_folds_json": json.dumps(cv["f1_up_folds"]),
+            "decision_threshold": cv["decision_threshold"],
             "train_seconds": train_seconds,
             "dataset_fingerprint": fingerprint["hash"],
             "status": "ok",

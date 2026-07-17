@@ -1,0 +1,27 @@
+{
+  "status": "budget_reached",
+  "run_id": "RF_2H_20260716_201010",
+  "started_at": "2026-07-16T20:10:10",
+  "updated_at": "2026-07-16T21:40:53",
+  "budget_seconds": 5400,
+  "elapsed_seconds": 5442.8,
+  "dataset_fingerprint": "f6cb3ac8f820",
+  "candidate_count": 227,
+  "completed_new_runs": 69,
+  "reused_history_runs": 0,
+  "pending_runs": 158,
+  "errors": 0,
+  "best": {
+    "run_id": "RF_20260716_211429",
+    "params": {
+      "n_estimators": 130,
+      "max_depth": 4,
+      "min_samples_leaf": 25,
+      "max_features": 0.35
+    },
+    "cv_f1_up_mean": 0.5491317453101531,
+    "cv_f1_up_std": 0.020496171216434697,
+    "source": "new"
+  },
+  "log_path": "experiments\\random_forest_2h_auto_RF_2H_20260716_201010.log"
+}

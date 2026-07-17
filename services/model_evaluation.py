@@ -33,6 +33,7 @@ from config.settings import (
     SPLIT_DATE,
     UP_THRESHOLD,
 )
+from services.model_tuning import predict_with_threshold
 from services.pipeline_utils import write_json
 
 
@@ -71,7 +72,7 @@ def evaluate_tuned_models(
 
     for model_id, artifact in sorted(fitted_artifacts.items()):
         model = artifact["model"]
-        y_pred = model.predict(X_test)
+        y_pred = predict_with_threshold(model, X_test, artifact["decision_threshold"])
         metrics = evaluate_predictions(y_test, y_pred)
         artifact["metrics"] = metrics
         artifact["evaluated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -211,7 +212,9 @@ def write_feature_importance(selected_artifact: dict) -> bool:
 def write_classification_report(test: pd.DataFrame, selected_artifact: dict) -> None:
     X_test = test[FEATURE_COLUMNS]
     y_test = test["target"]
-    y_pred = selected_artifact["model"].predict(X_test)
+    y_pred = predict_with_threshold(
+        selected_artifact["model"], X_test, selected_artifact["decision_threshold"]
+    )
     report_dict = classification_report(
         y_test, y_pred, labels=[0, 1], target_names=["NOT_UP", "UP"], output_dict=True
     )
@@ -282,6 +285,7 @@ def write_model_metadata(
         "feature_order": FEATURE_COLUMNS,
         "prediction_horizon": selected_artifact["prediction_horizon"],
         "up_threshold": UP_THRESHOLD,
+        "decision_threshold": selected_artifact.get("decision_threshold", 0.5),
         "split_date": SPLIT_DATE,
         "cv_config": selected_artifact.get("cv_config", {"n_splits": CV_N_SPLITS, "gap": CV_GAP}),
         "best_params": selected_artifact.get("best_params", {}),
@@ -316,7 +320,9 @@ def write_reports(
 
     X_test = test[FEATURE_COLUMNS]
     y_test = test["target"]
-    y_pred = selected_artifact["model"].predict(X_test)
+    y_pred = predict_with_threshold(
+        selected_artifact["model"], X_test, selected_artifact["decision_threshold"]
+    )
     cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
     cm_df = pd.DataFrame(
         cm,

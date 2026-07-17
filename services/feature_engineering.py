@@ -46,6 +46,13 @@ def build_features(clean_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         g["volume_change_1d"] = volume.pct_change(1)
         volume_ma20 = volume.rolling(window=20, min_periods=20).mean()
         g["volume_ratio_20"] = volume / volume_ma20
+        g["return_10d"] = close.pct_change(10)
+        g["return_20d"] = close.pct_change(20)
+        roll_high20 = g["high"].rolling(window=20, min_periods=20).max()
+        roll_low20 = g["low"].rolling(window=20, min_periods=20).min()
+        g["dist_high20"] = (g["close"] / roll_high20) - 1
+        g["dist_low20"] = (g["close"] / roll_low20) - 1
+        g["month"] = pd.to_datetime(g["trading_date"]).dt.month
         frames.append(g)
 
     features = pd.concat(frames, ignore_index=True)

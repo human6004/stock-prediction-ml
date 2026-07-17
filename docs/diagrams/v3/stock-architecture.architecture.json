@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HOSE Stock Prediction - System Architecture v3",
+    "subtitle": "Current repo state: offline HOSE ML pipeline, guarded Tuning Lab, Random Forest final model, SQLite sync, and Flask/CLI serving",
+    "output": "docs/diagrams/v3/stock-architecture.html",
+    "viewBox": [1280, 900]
+  },
+  "components": [
+    { "id": "vnstock", "type": "external", "label": "vnstock KBS", "sublabel": "fetch_hose_data.py", "pos": [40, 90], "size": [140, 60], "tag": "incremental" },
+    { "id": "raw", "type": "database", "label": "Raw HOSE CSV", "sublabel": "549084 rows", "pos": [250, 90], "size": [140, 60], "tag": "shared_dataset" },
+    { "id": "roadmap", "type": "external", "label": "Roadmap MD", "sublabel": "read_roadmap", "pos": [250, 215], "size": [140, 60] },
+    { "id": "settings", "type": "security", "label": "Settings", "sublabel": "5d / 1% / split", "pos": [470, 215], "size": [140, 60], "tag": "2025-12-31" },
+    { "id": "pipeline", "type": "backend", "label": "Pipeline", "sublabel": "scripts/run_pipeline", "pos": [470, 90], "size": [140, 60], "tag": "lock guarded" },
+    { "id": "services", "type": "backend", "label": "ML Services", "sublabel": "clean feature tune eval", "pos": [700, 90], "size": [150, 60] },
+    { "id": "tuninglab", "type": "frontend", "label": "Tuning Lab", "sublabel": "/tuning CV forms", "pos": [470, 350], "size": [140, 60], "tag": "TRAIN only" },
+    { "id": "expstate", "type": "security", "label": "Experiment State", "sublabel": "history config locks", "pos": [700, 350], "size": [150, 60], "tag": "4c2259e97b3f" },
+    { "id": "processed", "type": "database", "label": "Processed CSVs", "sublabel": "clean feature ml", "pos": [930, 230], "size": [150, 60], "tag": "509211 ML rows" },
+    { "id": "models", "type": "database", "label": "Model Store", "sublabel": "final_model.pkl", "pos": [930, 380], "size": [150, 60], "tag": "Random Forest" },
+    { "id": "reports", "type": "database", "label": "Reports", "sublabel": "metrics plots json", "pos": [930, 530], "size": [150, 60], "tag": "F1_UP 0.4816" },
+    { "id": "sqlite", "type": "database", "label": "SQLite DB", "sublabel": "6 tables + logs", "pos": [1080, 90], "size": [140, 60], "tag": "local" },
+    { "id": "user", "type": "external", "label": "User", "sublabel": "browser or CLI", "pos": [40, 520], "size": [140, 60] },
+    { "id": "web", "type": "frontend", "label": "Flask Web", "sublabel": "index eval tuning", "pos": [250, 470], "size": [140, 60], "tag": "3 pages" },
+    { "id": "cli", "type": "external", "label": "CLI", "sublabel": "predict_stock.py", "pos": [250, 610], "size": [140, 60] },
+    { "id": "predictsvc", "type": "backend", "label": "Prediction Service", "sublabel": "predict_symbol", "pos": [470, 540], "size": [150, 60], "tag": "latest row" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "stock-prediction-ml workspace", "wraps": ["settings", "pipeline", "services", "tuninglab", "expstate", "processed", "models", "reports", "sqlite", "web", "cli", "predictsvc"] },
+    { "kind": "security-group", "label": "regenerated offline artifacts", "wraps": ["processed", "models", "reports"] }
+  ],
+  "connections": [
+    { "from": "vnstock", "to": "raw", "label": "append OHLCV", "variant": "emphasis", "labelAt": [205, 78] },
+    { "from": "raw", "to": "pipeline", "label": "read raw", "variant": "emphasis", "labelAt": [420, 78] },
+    { "from": "roadmap", "to": "pipeline", "label": "rules", "variant": "dashed", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-h", "labelAt": [420, 190] },
+    { "from": "settings", "to": "pipeline", "label": "config", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "straight", "labelAt": [560, 185] },
+    { "from": "pipeline", "to": "services", "label": "orchestrate", "variant": "emphasis", "labelAt": [645, 78] },
+    { "from": "tuninglab", "to": "expstate", "label": "save run", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [650, 368] },
+    { "from": "expstate", "to": "pipeline", "label": "locks + config", "variant": "security", "fromSide": "top", "toSide": "right", "route": "orthogonal-v", "via": [[775, 320], [775, 120], [620, 120]], "labelAt": [795, 286] },
+    { "from": "services", "to": "processed", "label": "clean + label", "variant": "emphasis", "fromSide": "right", "toSide": "top", "route": "orthogonal-h", "via": [[875, 120], [1005, 120], [1005, 230]], "labelAt": [900, 194] },
+    { "from": "processed", "to": "models", "label": "split + train", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [1095, 336] },
+    { "from": "models", "to": "reports", "label": "evaluate", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [1095, 486] },
+    { "from": "services", "to": "sqlite", "label": "sync", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [965, 100] },
+    { "from": "user", "to": "web", "label": "HTTP", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [205, 490] },
+    { "from": "user", "to": "cli", "label": "command", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [205, 638] },
+    { "from": "web", "to": "tuninglab", "label": "/tuning", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [430, 430] },
+    { "from": "web", "to": "predictsvc", "label": "/predict", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [430, 520] },
+    { "from": "cli", "to": "predictsvc", "label": "call", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [430, 640] },
+    { "from": "predictsvc", "to": "processed", "label": "read clean", "variant": "default", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-v", "via": [[660, 570], [1005, 570], [1005, 290]], "labelAt": [700, 622] },
+    { "from": "predictsvc", "to": "models", "label": "load model", "variant": "emphasis", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-v", "via": [[680, 548], [1005, 548], [1005, 440]], "labelAt": [710, 525] },
+    { "from": "predictsvc", "to": "sqlite", "label": "log", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[545, 510], [1150, 510], [1150, 150]], "labelAt": [880, 502] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Data Pipeline",
+      "items": [
+        "Raw CSV is outside the repo under shared_dataset and currently reports 549084 OHLCV rows",
+        "Cleaning keeps 396 trainable symbols after valid OHLCV checks and the 250-session filter",
+        "Feature engineering writes 15 technical signals and 509211 labeled ML rows"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Model Selection",
+      "items": [
+        "Tuning Lab stores selected params for Logistic Regression, Random Forest, and Gradient Boosting",
+        "Official pipeline recomputes TimeSeriesSplit CV on TRAIN, then evaluates TEST once per fingerprint",
+        "Imbalance handled per model (LR/RF class_weight, GB sample_weight); F1-optimal threshold tuned on TRAIN folds",
+        "select_final_model ranks f1_up, then recall_up, then simplicity; final is Random Forest (test F1_UP 0.4816, Recall_UP 0.9053)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Serving + Guards",
+      "items": [
+        "Flask and CLI load final_model.pkl and model_metadata.json without retraining",
+        "Prediction recomputes the latest feature row from clean symbol history",
+        "SQLite prediction logging is best-effort and never blocks rendering the result"
+      ]
+    }
+  ]
+}

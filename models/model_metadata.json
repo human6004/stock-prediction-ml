@@ -16,80 +16,45 @@
     "volatility_20d",
     "price_range",
     "volume_change_1d",
-    "volume_ratio_20"
+    "volume_ratio_20",
+    "return_10d",
+    "return_20d",
+    "dist_high20",
+    "dist_low20",
+    "month"
   ],
   "prediction_horizon": 5,
   "up_threshold": 0.01,
-  "final_prob_threshold": 0.3,
-  "split_date": "2025-12-31",
+  "decision_threshold": 0.41290799947430695,
+  "split_date": "2025-06-30",
   "cv_config": {
-    "n_splits": 3,
-    "gap_days": 5,
-    "train_subsample_fraction": 0.35
+    "n_splits": 5,
+    "gap": 5
   },
   "best_params": {
     "n_estimators": 120,
-    "learning_rate": 0.1,
-    "max_depth": 3
+    "learning_rate": 0.05,
+    "max_depth": 2,
+    "subsample": 1.0
   },
-  "cv_f1_up": 0.20378250981915166,
-  "oof_f1_up_at_threshold": 0.5518541751897813,
-  "oof_mcc_at_threshold": 0.0733728154270795,
-  "oof_pr_auc": 0.4314399619735869,
+  "cv_f1_up": 0.5452677481629793,
   "test_metrics": {
-    "accuracy": 0.41017567119655285,
-    "precision_up": 0.3302326904477442,
-    "recall_up": 0.8945827232796486,
-    "f1_up": 0.48239180569695206,
-    "precision_not_up": 0.8068887634105025,
-    "recall_not_up": 0.19534534021393665,
-    "f1_not_up": 0.3145412023662127,
-    "mcc": 0.11104533672737965
+    "accuracy": 0.4107996043021616,
+    "precision_up": 0.34865998488063016,
+    "recall_up": 0.9175945833199628,
+    "f1_up": 0.5053146840789207,
+    "precision_not_up": 0.8025830258302583,
+    "recall_not_up": 0.16348517828340564,
+    "f1_not_up": 0.27163802411958315
   },
-  "train_rows": 466973,
-  "test_rows": 42238,
-  "trained_at": "2026-06-28T15:26:33",
+  "train_rows": 417806,
+  "test_rows": 95022,
+  "trained_at": "2026-07-16T22:03:43",
   "selection": {
     "selected_model_id": 4,
     "selected_model_name": "Gradient Boosting",
-    "selection_metric": "oof_f1_up_at_threshold (tie-break: MCC, PR-AUC)",
-    "tie_margin": 0.01,
-    "selected_oof_f1_up": 0.5518541751897813,
-    "selected_oof_mcc": 0.0733728154270795,
-    "selected_oof_pr_auc": 0.4314399619735869,
-    "selected_cv_f1_up": 0.20378250981915166,
-    "selected_prob_threshold": 0.3,
-    "selected_test_f1_up": 0.48239180569695206,
-    "selected_test_recall_up": 0.8945827232796486,
-    "selected_test_mcc": 0.11104533672737965,
-    "selected_test_pr_auc": 0.39565124394700374,
-    "selected_f1_up": 0.48239180569695206,
-    "selected_recall_up": 0.8945827232796486,
-    "cv_oof_table": [
-      {
-        "model_id": 2,
-        "model_name": "Logistic Regression",
-        "oof_f1_up_at_threshold": 0.5492642106478013,
-        "oof_mcc_at_threshold": 0.005438187989479266,
-        "oof_pr_auc": 0.42379094250417104,
-        "cv_f1_up": 0.41545490758097287
-      },
-      {
-        "model_id": 3,
-        "model_name": "Random Forest",
-        "oof_f1_up_at_threshold": 0.550908521586777,
-        "oof_mcc_at_threshold": 0.06620034513691211,
-        "oof_pr_auc": 0.42647707291007886,
-        "cv_f1_up": 0.4491454663094679
-      },
-      {
-        "model_id": 4,
-        "model_name": "Gradient Boosting",
-        "oof_f1_up_at_threshold": 0.5518541751897813,
-        "oof_mcc_at_threshold": 0.0733728154270795,
-        "oof_pr_auc": 0.4314399619735869,
-        "cv_f1_up": 0.20378250981915166
-      }
-    ]
+    "selected_f1_up": 0.5053146840789207,
+    "selected_recall_up": 0.9175945833199628,
+    "selected_cv_f1_up": 0.5452677481629793
   }
 }

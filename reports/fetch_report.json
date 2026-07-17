@@ -1,10 +1,10 @@
 {
-  "fetched_at": "2026-06-28T16:10:48",
+  "fetched_at": "2026-07-11T11:50:06",
   "raw_path": "D:\\study\\niên luận\\shared_dataset\\hose_stock_raw.csv",
   "symbols_in_csv": 400,
   "rows_before": 549084,
   "fetch_start": "2026-06-27",
-  "fetch_end": "2026-06-28",
+  "fetch_end": "2026-07-11",
   "fetch_source": "KBS",
   "should_fetch": true,
   "success_symbols": [
@@ -47,11 +47,13 @@
     "BSI",
     "BSR",
     "BTP",
+    "BTT",
     "BVH",
     "BWE",
     "C32",
     "C47",
     "CCC",
+    "CCI",
     "CCL",
     "CDC",
     "CHP",
@@ -62,8 +64,10 @@
     "CLL",
     "CLW",
     "CMG",
+    "CMV",
     "CMX",
     "CNG",
+    "COM",
     "CRC",
     "CRE",
     "CRV",
@@ -93,6 +97,7 @@
     "DHM",
     "DIG",
     "DLG",
+    "DMC",
     "DPG",
     "DPM",
     "DPR",
@@ -105,9 +110,11 @@
     "DSN",
     "DTA",
     "DTL",
+    "DTT",
     "DVP",
     "DXG",
     "DXS",
+    "DXV",
     "EIB",
     "ELC",
     "EVE",
@@ -132,6 +139,7 @@
     "GMD",
     "GMH",
     "GSP",
+    "GTA",
     "GVR",
     "HAG",
     "HAH",
@@ -150,16 +158,20 @@
     "HID",
     "HII",
     "HMC",
+    "HNA",
     "HPG",
     "HPX",
     "HQC",
+    "HRC",
     "HSG",
     "HSL",
     "HT1",
     "HTG",
     "HTI",
+    "HTL",
     "HTN",
     "HTV",
+    "HU1",
     "HUB",
     "HVH",
     "HVN",
@@ -188,12 +200,14 @@
     "LGL",
     "LHG",
     "LIX",
+    "LM8",
     "LPB",
     "LSS",
     "MBB",
     "MCH",
     "MCM",
     "MCP",
+    "MDG",
     "MHC",
     "MIG",
     "MSB",
@@ -202,6 +216,7 @@
     "MWG",
     "NAB",
     "NAF",
+    "NAV",
     "NBB",
     "NCT",
     "NHA",
@@ -211,6 +226,7 @@
     "NLG",
     "NNC",
     "NO1",
+    "NSC",
     "NT2",
     "NTC",
     "NTL",
@@ -237,6 +253,8 @@
     "PJT",
     "PLP",
     "PLX",
+    "PMG",
+    "PNC",
     "PNJ",
     "POW",
     "PPC",
@@ -251,11 +269,14 @@
     "RAL",
     "REE",
     "RYG",
+    "S4A",
     "SAB",
     "SAM",
+    "SAV",
     "SBA",
     "SBG",
     "SBT",
+    "SBV",
     "SC5",
     "SCR",
     "SCS",
@@ -264,6 +285,7 @@
     "SFI",
     "SGN",
     "SGR",
+    "SGT",
     "SHA",
     "SHB",
     "SHI",
@@ -272,11 +294,14 @@
     "SJD",
     "SJS",
     "SKG",
+    "SMA",
     "SMB",
     "SMC",
     "SPM",
+    "SRC",
     "SRF",
     "SSB",
+    "SSC",
     "SSI",
     "ST8",
     "STB",
@@ -284,6 +309,7 @@
     "STK",
     "SVC",
     "SVD",
+    "SVT",
     "SZC",
     "SZL",
     "TAL",
@@ -306,6 +332,7 @@
     "TEG",
     "THG",
     "TIP",
+    "TIX",
     "TLD",
     "TLG",
     "TLH",
@@ -324,6 +351,7 @@
     "TSA",
     "TSC",
     "TTA",
+    "TTE",
     "TTF",
     "TV2",
     "TVB",
@@ -332,10 +360,13 @@
     "TYA",
     "UIC",
     "VAB",
+    "VCA",
     "VCB",
+    "VCF",
     "VCG",
     "VCI",
     "VCK",
+    "VDP",
     "VDS",
     "VFG",
     "VGC",
@@ -347,8 +378,8 @@
     "VIP",
     "VIX",
     "VJC",
+    "VMD",
     "VND",
-    "VNE",
     "VNG",
     "VNL",
     "VNM",
@@ -377,147 +408,23 @@
   "failed_symbols": [
     {
       "symbol": "BCG",
-      "error": "RetryError[<Future at 0x256a3108230 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "BTT",
-      "error": "RetryError[<Future at 0x256a30fac60 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "CCI",
-      "error": "RetryError[<Future at 0x256a3f18d70 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "CMV",
-      "error": "RetryError[<Future at 0x256a30ea720 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "COM",
-      "error": "RetryError[<Future at 0x2569d7d26f0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "DMC",
-      "error": "RetryError[<Future at 0x256a323bef0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "DTT",
-      "error": "RetryError[<Future at 0x256a324bc50 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "DXV",
-      "error": "RetryError[<Future at 0x256a328d280 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "GTA",
-      "error": "RetryError[<Future at 0x256a349a5a0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "HNA",
-      "error": "RetryError[<Future at 0x256a30f82f0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "HRC",
-      "error": "RetryError[<Future at 0x256a3108230 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "HTL",
-      "error": "RetryError[<Future at 0x256a30f83b0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "HU1",
-      "error": "RetryError[<Future at 0x256a30d8530 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x1f600f753d0 state=finished raised ValueError>]"
     },
     {
       "symbol": "LGC",
-      "error": "RetryError[<Future at 0x256a30d8da0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "LM8",
-      "error": "RetryError[<Future at 0x256a30d8380 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "MDG",
-      "error": "RetryError[<Future at 0x256a31751f0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "NAV",
-      "error": "RetryError[<Future at 0x256a30fb620 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "NSC",
-      "error": "RetryError[<Future at 0x256a32488f0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "PMG",
-      "error": "RetryError[<Future at 0x256a30d9160 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "PNC",
-      "error": "RetryError[<Future at 0x256a30daba0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "S4A",
-      "error": "RetryError[<Future at 0x256a328c5f0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SAV",
-      "error": "RetryError[<Future at 0x256a30f8380 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SBV",
-      "error": "RetryError[<Future at 0x256a3176f30 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SGT",
-      "error": "RetryError[<Future at 0x256a31b5bb0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SMA",
-      "error": "RetryError[<Future at 0x256a34b9490 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SRC",
-      "error": "RetryError[<Future at 0x256a349a5a0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SSC",
-      "error": "RetryError[<Future at 0x256a30eac90 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "SVT",
-      "error": "RetryError[<Future at 0x256a32fd6a0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x1f62335c8c0 state=finished raised ValueError>]"
     },
     {
       "symbol": "TCD",
-      "error": "RetryError[<Future at 0x256a30fa6c0 state=finished raised ValueError>]"
+      "error": "RetryError[<Future at 0x1f62e46b5c0 state=finished raised ValueError>]"
     },
     {
-      "symbol": "TIX",
-      "error": "RetryError[<Future at 0x256a328c620 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "TTE",
-      "error": "RetryError[<Future at 0x256a324a4b0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "VCA",
-      "error": "RetryError[<Future at 0x256a30f8fb0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "VCF",
-      "error": "RetryError[<Future at 0x256a30eb830 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "VDP",
-      "error": "RetryError[<Future at 0x256a34b9e80 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "VMD",
-      "error": "RetryError[<Future at 0x256a323bda0 state=finished raised ValueError>]"
+      "symbol": "VNE",
+      "error": "RetryError[<Future at 0x1f626f9b7d0 state=finished raised ValueError>]"
     }
   ],
-  "new_rows": 0,
-  "rows_after": 549084,
+  "new_rows": 3657,
+  "rows_after": 552738,
   "date_min_after": "2019-08-14",
-  "date_max_after": "2026-06-26"
+  "date_max_after": "2026-07-10"
 }

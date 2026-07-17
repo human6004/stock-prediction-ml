@@ -1,0 +1,155 @@
+{
+  "run_id": "GB_SEARCH_20260704_170104",
+  "started_at": "2026-07-04T17:01:04",
+  "budget_seconds": 5400,
+  "elapsed_seconds": 5443.8,
+  "dataset_fingerprint": "4c2259e97b3f",
+  "candidate_count": 1680,
+  "completed": 42,
+  "errors": 0,
+  "best": {
+    "params": {
+      "n_estimators": 40,
+      "learning_rate": 0.2,
+      "max_depth": 2,
+      "subsample": 0.6
+    },
+    "f1_up_mean": 0.15981230719431905,
+    "f1_up_std": 0.1453355362910981,
+    "precision_up_mean": 0.49132445341106673,
+    "recall_up_mean": 0.12052036215688382,
+    "seconds": 117.38
+  },
+  "top10": [
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.6
+      },
+      "f1_up_mean": 0.15981230719431905,
+      "f1_up_std": 0.1453355362910981,
+      "precision_up_mean": 0.49132445341106673,
+      "recall_up_mean": 0.12052036215688382,
+      "seconds": 117.38
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.5
+      },
+      "f1_up_mean": 0.1577265178236897,
+      "f1_up_std": 0.1453456334092347,
+      "precision_up_mean": 0.49001541229819434,
+      "recall_up_mean": 0.1182917616389593,
+      "seconds": 85.23
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.7
+      },
+      "f1_up_mean": 0.15650684337022314,
+      "f1_up_std": 0.14731998716446218,
+      "precision_up_mean": 0.4872741485353064,
+      "recall_up_mean": 0.1184070939760838,
+      "seconds": 117.92
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.8
+      },
+      "f1_up_mean": 0.15605022494105675,
+      "f1_up_std": 0.14311300094854423,
+      "precision_up_mean": 0.48921067571246935,
+      "recall_up_mean": 0.11609396000186248,
+      "seconds": 143.07
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.9
+      },
+      "f1_up_mean": 0.1554152157458077,
+      "f1_up_std": 0.14428595613370207,
+      "precision_up_mean": 0.4848202630299445,
+      "recall_up_mean": 0.11588998363401606,
+      "seconds": 147.28
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 1.0
+      },
+      "f1_up_mean": 0.15227751894988154,
+      "f1_up_std": 0.1444734038505089,
+      "precision_up_mean": 0.4833669611482675,
+      "recall_up_mean": 0.11395691685512836,
+      "seconds": 183.97
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.15,
+        "max_depth": 2,
+        "subsample": 0.5
+      },
+      "f1_up_mean": 0.1469630479923136,
+      "f1_up_std": 0.14567563826188343,
+      "precision_up_mean": 0.4866341478835435,
+      "recall_up_mean": 0.11000058859706223,
+      "seconds": 85.44
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.15,
+        "max_depth": 2,
+        "subsample": 0.7
+      },
+      "f1_up_mean": 0.1443772500277976,
+      "f1_up_std": 0.14399402049587368,
+      "precision_up_mean": 0.4792608814668495,
+      "recall_up_mean": 0.10733522633415404,
+      "seconds": 123.38
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.15,
+        "max_depth": 2,
+        "subsample": 0.8
+      },
+      "f1_up_mean": 0.14411483768913858,
+      "f1_up_std": 0.1443112124517369,
+      "precision_up_mean": 0.47725975462968623,
+      "recall_up_mean": 0.10722109940765837,
+      "seconds": 133.39
+    },
+    {
+      "params": {
+        "n_estimators": 40,
+        "learning_rate": 0.15,
+        "max_depth": 2,
+        "subsample": 0.6
+      },
+      "f1_up_mean": 0.14364231221161655,
+      "f1_up_std": 0.1377240928927656,
+      "precision_up_mean": 0.482514926649898,
+      "recall_up_mean": 0.10471453594666932,
+      "seconds": 116.03
+    }
+  ]
+}

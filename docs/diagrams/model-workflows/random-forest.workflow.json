@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Random Forest - Workflow (Selected)",
+    "subtitle": "Manual tuning to CV to selection, then promoted to final_model and served",
+    "output": "docs/diagrams/model-workflows/random-forest.html"
+  },
+  "lanes": [
+    { "id": "tuning", "label": "Tuning Lab" },
+    { "id": "prep", "label": "Fetch + Prepare Data" },
+    { "id": "train", "label": "Fit + Evaluate" },
+    { "id": "outcome", "label": "Compare + Outcome" },
+    { "id": "serve", "label": "Serving (final model)" }
+  ],
+  "nodes": [
+    { "id": "params", "lane": "tuning", "col": 0, "type": "frontend", "label": "Set Params", "sublabel": "n_est=80, depth=8" },
+    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "CV on TRAIN", "sublabel": "TS n=5 gap=5", "tag": "F1_UP 0.5427" },
+    { "id": "lock", "lane": "tuning", "col": 4, "type": "security", "label": "Lock Config", "sublabel": "fingerprint 4c2259e97b3f", "tag": "manual" },
+    { "id": "fetch", "lane": "prep", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock KBS" },
+    { "id": "check", "lane": "prep", "col": 2, "type": "security", "label": "Check Raw", "sublabel": "required cols", "tag": "OHLCV" },
+    { "id": "clean", "lane": "prep", "col": 3, "type": "backend", "label": "Clean", "sublabel": "396 symbols" },
+    { "id": "feature", "lane": "prep", "col": 5, "type": "backend", "label": "Feature+Label", "sublabel": "15 signals" },
+    { "id": "split", "lane": "train", "col": 0, "type": "security", "label": "Time Split", "sublabel": "label_end date", "tag": "no shuffle" },
+    { "id": "fit", "lane": "train", "col": 2, "type": "backend", "label": "Fit Forest", "sublabel": "min_leaf=100, feat=0.4", "tag": "balanced_subsample" },
+    { "id": "threshold", "lane": "train", "col": 3, "type": "security", "label": "Tune Threshold", "sublabel": "P(UP)>=0.4049", "tag": "per-fold, no leak" },
+    { "id": "test", "lane": "train", "col": 5, "type": "backend", "label": "Test Metrics", "sublabel": "P/R/F1 on TEST", "tag": "F1_UP 0.4816" },
+    { "id": "compare", "lane": "outcome", "col": 0, "type": "backend", "label": "Compare", "sublabel": "f1_up>recall>simple" },
+    { "id": "dummy", "lane": "outcome", "col": 1, "type": "external", "label": "vs Dummy", "sublabel": "acc 0.69, F1_UP 0" },
+    { "id": "result", "lane": "outcome", "col": 3, "type": "security", "label": "Selected", "sublabel": "rank 1 of 3", "tag": "final model" },
+    { "id": "artifact", "lane": "outcome", "col": 5, "type": "database", "label": "Save Artifact", "sublabel": "final_model.pkl" },
+    { "id": "user", "lane": "serve", "col": 0, "type": "external", "label": "User", "sublabel": "symbol" },
+    { "id": "surface", "lane": "serve", "col": 2, "type": "frontend", "label": "Web/CLI", "sublabel": "Flask /predict" },
+    { "id": "predict", "lane": "serve", "col": 3, "type": "backend", "label": "Predict", "sublabel": "latest row", "tag": "apply 0.4049" },
+    { "id": "result_out", "lane": "serve", "col": 5, "type": "frontend", "label": "Result", "sublabel": "UP / NOT_UP" }
+  ],
+  "edges": [
+    { "from": "params", "to": "cv", "variant": "default" },
+    { "from": "cv", "to": "lock", "label": "best run", "variant": "emphasis", "labelDy": -18 },
+    { "from": "fetch", "to": "check", "label": "raw CSV", "variant": "emphasis", "labelDy": -18 },
+    { "from": "check", "to": "clean", "variant": "security" },
+    { "from": "clean", "to": "feature", "label": "build + target", "variant": "emphasis", "labelDy": -18 },
+    { "from": "lock", "to": "fit", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
+    { "from": "feature", "to": "split", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.72 },
+    { "from": "split", "to": "fit", "label": "TRAIN", "variant": "emphasis", "labelDy": -18 },
+    { "from": "fit", "to": "threshold", "variant": "emphasis" },
+    { "from": "threshold", "to": "test", "variant": "emphasis" },
+    { "from": "test", "to": "compare", "label": "F1_UP", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.85 },
+    { "from": "compare", "to": "dummy", "label": "must beat", "variant": "dashed", "labelDy": -18 },
+    { "from": "compare", "to": "result", "variant": "emphasis" },
+    { "from": "result", "to": "artifact", "label": "promoted", "variant": "emphasis", "labelDy": -18 },
+    { "from": "artifact", "to": "predict", "label": "load final_model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelSegment": 1 },
+    { "from": "user", "to": "surface", "variant": "emphasis" },
+    { "from": "surface", "to": "predict", "variant": "emphasis" },
+    { "from": "predict", "to": "result_out", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Model Setup",
+      "items": [
+        "RandomForestClassifier, class_weight=balanced_subsample, n_jobs=-1",
+        "n_estimators=80, max_depth=8, min_samples_leaf=100, max_features=0.4",
+        "min_samples_leaf=100 keeps trees shallow/regularized on ~467k rows"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "CV vs Test Gap",
+      "items": [
+        "CV F1_UP on TRAIN folds: 0.5427 (decision threshold tuned per fold)",
+        "Held-out TEST: precision_up 0.328, recall_up 0.905, F1_UP 0.4816 (best)",
+        "Decision threshold 0.4049 applied at both evaluation and serving time"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Outcome",
+      "items": [
+        "select_final_model ranks by f1_up, then recall_up, then simplicity",
+        "Wins F1_UP (0.4816) and best recall/precision balance of the 3 models",
+        "Saved as models/final_model.pkl and used by the serving prediction flow"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Serving (this model only)",
+      "items": [
+        "Only the selected model is copied to final_model.pkl; LR and GB are not served",
+        "predict_symbol rebuilds the latest feature row, no label columns read",
+        "Same threshold 0.4049 labels UP when P(UP) >= 0.4049, else NOT_UP"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+2026-07-16T20:10:10 | START RF_2H_20260716_201010 fingerprint=f6cb3ac8f820 pending=227
+2026-07-16T20:11:37 | BEST f1=0.544918335 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:11:37 | TRAIN f1=0.544918335 run_id=RF_20260716_201014 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:12:55 | TRAIN f1=0.526504374 run_id=RF_20260716_201138 params={'n_estimators': 120, 'max_depth': 10, 'min_samples_leaf': 20, 'max_features': 'sqrt'}
+2026-07-16T20:13:50 | BEST f1=0.548804065 params={'n_estimators': 130, 'max_depth': 3, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:13:50 | TRAIN f1=0.548804065 run_id=RF_20260716_201257 params={'n_estimators': 130, 'max_depth': 3, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:14:56 | TRAIN f1=0.548039548 run_id=RF_20260716_201352 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:16:13 | TRAIN f1=0.548020821 run_id=RF_20260716_201458 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:17:49 | TRAIN f1=0.543931162 run_id=RF_20260716_201615 params={'n_estimators': 130, 'max_depth': 7, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:19:27 | TRAIN f1=0.541234634 run_id=RF_20260716_201750 params={'n_estimators': 130, 'max_depth': 8, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:21:17 | TRAIN f1=0.529178956 run_id=RF_20260716_201929 params={'n_estimators': 130, 'max_depth': 9, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:23:16 | TRAIN f1=0.522648291 run_id=RF_20260716_202118 params={'n_estimators': 130, 'max_depth': 10, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:25:13 | TRAIN f1=0.516113941 run_id=RF_20260716_202317 params={'n_estimators': 130, 'max_depth': 11, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:27:14 | TRAIN f1=0.508891611 run_id=RF_20260716_202514 params={'n_estimators': 130, 'max_depth': 12, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:28:29 | TRAIN f1=0.546622113 run_id=RF_20260716_202716 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 5, 'max_features': 0.3}
+2026-07-16T20:29:42 | TRAIN f1=0.545092969 run_id=RF_20260716_202830 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 10, 'max_features': 0.3}
+2026-07-16T20:30:59 | TRAIN f1=0.545539074 run_id=RF_20260716_202943 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 15, 'max_features': 0.3}
+2026-07-16T20:32:17 | TRAIN f1=0.543942492 run_id=RF_20260716_203100 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 20, 'max_features': 0.3}
+2026-07-16T20:33:32 | TRAIN f1=0.546241836 run_id=RF_20260716_203218 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 30, 'max_features': 0.3}
+2026-07-16T20:34:46 | TRAIN f1=0.546169306 run_id=RF_20260716_203333 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 35, 'max_features': 0.3}
+2026-07-16T20:36:00 | TRAIN f1=0.545672487 run_id=RF_20260716_203447 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 40, 'max_features': 0.3}
+2026-07-16T20:37:16 | TRAIN f1=0.545362749 run_id=RF_20260716_203601 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 50, 'max_features': 0.3}
+2026-07-16T20:38:42 | TRAIN f1=0.546064127 run_id=RF_20260716_203717 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 60, 'max_features': 0.3}
+2026-07-16T20:40:07 | TRAIN f1=0.546040450 run_id=RF_20260716_203844 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 80, 'max_features': 0.3}
+2026-07-16T20:41:11 | TRAIN f1=0.546568152 run_id=RF_20260716_204008 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.2}
+2026-07-16T20:42:15 | TRAIN f1=0.546568152 run_id=RF_20260716_204112 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.24}
+2026-07-16T20:43:25 | TRAIN f1=0.544920083 run_id=RF_20260716_204216 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.25}
+2026-07-16T20:44:31 | TRAIN f1=0.544920083 run_id=RF_20260716_204326 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.28}
+2026-07-16T20:45:56 | TRAIN f1=0.544918335 run_id=RF_20260716_204432 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.32}
+2026-07-16T20:47:33 | TRAIN f1=0.546385205 run_id=RF_20260716_204558 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.35}
+2026-07-16T20:49:25 | TRAIN f1=0.547795487 run_id=RF_20260716_204735 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.4}
+2026-07-16T20:51:29 | TRAIN f1=0.544841083 run_id=RF_20260716_204926 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.5}
+2026-07-16T20:52:31 | TRAIN f1=0.546568152 run_id=RF_20260716_205130 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 'sqrt'}
+2026-07-16T20:53:33 | TRAIN f1=0.546568152 run_id=RF_20260716_205232 params={'n_estimators': 130, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 'log2'}
+2026-07-16T20:54:07 | TRAIN f1=0.544653422 run_id=RF_20260716_205334 params={'n_estimators': 50, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:54:56 | TRAIN f1=0.545815567 run_id=RF_20260716_205409 params={'n_estimators': 70, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:55:53 | TRAIN f1=0.544270640 run_id=RF_20260716_205457 params={'n_estimators': 90, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:57:04 | TRAIN f1=0.544733976 run_id=RF_20260716_205554 params={'n_estimators': 110, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T20:58:59 | TRAIN f1=0.544652878 run_id=RF_20260716_205705 params={'n_estimators': 150, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T21:00:54 | TRAIN f1=0.544871029 run_id=RF_20260716_205900 params={'n_estimators': 180, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T21:03:00 | TRAIN f1=0.545907304 run_id=RF_20260716_210055 params={'n_estimators': 220, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T21:05:37 | TRAIN f1=0.544798073 run_id=RF_20260716_210302 params={'n_estimators': 260, 'max_depth': 6, 'min_samples_leaf': 25, 'max_features': 0.3}
+2026-07-16T21:06:27 | TRAIN f1=0.548635775 run_id=RF_20260716_210539 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 15, 'max_features': 0.25}
+2026-07-16T21:07:30 | TRAIN f1=0.548170290 run_id=RF_20260716_210628 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 15, 'max_features': 0.3}
+2026-07-16T21:08:33 | BEST f1=0.548831716 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 15, 'max_features': 0.35}
+2026-07-16T21:08:33 | TRAIN f1=0.548831716 run_id=RF_20260716_210731 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 15, 'max_features': 0.35}
+2026-07-16T21:09:19 | TRAIN f1=0.548812859 run_id=RF_20260716_210835 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 15, 'max_features': 'sqrt'}
+2026-07-16T21:10:19 | TRAIN f1=0.548646100 run_id=RF_20260716_210921 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 20, 'max_features': 0.25}
+2026-07-16T21:11:18 | TRAIN f1=0.548094168 run_id=RF_20260716_211020 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 20, 'max_features': 0.3}
+2026-07-16T21:12:22 | BEST f1=0.549079970 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 20, 'max_features': 0.35}
+2026-07-16T21:12:22 | TRAIN f1=0.549079970 run_id=RF_20260716_211120 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 20, 'max_features': 0.35}
+2026-07-16T21:13:12 | TRAIN f1=0.548785188 run_id=RF_20260716_211223 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 20, 'max_features': 'sqrt'}
+2026-07-16T21:14:27 | TRAIN f1=0.548598700 run_id=RF_20260716_211313 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 25, 'max_features': 0.25}
+2026-07-16T21:16:03 | BEST f1=0.549131745 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 25, 'max_features': 0.35}
+2026-07-16T21:16:03 | TRAIN f1=0.549131745 run_id=RF_20260716_211429 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 25, 'max_features': 0.35}
+2026-07-16T21:16:59 | TRAIN f1=0.548993503 run_id=RF_20260716_211605 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 25, 'max_features': 'sqrt'}
+2026-07-16T21:18:01 | TRAIN f1=0.548522699 run_id=RF_20260716_211700 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 30, 'max_features': 0.25}
+2026-07-16T21:19:19 | TRAIN f1=0.548032998 run_id=RF_20260716_211802 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 30, 'max_features': 0.3}
+2026-07-16T21:20:43 | TRAIN f1=0.549070423 run_id=RF_20260716_211920 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 30, 'max_features': 0.35}
+2026-07-16T21:21:52 | TRAIN f1=0.548879947 run_id=RF_20260716_212045 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 30, 'max_features': 'sqrt'}
+2026-07-16T21:23:02 | TRAIN f1=0.548462251 run_id=RF_20260716_212153 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 40, 'max_features': 0.25}
+2026-07-16T21:24:16 | TRAIN f1=0.548137488 run_id=RF_20260716_212304 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 40, 'max_features': 0.3}
+2026-07-16T21:25:44 | TRAIN f1=0.548998079 run_id=RF_20260716_212418 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 40, 'max_features': 0.35}
+2026-07-16T21:26:41 | TRAIN f1=0.548772970 run_id=RF_20260716_212546 params={'n_estimators': 130, 'max_depth': 4, 'min_samples_leaf': 40, 'max_features': 'sqrt'}
+2026-07-16T21:27:51 | TRAIN f1=0.547506987 run_id=RF_20260716_212642 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 15, 'max_features': 0.25}
+2026-07-16T21:29:09 | TRAIN f1=0.547424804 run_id=RF_20260716_212753 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 15, 'max_features': 0.3}
+2026-07-16T21:30:37 | TRAIN f1=0.545625614 run_id=RF_20260716_212911 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 15, 'max_features': 0.35}
+2026-07-16T21:31:38 | TRAIN f1=0.547623316 run_id=RF_20260716_213038 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 15, 'max_features': 'sqrt'}
+2026-07-16T21:32:51 | TRAIN f1=0.547323561 run_id=RF_20260716_213139 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 20, 'max_features': 0.25}
+2026-07-16T21:34:32 | TRAIN f1=0.547967984 run_id=RF_20260716_213253 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 20, 'max_features': 0.3}
+2026-07-16T21:36:10 | TRAIN f1=0.546119414 run_id=RF_20260716_213434 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 20, 'max_features': 0.35}
+2026-07-16T21:37:08 | TRAIN f1=0.547667956 run_id=RF_20260716_213612 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 20, 'max_features': 'sqrt'}
+2026-07-16T21:38:18 | TRAIN f1=0.547363691 run_id=RF_20260716_213710 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 25, 'max_features': 0.25}
+2026-07-16T21:39:51 | TRAIN f1=0.546901125 run_id=RF_20260716_213819 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 25, 'max_features': 0.35}
+2026-07-16T21:40:53 | TRAIN f1=0.547577148 run_id=RF_20260716_213952 params={'n_estimators': 130, 'max_depth': 5, 'min_samples_leaf': 25, 'max_features': 'sqrt'}
+2026-07-16T21:40:53 | DONE {"status": "budget_reached", "run_id": "RF_2H_20260716_201010", "started_at": "2026-07-16T20:10:10", "updated_at": "2026-07-16T21:40:53", "budget_seconds": 5400, "elapsed_seconds": 5442.8, "dataset_fingerprint": "f6cb3ac8f820", "candidate_count": 227, "completed_new_runs": 69, "reused_history_runs": 0, "pending_runs": 158, "errors": 0, "best": {"run_id": "RF_20260716_211429", "params": {"n_estimators": 130, "max_depth": 4, "min_samples_leaf": 25, "max_features": 0.35}, "cv_f1_up_mean": 0.5491317453101531, "cv_f1_up_std": 0.020496171216434697, "source": "new"}, "log_path": "experiments\\random_forest_2h_auto_RF_2H_20260716_201010.log"}
