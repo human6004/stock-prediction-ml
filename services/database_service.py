@@ -1,3 +1,9 @@
+"""Đồng bộ CSV/report sang SQLite và ghi lịch sử prediction.
+
+Raw/clean/features dùng `replace` nên được dựng lại toàn bảng. Tuning/evaluation
+dùng `append` để giữ lịch sử; prediction được INSERT từng lần gọi web/CLI.
+"""
+
 import json
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +22,7 @@ from database.db_connection import get_connection, init_database
 
 
 def sync_raw_data() -> int:
+    """Thay toàn bộ raw_prices bằng snapshot raw CSV hiện tại."""
     if not _path_exists(RAW_DATA_PATH):
         return 0
     df = pd.read_csv(RAW_DATA_PATH)
@@ -26,6 +33,7 @@ def sync_raw_data() -> int:
 
 
 def sync_clean_data() -> int:
+    """Thay toàn bộ clean_prices bằng snapshot clean CSV hiện tại."""
     if not _path_exists(CLEANED_DATA_PATH):
         return 0
     df = pd.read_csv(CLEANED_DATA_PATH)
@@ -36,6 +44,7 @@ def sync_clean_data() -> int:
 
 
 def sync_features() -> int:
+    """Gói 20 feature thành JSON cho từng (symbol, trading_date), rồi replace."""
     if not _path_exists(FEATURE_DATA_PATH):
         return 0
     df = pd.read_csv(FEATURE_DATA_PATH)
@@ -58,6 +67,7 @@ def sync_features() -> int:
 
 
 def sync_tuning_results() -> int:
+    """Append ba CV summary của official run; không phải toàn tuning history."""
     if not _path_exists(TUNING_RESULTS_PATH):
         return 0
     df = pd.read_csv(TUNING_RESULTS_PATH)
@@ -80,6 +90,7 @@ def sync_tuning_results() -> int:
 
 
 def sync_evaluations() -> int:
+    """Append TEST metrics của bốn artifact từ model_comparison.csv."""
     if not _path_exists(MODEL_COMPARISON_PATH):
         return 0
     df = pd.read_csv(MODEL_COMPARISON_PATH)
@@ -104,6 +115,7 @@ def sync_evaluations() -> int:
 
 
 def log_prediction(result: dict) -> None:
+    """Ghi một lần dự báo; caller có thể chọn best-effort để UI không bị lỗi."""
     with get_connection() as conn:
         conn.execute(
             """
@@ -123,6 +135,7 @@ def log_prediction(result: dict) -> None:
 
 
 def sync_all() -> dict:
+    """Khởi tạo DB rồi sync lần lượt toàn bộ snapshot và report hiện có."""
     init_database()
     return {
         "raw_rows": sync_raw_data(),

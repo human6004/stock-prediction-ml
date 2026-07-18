@@ -49,7 +49,7 @@
   },
   "train_rows": 417806,
   "test_rows": 95022,
-  "trained_at": "2026-07-16T22:03:43",
+  "trained_at": "2026-07-17T17:27:44",
   "selection": {
     "selected_model_id": 4,
     "selected_model_name": "Gradient Boosting",

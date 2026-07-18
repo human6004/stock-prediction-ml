@@ -1,3 +1,9 @@
+"""Entrypoint chạy official pipeline từ raw CSV đến model/report/SQLite.
+
+Luồng: kiểm tra raw -> clean -> feature/label -> split -> CV + fit TRAIN
+-> evaluate TEST -> chọn final model -> ghi report -> sync database.
+"""
+
 import json
 import os
 import sys
@@ -69,6 +75,7 @@ def _run_pipeline() -> None:
     if not roadmap_report["read_success"]:
         raise FileNotFoundError(f"Cannot read roadmap: {ROADMAP_PATH}")
 
+    # Giai đoạn 1: dựng lại toàn bộ dataset học từ raw OHLCV.
     raw_df, dataset_report = dataset_check()
     cleanup_report = cleanup_outputs()
 
@@ -82,6 +89,8 @@ def _run_pipeline() -> None:
     write_feature_outputs(features, ml_dataset)
     write_train_test_summary(train, test)
 
+    # Giai đoạn 2: chặn việc xem lại cùng TEST sau khi đã biết kết quả.
+    # Lưu ý cleanup hiện chạy trước guard này; xem cảnh báo trong tài liệu project.
     fingerprint = compute_dataset_fingerprint()
     allow_reeval = os.environ.get("STOCK_ALLOW_TEST_REEVAL") == "1"
     if is_test_locked(fingerprint["hash"]) and not allow_reeval:
@@ -92,6 +101,7 @@ def _run_pipeline() -> None:
             "hoặc đặt STOCK_ALLOW_TEST_REEVAL=1 (chỉ dành cho debug)."
         )
 
+    # Giai đoạn 3: CV/fit chỉ trên TRAIN, sau đó mới chạm TEST để chọn final.
     fitted_artifacts, tuning_df, tuning_report = tune_models(train)
     comparison, fitted_artifacts = evaluate_tuned_models(train, test, fitted_artifacts)
     comparison, selected_artifact, selection_report = select_final_model(
@@ -99,6 +109,7 @@ def _run_pipeline() -> None:
     )
     verify_model_selection(comparison, selected_artifact)
 
+    # Giai đoạn 4: đóng gói provenance và mọi output phục vụ demo/bảo vệ.
     summary = {
         "roadmap_report": roadmap_report,
         "dataset_report": dataset_report,
@@ -130,6 +141,7 @@ def _run_pipeline() -> None:
         selection_report=selection_report,
     )
 
+    # Database là bản sync phụ; lỗi DB không được làm mất model/report đã tạo.
     try:
         db_report = sync_all()
         summary["database_sync"] = db_report

@@ -1,3 +1,9 @@
+"""Biến OHLCV thành feature, label và TRAIN/TEST dataset.
+
+Mọi rolling/shift chạy riêng theo symbol. Window `5/20/50` đếm row có dữ liệu
+của mã, không bảo đảm tương ứng số ngày thị trường khi mã giao dịch thưa.
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -24,6 +30,7 @@ def compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
 
 
 def build_features(clean_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Tính 20 feature chỉ từ dòng hiện tại và quá khứ của từng symbol."""
     frames = []
     for _, group in clean_df.groupby("symbol", sort=False):
         g = group.sort_values("trading_date").copy()
@@ -57,6 +64,7 @@ def build_features(clean_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     features = pd.concat(frames, ignore_index=True)
     features = features.replace([np.inf, -np.inf], np.nan)
+    # Rolling window dài nhất cần 50 row; các row đầu chưa đủ lịch sử bị loại.
     features = features.dropna(subset=FEATURE_COLUMNS).copy()
     features = features.sort_values(["symbol", "trading_date"]).reset_index(drop=True)
     report = {
@@ -75,9 +83,11 @@ def _label_end_date_for_row(group: pd.DataFrame) -> pd.Series:
 
 
 def create_labels(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Tạo target từ close ở row thứ PREDICTION_HORIZON kế tiếp cùng symbol."""
     frames = []
     for _, group in features.groupby("symbol", sort=False):
         g = group.sort_values("trading_date").copy()
+        # shift(-5) là 5 row kế tiếp của mã, không nhất thiết 5 ngày liên tiếp.
         g["future_close_5d"] = g["close"].shift(-PREDICTION_HORIZON)
         g["future_return_5d"] = (g["future_close_5d"] / g["close"]) - 1
         g["label_end_date"] = _label_end_date_for_row(g)
@@ -104,7 +114,11 @@ def create_labels(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
 
 def time_based_split(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """Split by label_end_date to avoid leakage from future labels in train."""
+    """Split theo ngày kết thúc label, không phải tuyệt đối theo trading_date.
+
+    TRAIN chỉ giữ label_end_date <= SPLIT_DATE. Mã dữ liệu thưa vẫn có thể tạo
+    TEST row với trading_date sớm hơn một số TRAIN row; xem tài liệu giới hạn.
+    """
     split_date = SPLIT_DATE
     train = dataset[dataset["label_end_date"] <= split_date].copy()
     test = dataset[dataset["label_end_date"] > split_date].copy()
@@ -166,6 +180,7 @@ def write_feature_outputs(features: pd.DataFrame, dataset: pd.DataFrame) -> None
 
 
 def verify_data_pipeline(train: pd.DataFrame, test: pd.DataFrame) -> None:
+    """Kiểm tra boundary label và chặn cột tương lai lọt vào FEATURE_COLUMNS."""
     if train["label_end_date"].max() > SPLIT_DATE:
         raise ValueError(
             f"Train max label_end_date {train['label_end_date'].max()} > SPLIT_DATE {SPLIT_DATE}"

@@ -82,10 +82,10 @@ def _to_float(value) -> float | None:
 # Dataset fingerprint
 # --------------------------------------------------------------------------- #
 def compute_dataset_fingerprint(ml_dataset_df: pd.DataFrame | None = None) -> dict:
-    """Return a stable fingerprint of the current ML dataset version.
+    """Return a compact signature of dataset shape/recency and ML config.
 
-    Derived from data size/recency plus the labeling/feature config so results
-    from different dataset versions are never mixed up.
+    This is not a content hash: changing values while keeping row count and max
+    date unchanged can keep the same fingerprint.
     """
     if ml_dataset_df is None:
         if not Path(ML_DATA_PATH).exists():

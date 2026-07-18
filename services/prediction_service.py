@@ -1,3 +1,9 @@
+"""Dự báo một symbol bằng dữ liệu offline và final model đã train.
+
+Luồng: load clean data -> tính feature mới nhất -> load artifact/metadata
+-> predict_proba -> áp decision_threshold -> trả dict cho Flask/CLI.
+"""
+
 from pathlib import Path
 
 import joblib
@@ -16,6 +22,7 @@ from services.preprocessing import clean_data, dataset_check
 
 
 def _load_clean_data() -> pd.DataFrame:
+    """Ưu tiên processed CSV; chỉ clean raw tại chỗ khi processed file thiếu."""
     if CLEANED_DATA_PATH.exists():
         return pd.read_csv(CLEANED_DATA_PATH)
     if not Path(RAW_DATA_PATH).exists():
@@ -43,6 +50,7 @@ def compute_latest_features(symbol: str) -> pd.Series:
 
 
 def load_model_artifact() -> dict:
+    """Load bundle gồm sklearn model và metadata tối thiểu lúc train."""
     if not FINAL_MODEL_PATH.exists():
         raise FileNotFoundError(
             "Chua co models/final_model.pkl. Hay chay: python scripts/run_pipeline.py"
@@ -51,6 +59,7 @@ def load_model_artifact() -> dict:
 
 
 def load_metadata() -> dict:
+    """Load metadata report; fallback về thông tin nhúng trong artifact."""
     if MODEL_METADATA_PATH.exists():
         import json
 
@@ -66,6 +75,7 @@ def load_metadata() -> dict:
 
 
 def predict_symbol(symbol: str) -> dict:
+    """Trả UP/NOT_UP cho row mới nhất; hàm này không fit hoặc sửa model."""
     normalized = symbol.strip().upper()
     if not normalized:
         raise ValueError("Vui long nhap ma co phieu.")
@@ -87,6 +97,7 @@ def predict_symbol(symbol: str) -> dict:
         if 1 in classes:
             probability_up = float(probabilities[classes.index(1)])
 
+    # Nhãn phục vụ dùng threshold đã tune, không dùng predict() mặc định 0.5.
     if probability_up is not None:
         label = "UP" if probability_up >= decision_threshold else "NOT_UP"
     else:

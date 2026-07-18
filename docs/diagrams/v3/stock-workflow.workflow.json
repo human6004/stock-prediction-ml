@@ -2,96 +2,117 @@
   "schema_version": 1,
   "diagram_type": "workflow",
   "meta": {
-    "title": "HOSE ML Pipeline Workflow v3",
-    "subtitle": "Manual CV config, guarded official run, Random Forest selection, artifact sync, and offline serving",
+    "title": "HOSE ML - Three Independent Operating Flows",
+    "subtitle": "Optional data refresh, one-model-at-a-time tuning, guarded official training, ordered release, and later inference",
     "output": "docs/diagrams/v3/stock-workflow.html"
   },
   "lanes": [
-    { "id": "tuning", "label": "Tuning Lab" },
-    { "id": "prep", "label": "Fetch + Prepare Data" },
-    { "id": "train", "label": "Train + Evaluate + Select" },
-    { "id": "artifacts", "label": "Artifacts + Database" },
-    { "id": "serve", "label": "Serving" }
+    { "id": "refresh", "label": "FLOW A - Optional Background Refresh" },
+    { "id": "tuning", "label": "FLOW B - Manual Tuning (repeat per model)" },
+    { "id": "preflight", "label": "FLOW C.1 - UI Preflight" },
+    { "id": "pipeline", "label": "FLOW C.2 - Child Pipeline (read right to left)" },
+    { "id": "publish", "label": "FLOW C.3 - Publish Outcome" },
+    { "id": "serve", "label": "AFTER FLOW C - Prediction Serving" }
   ],
   "nodes": [
-    { "id": "params", "lane": "tuning", "col": 0, "type": "frontend", "label": "Set Params", "sublabel": "3 models" },
-    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "CV on TRAIN", "sublabel": "TS gap 5", "tag": "F1_UP" },
-    { "id": "config", "lane": "tuning", "col": 4, "type": "security", "label": "Lock Config", "sublabel": "fingerprint", "tag": "manual" },
-    { "id": "fetch", "lane": "prep", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock KBS" },
-    { "id": "check", "lane": "prep", "col": 2, "type": "security", "label": "Check Raw", "sublabel": "required cols", "tag": "OHLCV" },
-    { "id": "clean", "lane": "prep", "col": 3, "type": "backend", "label": "Clean", "sublabel": "396 symbols" },
-    { "id": "feature", "lane": "prep", "col": 5, "type": "backend", "label": "Feature+Label", "sublabel": "15 signals" },
-    { "id": "split", "lane": "train", "col": 0, "type": "security", "label": "Time Split", "sublabel": "label_end", "tag": "no shuffle" },
-    { "id": "fit", "lane": "train", "col": 2, "type": "backend", "label": "Re-CV+Fit", "sublabel": "3 + dummy, balanced" },
-    { "id": "test", "lane": "train", "col": 3, "type": "backend", "label": "Test Metrics", "sublabel": "42238 rows" },
-    { "id": "select", "lane": "train", "col": 5, "type": "backend", "label": "Select RF", "sublabel": "F1_UP gate", "tag": "final" },
-    { "id": "csvs", "lane": "artifacts", "col": 0, "type": "database", "label": "CSVs", "sublabel": "clean/feat/ml" },
-    { "id": "model", "lane": "artifacts", "col": 2, "type": "database", "label": "Model", "sublabel": "final.pkl" },
-    { "id": "reports", "lane": "artifacts", "col": 3, "type": "database", "label": "Reports", "sublabel": "csv/png/json" },
-    { "id": "sqlite", "lane": "artifacts", "col": 5, "type": "database", "label": "SQLite", "sublabel": "sync/logs" },
-    { "id": "user", "lane": "serve", "col": 0, "type": "external", "label": "User", "sublabel": "symbol" },
-    { "id": "surface", "lane": "serve", "col": 2, "type": "frontend", "label": "Web/CLI", "sublabel": "Flask + script" },
-    { "id": "predict", "lane": "serve", "col": 3, "type": "backend", "label": "Predict", "sublabel": "latest row" },
-    { "id": "result", "lane": "serve", "col": 5, "type": "frontend", "label": "Result", "sublabel": "UP/NOT_UP" }
+    { "id": "refresh_request", "lane": "refresh", "col": 0, "type": "frontend", "label": "Refresh", "sublabel": "POST /tuning/fetch-data", "tag": "lock precheck" },
+    { "id": "refresh_worker", "lane": "refresh", "col": 2, "type": "backend", "label": "Background Job", "sublabel": "Popen + PID/log", "tag": "redirect status", "width": 100 },
+    { "id": "refresh_fetch", "lane": "refresh", "col": 3, "type": "external", "label": "Fetch + Build", "sublabel": "raw -> clean / ML", "tag": "KBS retry + dedupe", "width": 100 },
+    { "id": "refresh_status", "lane": "refresh", "col": 5, "type": "frontend", "label": "Refresh Status", "sublabel": "PID + log + report", "tag": "running / terminal", "width": 110 },
+
+    { "id": "tune_request", "lane": "tuning", "col": 0, "type": "frontend", "label": "Tune Request", "sublabel": "one model params", "tag": "LR / RF / GB" },
+    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "TRAIN CV", "sublabel": "5 folds, gap=5", "tag": "threshold per fold", "width": 100 },
+    { "id": "history", "lane": "tuning", "col": 3, "type": "database", "label": "Run History", "sublabel": "ok / error", "tag": "metrics + time", "width": 100 },
+    { "id": "save_config", "lane": "tuning", "col": 5, "type": "security", "label": "Save Config", "sublabel": "ok + same signature", "tag": "repeat until all 3", "width": 110 },
+
+    { "id": "official_request", "lane": "preflight", "col": 0, "type": "frontend", "label": "Official Run", "sublabel": "separate POST", "tag": "manual action" },
+    { "id": "ui_preflight", "lane": "preflight", "col": 2, "type": "security", "label": "UI Preflight", "sublabel": "three guards", "tag": "400 / 409 reject", "width": 110 },
+    { "id": "start_child", "lane": "preflight", "col": 5, "type": "backend", "label": "Start Child", "sublabel": "subprocess.run", "tag": "UI waits + logs", "width": 110 },
+
+    { "id": "rebuild", "lane": "pipeline", "col": 5, "type": "backend", "label": "Child Rebuild", "sublabel": "cleanup + split", "tag": "PID lock + finally", "width": 110 },
+    { "id": "child_recheck", "lane": "pipeline", "col": 3, "type": "security", "label": "Child Recheck", "sublabel": "signature + TEST", "tag": "config after rebuild", "width": 100 },
+    { "id": "fit", "lane": "pipeline", "col": 2, "type": "backend", "label": "Train 4 Models", "sublabel": "Dummy + 3 CV", "tag": "threshold on TRAIN", "width": 100 },
+    { "id": "evaluate", "lane": "pipeline", "col": 0, "type": "backend", "label": "TEST 4 Models", "sublabel": "held-out metrics", "tag": "all artifacts" },
+
+    { "id": "finalize", "lane": "publish", "col": 0, "type": "database", "label": "Select + Files", "sublabel": "non-Dummy; final + reports", "tag": "F1 > recall > simple" },
+    { "id": "sqlite", "lane": "publish", "col": 2, "type": "database", "label": "SQLite Store", "sublabel": "mirrors + logs", "tag": "failure = warning", "width": 110 },
+    { "id": "complete", "lane": "publish", "col": 5, "type": "security", "label": "Complete", "sublabel": "summary + lock", "tag": "model ready", "width": 110 },
+
+    { "id": "client", "lane": "serve", "col": 0, "type": "frontend", "label": "Web / CLI", "sublabel": "submit symbol" },
+    { "id": "inputs", "lane": "serve", "col": 2, "type": "backend", "label": "Load Inputs", "sublabel": "history + model", "tag": "metadata order", "width": 100 },
+    { "id": "infer", "lane": "serve", "col": 3, "type": "backend", "label": "Latest + Infer", "sublabel": "features + cutoff", "width": 100 },
+    { "id": "result", "lane": "serve", "col": 5, "type": "frontend", "label": "Prediction", "sublabel": "UP / NOT_UP", "tag": "probability", "width": 110 }
   ],
   "edges": [
-    { "from": "params", "to": "cv", "variant": "default" },
-    { "from": "cv", "to": "config", "label": "best run", "variant": "emphasis", "labelDy": -18 },
-    { "from": "fetch", "to": "check", "label": "raw CSV", "variant": "emphasis", "labelDy": -18 },
-    { "from": "check", "to": "clean", "variant": "security" },
-    { "from": "clean", "to": "feature", "label": "build + target", "variant": "emphasis", "labelDy": -18 },
-    { "from": "config", "to": "fit", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "feature", "to": "split", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.72 },
-    { "from": "split", "to": "fit", "label": "TRAIN", "variant": "emphasis", "labelDy": -18 },
-    { "from": "fit", "to": "test", "variant": "emphasis" },
-    { "from": "test", "to": "select", "label": "F1_UP", "variant": "emphasis", "labelDy": -18 },
-    { "from": "feature", "to": "csvs", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.3 },
-    { "from": "select", "to": "model", "label": "final_model", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.6, "labelSegment": 1 },
-    { "from": "test", "to": "reports", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.4 },
-    { "from": "csvs", "to": "sqlite", "variant": "dashed" },
-    { "from": "reports", "to": "sqlite", "variant": "dashed" },
-    { "from": "user", "to": "surface", "variant": "emphasis" },
-    { "from": "surface", "to": "predict", "label": "predict_symbol", "variant": "emphasis", "labelDy": -18 },
-    { "from": "model", "to": "predict", "label": "load RF", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelSegment": 1 },
-    { "from": "csvs", "to": "predict", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
-    { "from": "predict", "to": "result", "variant": "emphasis" },
-    { "from": "predict", "to": "sqlite", "label": "log", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "up-channel", "labelSegment": 1 }
+    { "from": "refresh_request", "to": "refresh_worker", "label": "free; else 409", "variant": "security", "labelDy": -18 },
+    { "from": "refresh_worker", "to": "refresh_fetch", "variant": "dashed" },
+    { "from": "refresh_fetch", "to": "refresh_status", "variant": "emphasis" },
+
+    { "from": "tune_request", "to": "cv", "variant": "default" },
+    { "from": "cv", "to": "history", "variant": "emphasis" },
+    { "from": "history", "to": "save_config", "label": "choose ok", "variant": "security", "labelDy": -18 },
+
+    { "from": "official_request", "to": "ui_preflight", "variant": "emphasis" },
+    { "from": "ui_preflight", "to": "start_child", "label": "pass", "variant": "emphasis", "labelDy": -18 },
+
+    { "from": "start_child", "to": "rebuild", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "rebuild", "to": "child_recheck", "variant": "emphasis" },
+    { "from": "child_recheck", "to": "fit", "variant": "security" },
+    { "from": "fit", "to": "evaluate", "label": "held-out TEST", "variant": "emphasis", "labelDy": -18 },
+
+    { "from": "evaluate", "to": "finalize", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "finalize", "to": "sqlite", "label": "sync attempt", "variant": "dashed", "labelDy": -18 },
+    { "from": "sqlite", "to": "complete", "variant": "default" },
+
+    { "from": "client", "to": "inputs", "label": "symbol", "variant": "emphasis", "labelDy": -18 },
+    { "from": "inputs", "to": "infer", "variant": "emphasis" },
+    { "from": "infer", "to": "result", "variant": "emphasis" }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Manual Config Gate",
+      "title": "Three Entry Points",
       "items": [
-        "Tuning Lab validates hyperparameters server-side before each CV run",
-        "Each selected run is tied to dataset fingerprint 4c2259e97b3f",
-        "The official pipeline requires all 3 tunable models to be locked first"
+        "Refresh, tuning, and official run are separate user actions; cross-flow dependencies stay in notes, not long arrows",
+        "Refresh is optional; tuning can use the existing ML dataset",
+        "Saving a config never starts the official pipeline"
       ]
     },
     {
-      "dot": "emerald",
-      "title": "Guarded Pipeline",
+      "dot": "amber",
+      "title": "Refresh + Tuning Truth",
       "items": [
-        "Features and labels are created per symbol; label columns are excluded from FEATURE_COLUMNS",
-        "Train/test split uses label_end_date with no shuffle around 2025-12-31",
-        "Dummy is evaluated as a baseline but cannot become the final model"
-      ]
-    },
-    {
-      "dot": "violet",
-      "title": "Imbalance + Selection",
-      "items": [
-        "Class imbalance: LR class_weight=balanced, RF balanced_subsample, GB sample_weight=balanced into fit()",
-        "Decision threshold is tuned for best F1 on each TRAIN fold, then applied to VAL (no leak)",
-        "select_final_model ranks by f1_up, then recall_up, then simplicity (LR < RF < GB)"
+        "Flask checks fetch/pipeline locks, spawns refresh_data.py, stores PID/log, and redirects to status",
+        "Refresh may update raw CSV, then rebuilds clean, feature, and labeled files without training models",
+        "Tuning Lab computes the dataset signature on its next request; retune only when that signature changed",
+        "One tuning POST evaluates one model; history records ok/error; choose one current-signature run and repeat for LR, RF, GB"
       ]
     },
     {
       "dot": "rose",
-      "title": "Current Result",
+      "title": "Two Guard Layers",
       "items": [
-        "Random Forest wins on held-out test F1_UP 0.4816",
-        "The selected decision threshold is 0.4049 for P(UP)",
-        "Serving uses saved artifacts only; no training occurs inside prediction"
+        "UI preflight checks three configs, current signature, TEST lock, fetch lock, and pipeline lock",
+        "The child acquires its PID lock, rebuilds data, then rechecks signature, TEST, config schema, and all three keys",
+        "Rejected preflight returns 400/409; child exceptions return nonzero, UI logs 500, and the PID lock is released in finally"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Training Truth",
+      "items": [
+        "Dummy is fit-only; LR, RF, and GB rerun TimeSeriesSplit CV on TRAIN",
+        "LR, RF, and GB tune their final decision thresholds on full TRAIN",
+        "TEST evaluates all four artifacts; Dummy is excluded before F1, recall, and simplicity ranking"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Release + Serving",
+      "items": [
+        "File outputs are written directly; SQLite sync is best effort; summary and TEST lock complete the release",
+        "Serving later reads clean history, final model, metadata, and saved feature order without retraining",
+        "Flask attempts prediction logging; CLI logs only with --log-db; logging failure does not fail inference"
       ]
     }
   ]

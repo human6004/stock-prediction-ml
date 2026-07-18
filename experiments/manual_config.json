@@ -43,7 +43,7 @@
         "solver": "liblinear"
       },
       "cv_f1_up_mean_when_selected": 0.5489947075071198,
-      "selected_at": "2026-07-16T20:02:55"
+      "selected_at": "2026-07-17T15:50:50"
     },
     "random_forest": {
       "run_id": "RF_20260716_211429",
@@ -54,7 +54,7 @@
         "max_features": 0.35
       },
       "cv_f1_up_mean_when_selected": 0.5491317453101531,
-      "selected_at": "2026-07-16T21:45:36"
+      "selected_at": "2026-07-17T16:03:02"
     },
     "gradient_boosting": {
       "run_id": "GB_20260716_212612",
@@ -65,7 +65,7 @@
         "subsample": 1.0
       },
       "cv_f1_up_mean_when_selected": 0.5452628846832767,
-      "selected_at": "2026-07-16T21:45:45"
+      "selected_at": "2026-07-17T15:51:00"
     }
   }
 }

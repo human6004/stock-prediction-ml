@@ -1,3 +1,5 @@
+"""CLI dự báo một symbol bằng final_model.pkl đã train sẵn; không retrain model."""
+
 import argparse
 import sys
 from pathlib import Path
@@ -19,6 +21,7 @@ def main() -> None:
     parser.add_argument("--log-db", action="store_true", help="Log prediction to SQLite")
     args = parser.parse_args()
 
+    # predict_symbol dùng dữ liệu offline mới nhất, tính feature rồi áp threshold.
     result = predict_symbol(args.symbol)
     try:
         if args.log_db:

@@ -1,3 +1,9 @@
+"""Kiểm tra, làm sạch OHLCV và xác định symbol đủ điều kiện train.
+
+Module không tạo feature/model. Nó trả cả `cleaned_all` cho prediction và
+`filtered_df` chỉ gồm symbol đủ MIN_TRADING_DAYS cho training.
+"""
+
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +22,7 @@ from config.settings import (
 
 
 def dataset_check(raw_path: str | Path | None = None) -> tuple[pd.DataFrame, dict]:
+    """Đọc raw CSV và thống kê lỗi; chưa xóa hay sửa dòng nào."""
     path = Path(raw_path or RAW_DATA_PATH)
     report = {
         "path": str(path),
@@ -60,6 +67,7 @@ def dataset_check(raw_path: str | Path | None = None) -> tuple[pd.DataFrame, dic
 
 
 def clean_data(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+    """Chuẩn hóa row, bỏ dữ liệu sai và lọc symbol đủ điều kiện train."""
     df = raw_df[REQUIRED_COLUMNS].copy()
     original_rows = len(df)
 
@@ -73,6 +81,7 @@ def clean_data(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Dat
     df = df.drop_duplicates(subset=["symbol", "trading_date"], keep="last")
     after_dedup = len(df)
 
+    # Một nến hợp lệ phải có low <= open/close/high và high >= các giá còn lại.
     valid_prices = (df[["open", "high", "low", "close"]] > 0).all(axis=1)
     valid_volume = df["volume"] >= 0
     valid_ohlc = (
@@ -110,6 +119,7 @@ def clean_data(raw_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Dat
     symbol_stats["eligible_for_training"] = eligible_flags
     symbol_stats["exclusion_reason"] = reasons
 
+    # cleaned_all vẫn giữ mọi mã hợp lệ để web dự báo; filtered_df mới dùng train.
     eligible_symbols = set(symbol_stats.loc[symbol_stats["eligible_for_training"], "symbol"])
     filtered_df = df[df["symbol"].isin(eligible_symbols)].copy()
 

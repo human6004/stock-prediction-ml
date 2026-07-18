@@ -1,3 +1,9 @@
+"""Đánh giá artifact trên TEST, chọn final model và ghi report.
+
+Khác model_tuning.py, module này chạm TEST. `select_final_model` dùng TEST F1_UP
+để xếp hạng ba model chính; Dummy bị loại khỏi danh sách ứng viên.
+"""
+
 import json
 from datetime import datetime
 
@@ -38,6 +44,7 @@ from services.pipeline_utils import write_json
 
 
 def evaluate_predictions(y_true: pd.Series, y_pred: np.ndarray) -> dict:
+    """Tính metric hai lớp, đặt lớp UP=1 ở vị trí đầu để lấy đúng F1_UP."""
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_true,
         y_pred,
@@ -60,6 +67,7 @@ def evaluate_tuned_models(
     test: pd.DataFrame,
     fitted_artifacts: dict[int, dict] | None = None,
 ) -> tuple[pd.DataFrame, dict[int, dict]]:
+    """Dự báo toàn bộ TEST cho từng artifact và gắn TEST metrics vào artifact."""
     if fitted_artifacts is None:
         fitted_artifacts = {}
         for model_id, path in MODEL_PATHS.items():
@@ -93,6 +101,8 @@ def evaluate_tuned_models(
 def select_final_model(
     comparison: pd.DataFrame, fitted_artifacts: dict[int, dict]
 ) -> tuple[pd.DataFrame, dict, dict]:
+    """Chọn theo TEST F1_UP, rồi Recall_UP, cuối cùng simplicity rank."""
+    # Dummy là mốc tham khảo, không bao giờ được promote thành final_model.pkl.
     non_dummy = comparison[comparison["model_id"] != 1].copy()
     non_dummy["simplicity_rank"] = non_dummy["model_id"].map(SIMPLICITY_RANK)
     selected_id = int(

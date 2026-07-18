@@ -1,15 +1,15 @@
 {
   "status": "budget_reached",
-  "run_id": "RF_2H_20260716_201010",
-  "started_at": "2026-07-16T20:10:10",
-  "updated_at": "2026-07-16T21:40:53",
-  "budget_seconds": 5400,
-  "elapsed_seconds": 5442.8,
+  "run_id": "RF_2H_20260717_151104",
+  "started_at": "2026-07-17T15:11:04",
+  "updated_at": "2026-07-17T17:11:08",
+  "budget_seconds": 7200,
+  "elapsed_seconds": 7204.0,
   "dataset_fingerprint": "f6cb3ac8f820",
   "candidate_count": 227,
-  "completed_new_runs": 69,
-  "reused_history_runs": 0,
-  "pending_runs": 158,
+  "completed_new_runs": 108,
+  "reused_history_runs": 69,
+  "pending_runs": 50,
   "errors": 0,
   "best": {
     "run_id": "RF_20260716_211429",
@@ -20,8 +20,7 @@
       "max_features": 0.35
     },
     "cv_f1_up_mean": 0.5491317453101531,
-    "cv_f1_up_std": 0.020496171216434697,
-    "source": "new"
+    "source": "history"
   },
-  "log_path": "experiments\\random_forest_2h_auto_RF_2H_20260716_201010.log"
+  "log_path": "experiments\\random_forest_2h_auto_RF_2H_20260717_151104.log"
 }

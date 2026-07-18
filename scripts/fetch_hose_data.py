@@ -1,4 +1,8 @@
-"""Fetch incremental HOSE OHLCV via vnstock and append to hose_stock_raw.csv."""
+"""Fetch OHLCV tăng dần từ vnstock rồi merge vào raw CSV.
+
+Mỗi mã được chuẩn hóa về cùng schema OHLCV. `new_rows` trong fetch report đếm
+record tải về trước dedupe; số dòng raw tăng ròng có thể nhỏ hơn.
+"""
 
 import json
 import sys
@@ -44,6 +48,7 @@ RATE_LIMIT_MARKERS = ("rate limit", "giới hạn", "gioi han", "20/20")
 
 
 def normalize_vnstock_frame(symbol: str, frame: pd.DataFrame) -> pd.DataFrame:
+    """Đổi tên cột từ nhiều biến thể vnstock về schema chuẩn của project."""
     if frame is None or frame.empty:
         return pd.DataFrame(columns=REQUIRED_COLUMNS)
 
@@ -112,6 +117,7 @@ def resolve_fetch_window(existing: pd.DataFrame) -> tuple[str, str, bool]:
 
 
 def merge_and_save(existing: pd.DataFrame, new_rows: pd.DataFrame) -> pd.DataFrame:
+    """Merge an toàn theo (symbol, trading_date), bản tải mới thắng khi trùng."""
     combined = pd.concat([existing, new_rows], ignore_index=True)
     combined["symbol"] = combined["symbol"].astype(str).str.strip().str.upper()
     combined["trading_date"] = pd.to_datetime(

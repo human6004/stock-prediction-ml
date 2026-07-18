@@ -1,3 +1,9 @@
+"""Debug flow evaluate TEST, chọn final model và ghi report.
+
+File này không kiểm tra TEST lock. Dùng official run_pipeline hoặc route Tuning
+Lab cho luồng bình thường; chỉ chạy file này khi chủ động debug.
+"""
+
 import sys
 from pathlib import Path
 
@@ -26,6 +32,7 @@ def main() -> None:
     dataset = pd.read_csv(ML_DATA_PATH)
     train, test, split_report = time_based_split(dataset)
 
+    # evaluate_tuned_models sinh TEST metrics; select_final_model xếp hạng theo F1_UP.
     comparison, fitted = evaluate_tuned_models(train, test)
 
     comparison, selected_artifact, selection_report = select_final_model(comparison, fitted)

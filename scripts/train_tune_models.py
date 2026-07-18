@@ -1,3 +1,5 @@
+"""CLI train các model từ manual_config.json; không đọc TEST để chấm điểm."""
+
 import sys
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from services.model_tuning import tune_models  # noqa: E402
 
 
 def load_train() -> pd.DataFrame:
+    """Tách và trả riêng TRAIN; giá trị TEST bị bỏ có chủ đích."""
     if not ML_DATA_PATH.exists():
         raise FileNotFoundError("ML dataset not found. Run build_features.py first.")
     dataset = pd.read_csv(ML_DATA_PATH)

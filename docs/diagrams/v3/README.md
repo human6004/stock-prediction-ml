@@ -1,236 +1,204 @@
-# Giải thích 5 sơ đồ kiến trúc (v3)
+# Giải thích 5 sơ đồ kiến trúc v3
 
-Tài liệu này giải thích chi tiết 5 sơ đồ trong thư mục `docs/diagrams/v3/`, luồng hoạt
-động của hệ thống và các thuật ngữ, để bạn hiểu và trình bày lại trong báo cáo niên luận.
+Thư mục này chứa 5 sơ đồ Archify đã được đối chiếu lại với mã nguồn và artifact hiện có
+ngày **2026-07-17**. Mỗi sơ đồ gồm một file JSON nguồn và một file HTML tự chứa, có đổi
+theme sáng/tối và xuất PNG/JPEG/WebP/SVG.
 
-Mỗi sơ đồ là 1 file `.html` tự chứa (mở bằng trình duyệt, có nút đổi nền sáng/tối và xuất
-ảnh). File `.json` đi kèm là dữ liệu nguồn dùng để dựng sơ đồ.
+| Sơ đồ | Câu hỏi chính |
+|---|---|
+| `stock-architecture.html` | Hệ thống gồm thành phần nào và chúng phụ thuộc nhau ra sao? |
+| `stock-dataflow.html` | Dữ liệu biến đổi từ OHLCV đến dự đoán như thế nào? |
+| `stock-workflow.html` | Refresh, tuning, pipeline và serving chạy theo thứ tự nào? |
+| `stock-sequence.html` | Một request `POST /predict` đi qua những thành phần nào? |
+| `stock-lifecycle.html` | Một lần chạy pipeline chính thức bị chặn, thất bại hoặc hoàn tất ra sao? |
 
-| File | Loại | Trả lời câu hỏi |
-|------|------|-----------------|
-| `stock-architecture.html` | Kiến trúc hệ thống | Hệ thống gồm những khối nào, nối với nhau ra sao? |
-| `stock-dataflow.html` | Luồng dữ liệu | Dữ liệu biến đổi thế nào từ thô đến dự đoán? |
-| `stock-workflow.html` | Quy trình xử lý | Các bước chạy theo thứ tự nào, ai canh gác? |
-| `stock-sequence.html` | Trình tự tương tác | Khi bấm "dự đoán", các thành phần gọi nhau ra sao? |
-| `stock-lifecycle.html` | Vòng đời trạng thái | Mô hình đi qua những trạng thái nào đến khi phục vụ? |
+## Snapshot dùng trong sơ đồ
 
----
+Số liệu lấy từ `reports/pipeline_summary.json`, `models/model_metadata.json`,
+`experiments/manual_config.json` và `experiments/test_evaluation_lock.json`.
 
-## Bối cảnh hệ thống (đọc trước)
+| Hạng mục | Giá trị hiện tại |
+|---|---:|
+| Raw OHLCV | 552.738 dòng, 400 mã |
+| Clean CSV | 552.512 dòng |
+| Mã đủ điều kiện train | 396 mã; 4 mã bị loại |
+| Feature CSV | 514.808 dòng, 20 feature |
+| ML dataset | 512.828 dòng |
+| Split date | `2025-06-30`, theo `label_end_date` |
+| TRAIN / TEST | 417.806 / 95.022 dòng |
+| Dataset fingerprint | `f6cb3ac8f820` |
+| Final model | Gradient Boosting |
+| TEST F1_UP / Recall_UP | 0,5053 / 0,9176 |
+| Decision threshold | 0,4129 |
 
-Đây là hệ thống **dự đoán xu hướng giá cổ phiếu HOSE** trong 5 phiên tới. Bài toán là
-**phân loại nhị phân**: mỗi dòng dữ liệu (một mã cổ phiếu tại một ngày) được gán nhãn
-`UP` nếu giá đóng cửa sau 5 phiên tăng hơn 1%, ngược lại là `NOT_UP`.
+## 1. Kiến trúc runtime
 
-Hệ thống gồm 3 phần lớn:
-1. **Pipeline offline** — chạy 1 lần để làm sạch dữ liệu, tạo đặc trưng, huấn luyện và
-   chọn mô hình tốt nhất, lưu ra file.
-2. **Tuning Lab** — giao diện web cho phép thử nghiệm siêu tham số từng mô hình thủ công
-   trước khi chốt cấu hình cho pipeline chính thức.
-3. **Serving** — web/CLI nạp mô hình đã lưu để dự đoán 1 mã cổ phiếu, không huấn luyện lại.
+`stock-architecture.html` mô tả hệ thống đang chạy, không chỉ pipeline ML.
 
-Công nghệ: **Flask** (web), **scikit-learn** (ML), **pandas** (xử lý bảng), **SQLite**
-(lưu trữ phụ), lưu trữ chính là **file CSV/JSON/PKL**.
+- Flask là monolith server-rendered bằng Jinja, bind `127.0.0.1:5000`. Không có SPA hay
+  REST API JSON riêng.
+- Browser dùng các trang dự đoán, đánh giá, tuning và trạng thái refresh. CLI dùng chung
+  `Prediction Service` nhưng không đi qua Flask/Jinja.
+- Refresh dữ liệu chạy nền bằng `subprocess.Popen`. Request trả về ngay rồi trang status
+  đọc log để hiển thị tiến độ.
+- Pipeline chính thức chạy bằng `subprocess.run`. Request Flask chờ tiến trình con hoàn tất.
+- `vnstock/KBS` và raw CSV nằm ngoài repo. Processed CSV, PKL, metadata và report là nguồn
+  dữ liệu chính trong repo.
+- SQLite chỉ mirror raw/clean/features/tuning/evaluation và lưu prediction history. SQLite
+  không chứa file model hoặc report.
+- Experiment State quản lý tuning history, manual config, dataset fingerprint, test lock,
+  fetch lock, pipeline lock và log lần chạy.
 
----
+## 2. Luồng dữ liệu
 
-## 1. Sơ đồ Kiến trúc hệ thống — `stock-architecture.html`
+`stock-dataflow.html` theo dõi lineage từ trái sang phải:
 
-**Mục đích:** cho thấy toàn cảnh các khối phần mềm và cách chúng kết nối. Đây là bức tranh
-"tĩnh" — ai lưu gì, ai gọi ai.
-
-### Luồng đọc sơ đồ
-- **Góc trên trái → phải (thu thập dữ liệu):** `vnstock KBS` là nguồn dữ liệu ngoài; script
-  `fetch_hose_data.py` kéo dữ liệu OHLCV về, ghi nối tiếp vào `Raw HOSE CSV` (nằm ngoài
-  repo, trong `shared_dataset`, hiện 549084 dòng).
-- **Khối giữa (xử lý):** `Pipeline` (`scripts/run_pipeline.py`) đọc raw + `Roadmap` +
-  `Settings`, rồi điều phối `ML Services` (làm sạch, tạo đặc trưng, huấn luyện, đánh giá).
-- **Tuning Lab & Experiment State:** `Tuning Lab` (`/tuning`) cho thử siêu tham số trên TRAIN,
-  lưu kết quả qua `Experiment State` — nơi giữ lịch sử chạy, cấu hình đã chốt, và các khóa
-  (lock). Experiment State cấp "cấu hình + khóa" cho Pipeline (mũi tên ngược lên).
-- **Khối lưu trữ (phải):** `Processed CSVs` (dữ liệu sạch + đặc trưng + ml_dataset),
-  `Model Store` (`final_model.pkl`), `Reports` (chỉ số + biểu đồ), và `SQLite DB` (bản
-  sao đồng bộ). Nhóm 3 khối `processed/models/reports` nằm trong khung "regenerated offline
-  artifacts" — nghĩa là bị xóa và tạo lại mỗi lần chạy pipeline.
-- **Khối phục vụ (dưới trái):** `User` → `Flask Web` (3 trang) hoặc `CLI` → `Prediction
-  Service`. Prediction Service đọc `Processed CSVs` (lấy lịch sử mã) + nạp `Model Store`,
-  và ghi log dự đoán vào `SQLite` (best-effort).
-
-### Ý nghĩa màu/kiểu khối
-- Xanh dương nhạt = giao diện (frontend); xanh lá = dịch vụ xử lý (backend); tím/xanh cyan
-  đậm = kho lưu trữ (database/file); hồng = bảo mật/canh gác (settings, experiment state);
-  xám = thành phần ngoài hệ thống (vnstock, user, CLI).
-- Mũi tên liền đậm = luồng chính; mũi tên đứt = luồng phụ/bất đồng bộ (đồng bộ DB, ghi log);
-  mũi tên hồng = liên quan canh gác/cấu hình.
-
-### Điểm cần nhấn khi trình bày
-- Lưu trữ **chính là file**, SQLite chỉ là **bản sao (mirror)** — không phải nguồn sự thật
-  để chọn mô hình.
-- Raw data và vnstock **nằm ngoài repo** → hệ thống tách biệt phần dữ liệu dùng chung.
-
----
-
-## 2. Sơ đồ Luồng dữ liệu — `stock-dataflow.html`
-
-**Mục đích:** theo dõi dữ liệu **biến đổi qua từng giai đoạn**, kèm số dòng thực tế. Đọc từ
-trái sang phải theo 5 giai đoạn (stage): Source → Clean → Feature+Label → Train+Evaluate →
-Serve+Store.
-
-### Luồng dữ liệu
-1. **Raw CSV (549084 dòng)** → làm sạch → **Clean CSV (548858 dòng)**. `clean_data` loại
-   dòng thiếu, trùng, giá không hợp lệ (ví dụ high < low), volume âm.
-2. **Quality CSVs:** thống kê theo mã, giữ **396 mã đủ điều kiện** (lọc ≥250 phiên giao dịch),
-   loại 4 mã (CRV, TCX, VCK, VPX).
-3. **Feature CSV (511191 dòng, 15 tín hiệu):** tạo 15 đặc trưng kỹ thuật.
-4. **ML Dataset (509211 dòng):** gắn thêm cột nhãn `target` (UP/NOT_UP).
-5. **Time Split:** chia theo `label_end_date` so với ngày `2025-12-31` → TRAIN 466973 dòng,
-   TEST 42238 dòng. Không xáo trộn (no shuffle).
-6. **Tune Models:** huấn luyện 3 mô hình + 1 dummy trên TRAIN với CV.
-7. **Final Model (Random Forest, F1_UP 0.4816):** mô hình thắng, lưu ra file; sinh
-   **Reports** (chỉ số + biểu đồ). Cả hai đồng bộ vào **SQLite**.
-8. **Serve:** Flask/CLI dùng `final_model.pkl` + lịch sử mã sạch để dự đoán.
-
-### Thuật ngữ quan trọng (thẻ chú thích bên sơ đồ)
-- **Kiểm soát rò rỉ (leakage control):** `future_close_5d`, `future_return_5d` chỉ dùng để
-  tạo nhãn, **không bao giờ** vào danh sách đặc trưng — tránh mô hình "nhìn trộm" tương lai.
-- **Class imbalance (mất cân bằng lớp):** lớp UP ít hơn NOT_UP. Xử lý khác nhau từng mô hình:
-  LR `class_weight=balanced`, RF `balanced_subsample`, GB truyền `sample_weight=balanced`
-  vào `fit()` (vì GB không có tham số class_weight).
-- **Decision threshold (ngưỡng quyết định):** tối ưu điểm F1 trên mỗi TRAIN fold rồi áp lên
-  VAL fold (trung thực, không rò rỉ), sau đó lưu vào artifact. Dự đoán = `P(UP) ≥ threshold`
-  chứ không dùng mặc định 0.5.
-- **Quy tắc chọn mô hình:** `select_final_model` bỏ dummy, xếp hạng theo f1_up, rồi recall_up,
-  rồi độ đơn giản (LR < RF < GB).
-
----
-
-## 3. Sơ đồ Quy trình xử lý — `stock-workflow.html`
-
-**Mục đích:** thể hiện **thứ tự các bước** và **các cửa canh gác (guard)** theo 5 làn
-(lane, tức nhóm trách nhiệm): Tuning Lab → Fetch+Prepare → Train+Evaluate+Select →
-Artifacts+Database → Serving.
-
-### Luồng quy trình
-- **Làn Tuning Lab (thủ công, trước khi chạy chính thức):** `Set Params` (3 mô hình) →
-  `CV on TRAIN` (kiểm định chéo trên TRAIN) → `Lock Config` (chốt cấu hình, gắn với
-  fingerprint dataset). Đây là điều kiện để pipeline chính thức được phép chạy.
-- **Làn Prepare:** `Fetch` (vnstock) → `Check Raw` (kiểm cột bắt buộc) → `Clean` (396 mã)
-  → `Feature+Label` (15 tín hiệu).
-- **Làn Train:** `Time Split` → `Re-CV+Fit` (chạy lại CV rồi huấn luyện, có cân bằng lớp)
-  → `Test Metrics` (đo trên 42238 dòng TEST) → `Select RF` (chọn mô hình cuối).
-- **Làn Artifacts:** ghi `CSVs`, `Model`, `Reports`, rồi đồng bộ vào `SQLite`.
-- **Làn Serving:** `User` → `Web/CLI` → `Predict` (nạp mô hình RF, lấy dòng đặc trưng mới
-  nhất) → `Result` (UP/NOT_UP), và ghi log vào SQLite.
-
-### Thuật ngữ quan trọng
-- **Fingerprint (dấu vân dữ liệu):** chuỗi băm (hash) đại diện phiên bản dataset. Cấu hình
-  đã chốt phải khớp fingerprint hiện tại thì pipeline mới chạy — tránh dùng cấu hình cho
-  bộ dữ liệu khác.
-- **Guard (cửa canh gác):** 3 điều kiện chặn trước khi chạy pipeline chính thức: (1) đủ cấu
-  hình 3 mô hình khớp fingerprint; (2) TEST chưa bị khóa (test lock — chống đánh giá lại
-  cùng một tập TEST gây rò rỉ); (3) không có pipeline nào đang chạy (khóa `pipeline.lock`).
-- **Dummy baseline:** mô hình ngây thơ (đoán theo lớp phổ biến nhất) chỉ để so sánh, không
-  bao giờ được chọn làm mô hình cuối.
-
-### Điểm cần nhấn khi trình bày
-- Tuning Lab (thủ công) và Pipeline (tự động) là **hai giai đoạn nối tiếp**: phải chốt cấu
-  hình thủ công trước, rồi pipeline mới chạy đồng loạt trên cấu hình đó.
-
----
-
-## 4. Sơ đồ Trình tự tương tác — `stock-sequence.html`
-
-**Mục đích:** phóng to đúng **một hành động: người dùng bấm dự đoán 1 mã**. Đọc từ trên
-xuống theo trục thời gian; mỗi cột dọc là một thành phần, mũi tên ngang là một lời gọi.
-
-### Trình tự
-1. `User` gửi mã cổ phiếu → `Flask/CLI` gọi `predict_symbol()`.
-2. `Prediction Service` đọc **Clean CSV** → nhận lịch sử của mã đó.
-3. Gọi `build_features` → tạo đặc trưng, lấy **dòng mới nhất** (latest row).
-4. Nạp **Model Store** (`final_model.pkl` + metadata) → nhận mô hình RF + siêu dữ liệu.
-5. `predict_proba` → tính `P(UP)`, so với `decision_threshold` (0.4049 lấy từ metadata)
-   → gán nhãn UP/NOT_UP.
-6. Trả `result dict` về Flask → ghi log vào SQLite (best-effort) → render trang kết quả.
-
-### Thuật ngữ quan trọng
-- **Activation bar (thanh kích hoạt):** vạch dọc dày trên mỗi cột, cho thấy thành phần đó
-  đang "bận xử lý" trong khoảng thời gian nào.
-- **Return message (mũi tên trả về):** vẽ nhạt hơn mũi tên gọi đi, thể hiện kết quả trả lại.
-- **predict_proba:** hàm scikit-learn trả về xác suất từng lớp; ta lấy xác suất lớp `1` (UP).
-- **best-effort logging:** ghi log DB được bọc trong try/except — nếu DB lỗi, lời gọi bị
-  "nuốt" (bỏ qua) để không làm hỏng việc trả kết quả cho người dùng.
-
-### Điểm cần nhấn khi trình bày
-- Dự đoán **tính lại đặc trưng từ lịch sử sạch**, không đọc cột nhãn — nhất quán với lúc
-  huấn luyện.
-- Thứ tự lớp (`classes_`) và ngưỡng đến từ **metadata đã lưu**, đảm bảo suy luận khớp
-  quá trình huấn luyện.
-
----
-
-## 5. Sơ đồ Vòng đời trạng thái — `stock-lifecycle.html`
-
-**Mục đích:** thể hiện mô hình đi qua các **trạng thái (state)** nào, từ dữ liệu thô đến khi
-phục vụ, kèm các nhánh canh gác và kết cục. Bố cục 3 dải (band): pha chính (trên), canh
-gác + tác dụng phụ (giữa), kết cục cuối (dưới).
-
-### Vòng đời
-- **Dải pha chính (01→05):** `Raw Ready` → `Clean+Feature` → `Train/Tune` → `Evaluate` →
-  `Serve`. Đây là "đường ray" chính chạy ngang.
-- **Dải giữa (canh gác + phụ):** `Config Guard` (đủ 3 mô hình + khớp fingerprint),
-  `Split Guard` (kiểm rò rỉ theo `label_end_date`), `DB Sync` (đồng bộ SQLite).
-- **Dải kết cục (dưới):** `Pipeline Blocked` (bị chặn do thiếu cấu hình / test bị khóa),
-  `Prediction Log` (đã lưu lịch sử dự đoán), `Model Ready` (Random Forest, F1 0.4816).
-
-### Thuật ngữ quan trọng
-- **State machine (máy trạng thái):** cách mô tả hệ thống bằng tập trạng thái và các chuyển
-  tiếp giữa chúng.
-- **Terminal state (trạng thái cuối):** trạng thái kết thúc, không quay lại pha đang hoạt
-  động (ở đây: Blocked / Log / Ready).
-- **Quality gate (cổng chất lượng):** `Evaluate` là điểm quyết định — chọn mô hình theo
-  `f1_up → recall_up → simplicity`.
-- **CV TimeSeriesSplit n=5, gap=5:** kiểm định chéo theo thời gian, 5 lần chia, chừa
-  khoảng trống 5 phiên giữa TRAIN và VAL để khớp horizon dự đoán 5 phiên (chống rò rỉ).
-
----
-
-## Bảng thuật ngữ tổng hợp (glossary)
-
-| Thuật ngữ | Giải thích ngắn |
-|-----------|-----------------|
-| OHLCV | Open/High/Low/Close/Volume — giá mở, cao, thấp, đóng và khối lượng của một phiên. |
-| Feature (đặc trưng) | Biến đầu vào cho mô hình, tính từ giá/khối lượng (SMA, RSI, volatility...). |
-| Label / target (nhãn) | Kết quả cần dự đoán: UP nếu giá sau 5 phiên tăng >1%, ngược lại NOT_UP. |
-| Horizon (tầm dự đoán) | Số phiên nhìn về tương lai để gán nhãn — ở đây là 5 phiên. |
-| SMA5/20/50 | Simple Moving Average — trung bình giá đóng cửa 5/20/50 phiên. |
-| RSI14 | Relative Strength Index 14 phiên — chỉ báo động lượng, thang 0–100. |
-| Volatility | Độ dao động — độ lệch chuẩn của lợi suất ngày trong cửa sổ 5/20 phiên. |
-| Train / Test split | Chia dữ liệu: TRAIN để huấn luyện, TEST để đánh giá cuối (chỉ đo 1 lần). |
-| Cross-validation (CV) | Kiểm định chéo — chia TRAIN nhiều lần để ước lượng hiệu năng ổn định. |
-| TimeSeriesSplit | CV cho dữ liệu thời gian: VAL luôn nằm sau TRAIN theo thời gian. |
-| gap | Khoảng trống (số phiên) chừa giữa TRAIN và VAL trong CV để chống rò rỉ. |
-| Class imbalance | Mất cân bằng lớp — số mẫu UP ít hơn NOT_UP. |
-| class_weight / sample_weight | Cách tăng "trọng số" cho lớp thiểu số khi huấn luyện. |
-| Decision threshold | Ngưỡng xác suất để quyết UP (P(UP) ≥ ngưỡng), tinh chỉnh thay cho 0.5. |
-| F1_UP | Điểm F1 cho lớp UP — trung bình điều hòa của precision và recall. |
-| Precision / Recall | Độ chính xác dự đoán UP / tỉ lệ bắt đúng các trường hợp UP thật. |
-| Leakage (rò rỉ) | Vô tình cho mô hình thấy thông tin tương lai → chỉ số ảo cao. |
-| Fingerprint | Chuỗi băm đại diện phiên bản dataset, dùng để khớp cấu hình. |
-| Lock (khóa) | Cơ chế chặn: pipeline lock (chống chạy trùng), test lock (chống rò rỉ TEST). |
-| Artifact | Sản phẩm lưu ra file: mô hình `.pkl`, metadata `.json`, báo cáo CSV. |
-| Dummy classifier | Mô hình cơ sở đoán theo lớp phổ biến nhất, chỉ để so sánh. |
-
----
-
-## Cách mở & xuất sơ đồ
-
-Mở trực tiếp file `.html` bằng trình duyệt. Trong sơ đồ có sẵn:
-- Nút đổi nền **sáng/tối** (góc trên).
-- Menu **xuất ảnh**: sao chép PNG, tải PNG/JPEG/WebP (tối đa 4× độ phân giải), hoặc tải
-  SVG hai chế độ nền (hợp để chèn vào báo cáo/README).
-
-Muốn chỉnh nội dung: sửa file `.json` tương ứng rồi dựng lại bằng renderer của skill archify:
+```text
+vnstock/KBS
+-> shared raw CSV
+-> clean CSV + quality/eligible/excluded lists
+-> 20 technical features
+-> target UP/NOT_UP + label_end_date
+-> TRAIN/TEST split
+-> manual configs + 4 candidate artifacts
+-> TEST evaluation + Gradient Boosting release
+-> Flask/CLI inference + SQLite audit
 ```
-node renderers/<loại>/render-<loại>.mjs <file>.<loại>.json <file>.html
+
+Các điểm dễ nhầm:
+
+- Clean CSV giữ toàn bộ 400 mã hợp lệ. Danh sách eligible mới quyết định 396 mã nào đi vào
+  feature dataset dùng train.
+- `future_close_5d` và `future_return_5d` chỉ tạo target, không thuộc 20 feature đầu vào.
+- TRAIN gồm dòng có `label_end_date <= 2025-06-30`; TEST gồm dòng có
+  `label_end_date > 2025-06-30`.
+- Manual config cấp tham số cho Logistic Regression, Random Forest và Gradient Boosting.
+  Dummy Classifier chỉ là baseline, không chạy CV như ba model tunable.
+- Final release gồm `final_model.pkl`, `model_metadata.json` và reports. Serving còn đọc
+  clean history để tính feature mới nhất cho mã được yêu cầu.
+
+## 3. Workflow vận hành
+
+`stock-workflow.html` có **ba entrypoint độc lập**, không phải một chuỗi bắt buộc:
+
+1. `Refresh Request`: cập nhật dữ liệu tùy chọn.
+2. `Tune Request`: thử và chốt cấu hình cho từng model.
+3. `Official Run`: chạy pipeline chính thức bằng một POST riêng.
+
+Refresh không tự mở tuning. Chọn config cũng không tự chạy pipeline.
+
+Để đường nối dễ đọc, Flow C dùng bố cục snake: preflight đọc trái sang phải, child pipeline
+đọc phải sang trái, rồi publish đọc trái sang phải. Dependency tùy chọn, retry, blocked,
+failed và prediction logging được ghi trong tag/card thay vì vẽ mũi tên vòng qua nhiều lane.
+
+### Luồng 1: refresh tùy chọn
+
+```text
+POST /tuning/fetch-data
+-> kiểm fetch/pipeline lock
+-> Popen refresh_data.py + ghi PID/log
+-> fetch KBS, retry từng mã, merge/dedupe raw CSV
+-> preprocess clean data
+-> build feature + label + split files
+-> status page đọc PID/log/report mỗi 5 giây
+-> completed hoặc failed
 ```
-với `<loại>` ∈ architecture / dataflow / workflow / sequence / lifecycle.
+
+Worker không lưu fingerprint. Tuning Lab tính lại dataset signature khi đọc dataset; chỉ cần
+tuning lại nếu signature thay đổi.
+
+### Luồng 2: tuning thủ công
+
+```text
+nhập params cho một model
+-> validate server-side
+-> TimeSeriesSplit trên TRAIN
+-> append history với status ok/error
+-> chọn một run ok thuộc signature hiện tại
+-> lưu config cho một model
+-> lặp đến khi đủ LR + RF + GB
+```
+
+Manual config lưu params và provenance CV. Pipeline chính thức vẫn chạy lại CV; ba model
+tunable LR/RF/GB tune final decision threshold trên toàn TRAIN, còn Dummy giữ threshold 0,5.
+
+### Luồng 3: pipeline chính thức
+
+```text
+POST /tuning/run-pipeline
+-> UI preflight: đủ 3 config + current signature + TEST unused + locks free
+-> subprocess.run + child PID lock
+-> roadmap/raw check + cleanup + rebuild clean/features/labels/split
+-> recompute signature
+-> child recheck: TEST + config schema/fingerprint/3 keys
+-> Dummy fit-only + CV/fit LR/RF/GB
+-> TEST evaluate all 4; exclude Dummy before selection
+-> write final model + metadata + reports
+-> best-effort SQLite sync
+-> write pipeline summary + TEST lock
+-> model ready; release PID lock trong finally
+```
+
+Preflight bị từ chối trả HTTP 400/409 và không chạy child. Exception trong child tạo nonzero
+exit, ghi log và vẫn release pipeline lock.
+
+### Serving sau release
+
+Serving không phải bước train tiếp theo. Khi có request sau này, Web/CLI đọc clean history,
+`final_model.pkl` và metadata, dựng feature mới nhất rồi inference. Flask thử ghi prediction
+log; CLI chỉ ghi khi có `--log-db`; lỗi logging không làm prediction thất bại.
+
+## 4. Sequence dự đoán
+
+`stock-sequence.html` chỉ vẽ request Flask để không trộn semantics của CLI:
+
+1. Browser gửi `POST /predict` với mã cổ phiếu.
+2. Flask gọi `predict_symbol()`.
+3. Prediction Service đọc clean CSV, lọc lịch sử mã và gọi `build_features()`.
+4. Service lấy feature row mới nhất, đúng thứ tự feature trong metadata.
+5. Service đọc `final_model.pkl` và `model_metadata.json`.
+6. Gradient Boosting object trong memory chạy `predict_proba()`.
+7. `P(UP) >= 0.4129` cho kết quả `UP`; thấp hơn cho `NOT_UP`.
+8. Service trả result dict. Flask thử ghi SQLite rồi render trang kết quả.
+
+Nếu ghi SQLite lỗi, Flask vẫn trả dự đoán. CLI dùng cùng `predict_symbol()` và chỉ ghi DB khi
+có cờ `--log-db`.
+
+## 5. Lifecycle pipeline chính thức
+
+`stock-lifecycle.html` mô tả một lần chạy, gồm main phases, guard/side effect và terminal
+outcomes.
+
+- `Requested -> Launch Guard`: UI kiểm config/fingerprint, test lock, fetch lock và pipeline
+  lock trước khi spawn child.
+- `Prepare Data`: child cleanup artifact cũ, đọc raw, clean, build feature/label và split.
+- `Internal Test Guard`: fingerprint được tính lại sau rebuild rồi test lock được kiểm tra.
+- `Train + Test`: chạy CV/fitting, đánh giá TEST và chọn model.
+- `Write Outputs`: ghi model, metadata, report, thử sync SQLite và ghi test lock.
+- `Blocked`: guard từ chối trước train.
+- `Failed`: exception thoát khỏi pipeline; PID lock vẫn được release trong `finally`.
+- `Model Ready`: file release hoàn tất và dùng được cho serving.
+
+## Giới hạn cần hiểu đúng
+
+1. `TimeSeriesSplit(gap=5)` là gap 5 **dòng** trên bảng TRAIN nhiều mã đã sắp theo thời
+   gian; không thể gọi chính xác là 5 phiên giao dịch của từng mã.
+2. Khi chấm CV, threshold được tune trên TRAIN fold rồi áp vào VAL fold. Khi fit artifact
+   cuối, threshold được tune lại trên toàn TRAIN và lưu cùng artifact.
+3. Test lock bảo vệ đường chạy official pipeline/UI. `evaluate_models.py` và
+   `select_final_model.py` chạy trực tiếp không kiểm lock này.
+4. `run_pipeline.py` gọi cleanup trước internal test-lock check. UI precheck tránh tình huống
+   rerun cùng fingerprint làm mất artifact trước khi bị chặn; chạy script trực tiếp không có
+   lớp bảo vệ sớm đó.
+
+## Render lại bằng Archify
+
+Chạy từ thư mục skill Archify:
+
+```powershell
+node renderers/architecture/render-architecture.mjs <repo>\docs\diagrams\v3\stock-architecture.architecture.json <repo>\docs\diagrams\v3\stock-architecture.html
+node renderers/dataflow/render-dataflow.mjs <repo>\docs\diagrams\v3\stock-dataflow.dataflow.json <repo>\docs\diagrams\v3\stock-dataflow.html
+node renderers/workflow/render-workflow.mjs <repo>\docs\diagrams\v3\stock-workflow.workflow.json <repo>\docs\diagrams\v3\stock-workflow.html
+node renderers/sequence/render-sequence.mjs <repo>\docs\diagrams\v3\stock-sequence.sequence.json <repo>\docs\diagrams\v3\stock-sequence.html
+node renderers/lifecycle/render-lifecycle.mjs <repo>\docs\diagrams\v3\stock-lifecycle.lifecycle.json <repo>\docs\diagrams\v3\stock-lifecycle.html
+```

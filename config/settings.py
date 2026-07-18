@@ -1,10 +1,18 @@
+"""Cấu hình trung tâm của toàn project.
+
+Các module khác import giá trị từ đây thay vì tự ghi cứng đường dẫn, feature,
+ranh giới TRAIN/TEST hoặc vị trí output. Đổi bài toán dự báo cần bắt đầu từ file này.
+"""
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
+# Input nằm ngoài repo; mọi output còn lại được tạo tương đối từ BASE_DIR.
 ROADMAP_PATH = r"D:\study\niên luận\shared_dataset\roadmap_nien_luan_HOSE_5_phien.md"
 RAW_DATA_PATH = r"D:\study\niên luận\shared_dataset\hose_stock_raw.csv"
 
+# Định nghĩa bài toán: dòng thứ 5 kế tiếp tăng hơn 1% được gán nhãn UP.
 RANDOM_STATE = 42
 SPLIT_DATE = "2025-06-30"
 PREDICTION_HORIZON = 5
@@ -17,6 +25,7 @@ FETCH_SLEEP_SECONDS = 3.5
 FETCH_MAX_RETRIES = 3
 FETCH_END_DATE = None
 
+# TimeSeriesSplit hiện đếm row trên bảng nhiều mã; gap=5 không phải 5 ngày.
 CV_N_SPLITS = 5
 CV_GAP = 5
 TUNING_N_ITER = 12
@@ -32,6 +41,7 @@ REQUIRED_COLUMNS = [
     "volume",
 ]
 
+# Thứ tự này là contract giữa feature engineering, model artifact và prediction.
 FEATURE_COLUMNS = [
     "return_1d",
     "return_3d",
@@ -70,6 +80,7 @@ MODEL_DEFINITIONS = {
     4: "Gradient Boosting",
 }
 
+# Tie-break cuối: số nhỏ hơn được xem là model đơn giản hơn.
 SIMPLICITY_RANK = {2: 1, 3: 2, 4: 3}
 
 MANUAL_CONFIG_SCHEMA_VERSION = 1
@@ -107,6 +118,7 @@ TUNABLE_PARAM_SCHEMA = {
     },
 }
 
+# Giá trị hiển thị ban đầu trên form Tuning Lab, chưa phải config đã chốt.
 MANUAL_BASELINE_PARAMS = {
     "logistic_regression": {"C": 1.0, "solver": "lbfgs"},
     "random_forest": {

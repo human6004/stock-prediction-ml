@@ -1,3 +1,5 @@
+"""CLI tạo feature, label và bảng TRAIN/TEST từ dữ liệu đã clean."""
+
 import sys
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from services.preprocessing import clean_data, dataset_check  # noqa: E402
 
 
 def _load_clean_for_training() -> pd.DataFrame:
+    """Ưu tiên CSV clean có sẵn và chỉ giữ symbol đủ điều kiện train."""
     if CLEANED_DATA_PATH.exists():
         clean_all = pd.read_csv(CLEANED_DATA_PATH)
     else:
@@ -37,6 +40,7 @@ def _load_clean_for_training() -> pd.DataFrame:
 
 
 def main() -> None:
+    # Thứ tự bắt buộc: feature quá khứ -> label tương lai -> split -> verify.
     clean_for_training = _load_clean_for_training()
     features, feature_report = build_features(clean_for_training)
     ml_dataset, label_report = create_labels(features)

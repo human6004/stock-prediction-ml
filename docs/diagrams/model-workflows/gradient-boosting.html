@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Gradient Boosting - Workflow Diagram</title>
+  <title>Gradient Boosting - Tuning Workflow Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Gradient Boosting - Workflow</h1>
+        <h1>Gradient Boosting - Tuning Workflow</h1>
       </div>
-      <p class="subtitle">Manual tuning to CV to test evaluation to model comparison</p>
+      <p class="subtitle">Prepare data (shared) to per-fold CV to logged CV F1_UP; stops at tuning history</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 652" role="img" aria-label="Gradient Boosting - Workflow — Manual tuning to CV to test evaluation to model comparison (workflow diagram)">
+      <svg viewBox="0 0 720 404" role="img" aria-label="Gradient Boosting - Tuning Workflow — Prepare data (shared) to per-fold CV to logged CV F1_UP; stops at tuning history (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -526,152 +526,90 @@
 
         <!-- Swimlanes -->
         <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Tuning Lab</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Prepare Data (shared - identical for all 3 models)</text>
 
         <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Fetch + Prepare Data</text>
-
-        <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Fit + Evaluate</text>
-
-        <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / Compare + Outcome</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Tuning Lab (Gradient Boosting only)</text>
 
         <!-- Edge paths -->
-        <path d="M 134 119 L 254 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 346 119 L 454 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 243 L 254 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 346 243 L 384 243" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 476 243 L 579 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 500 153 L 500 228 L 300 228 L 300 333" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 625 269 L 625 294.4 L 88 294.4 L 88 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 367 L 254 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 346 367 L 384 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 476 367 L 579 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 401 L 625 421 L 88 421 L 88 465" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 491 L 174 491" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 134 491 L 384 491" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 476 491 L 579 491" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 134 119 L 174 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 266 119 L 378 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 482 119 L 579 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 153 L 625 158.4 L 220 158.4 L 220 209" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 243 L 174 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 266 243 L 376 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 484 243 L 575 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
         <rect x="42" y="93" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="93" width="92" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Set Params</text>
-        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">n_est=40, lr=0.2</text>
+        <rect x="42" y="93" width="92" height="52" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fetch</text>
+        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">vnstock KBS</text>
 
-        <rect x="254" y="85" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="254" y="85" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CV on TRAIN</text>
-        <text x="300" y="123" class="t-muted" font-size="8" text-anchor="middle">TS n=5 gap=5</text>
-        <text x="300" y="141" class="t-backend" font-size="7" text-anchor="middle">F1_UP 0.5441</text>
+        <rect x="174" y="85" width="92" height="68" rx="6" class="c-mask"/>
+        <rect x="174" y="85" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="220" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Clean</text>
+        <text x="220" y="123" class="t-muted" font-size="8" text-anchor="middle">396 symbols</text>
+        <text x="220" y="141" class="t-backend" font-size="7" text-anchor="middle">OHLCV checked</text>
 
-        <rect x="454" y="85" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="454" y="85" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="500" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Lock Config</text>
-        <text x="500" y="123" class="t-muted" font-size="8" text-anchor="middle">fingerprint 4c2259e97b3f</text>
-        <text x="500" y="141" class="t-security" font-size="7" text-anchor="middle">manual</text>
+        <rect x="378" y="85" width="104" height="68" rx="6" class="c-mask"/>
+        <rect x="378" y="85" width="104" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="430" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Feature+Label</text>
+        <text x="430" y="123" class="t-muted" font-size="8" text-anchor="middle">20 features</text>
+        <text x="430" y="141" class="t-backend" font-size="7" text-anchor="middle">shared</text>
 
-        <rect x="42" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="217" width="92" height="52" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fetch</text>
-        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">vnstock KBS</text>
+        <rect x="579" y="85" width="92" height="68" rx="6" class="c-mask"/>
+        <rect x="579" y="85" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="625" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Time Split</text>
+        <text x="625" y="123" class="t-muted" font-size="8" text-anchor="middle">split 2025-06-30</text>
+        <text x="625" y="141" class="t-security" font-size="7" text-anchor="middle">TRAIN 417,806</text>
 
-        <rect x="254" y="209" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="254" y="209" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Check Raw</text>
-        <text x="300" y="247" class="t-muted" font-size="8" text-anchor="middle">required cols</text>
-        <text x="300" y="265" class="t-security" font-size="7" text-anchor="middle">OHLCV</text>
+        <rect x="42" y="209" width="92" height="68" rx="6" class="c-mask"/>
+        <rect x="42" y="209" width="92" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="88" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Set Params</text>
+        <text x="88" y="247" class="t-muted" font-size="8" text-anchor="middle">n_est=120, lr=0.05</text>
+        <text x="88" y="265" class="t-frontend" font-size="7" text-anchor="middle">model-specific</text>
 
-        <rect x="384" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="384" y="217" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="430" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Clean</text>
-        <text x="430" y="255" class="t-muted" font-size="8" text-anchor="middle">396 symbols</text>
+        <rect x="174" y="209" width="92" height="68" rx="6" class="c-mask"/>
+        <rect x="174" y="209" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="220" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit Boosting</text>
+        <text x="220" y="247" class="t-muted" font-size="8" text-anchor="middle">depth=2, subsample=1.0</text>
+        <text x="220" y="265" class="t-backend" font-size="7" text-anchor="middle">sample_weight=balanced</text>
 
-        <rect x="579" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="579" y="217" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Feature+Label</text>
-        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">15 signals</text>
+        <rect x="376" y="209" width="108" height="68" rx="6" class="c-mask"/>
+        <rect x="376" y="209" width="108" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="430" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tune Threshold</text>
+        <text x="430" y="247" class="t-muted" font-size="8" text-anchor="middle">max F1_UP / fold</text>
+        <text x="430" y="265" class="t-security" font-size="7" text-anchor="middle">no leak</text>
 
-        <rect x="42" y="333" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="333" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="88" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Time Split</text>
-        <text x="88" y="371" class="t-muted" font-size="8" text-anchor="middle">label_end date</text>
-        <text x="88" y="389" class="t-security" font-size="7" text-anchor="middle">no shuffle</text>
-
-        <rect x="254" y="333" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="254" y="333" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit Boosting</text>
-        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">depth=2, subsample=0.6</text>
-        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">sample_weight=balanced</text>
-
-        <rect x="384" y="333" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="384" y="333" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="430" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tune Threshold</text>
-        <text x="430" y="371" class="t-muted" font-size="8" text-anchor="middle">P(UP)&gt;=0.4009</text>
-        <text x="430" y="389" class="t-security" font-size="7" text-anchor="middle">per-fold, no leak</text>
-
-        <rect x="579" y="333" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="579" y="333" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Test Metrics</text>
-        <text x="625" y="371" class="t-muted" font-size="8" text-anchor="middle">P/R/F1 on TEST</text>
-        <text x="625" y="389" class="t-backend" font-size="7" text-anchor="middle">F1_UP 0.4795</text>
-
-        <rect x="42" y="465" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="465" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Compare</text>
-        <text x="88" y="503" class="t-muted" font-size="8" text-anchor="middle">f1_up&gt;recall&gt;simple</text>
-
-        <rect x="174" y="465" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="174" y="465" width="92" height="52" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="220" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">vs Dummy</text>
-        <text x="220" y="503" class="t-muted" font-size="8" text-anchor="middle">acc 0.69, F1_UP 0</text>
-
-        <rect x="384" y="457" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="384" y="457" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="430" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Not Selected</text>
-        <text x="430" y="495" class="t-muted" font-size="8" text-anchor="middle">rank 2 of 3</text>
-        <text x="430" y="513" class="t-security" font-size="7" text-anchor="middle">highest CV score</text>
-
-        <rect x="579" y="465" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="579" y="465" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="625" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Save Artifact</text>
-        <text x="625" y="503" class="t-muted" font-size="8" text-anchor="middle">gradient_boosting_tuned.pkl</text>
+        <rect x="575" y="209" width="100" height="68" rx="6" class="c-mask"/>
+        <rect x="575" y="209" width="100" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="625" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Log CV F1_UP</text>
+        <text x="625" y="247" class="t-muted" font-size="8" text-anchor="middle">tuning_history.csv</text>
+        <text x="625" y="265" class="t-database" font-size="7" text-anchor="middle">0.5453</text>
 
         <!-- Edge labels -->
 
-        <rect x="375.8" y="81" width="48.4" height="14" rx="3" class="c-mask"/>
-        <text x="400" y="91" class="t-backend" font-size="8" text-anchor="middle">best run</text>
-        <rect x="172.2" y="205" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="194" y="215" class="t-backend" font-size="8" text-anchor="middle">raw CSV</text>
-
-        <rect x="488.9" y="205" width="77.2" height="14" rx="3" class="c-mask"/>
-        <text x="527.5" y="215" class="t-backend" font-size="8" text-anchor="middle">build + target</text>
 
 
-        <rect x="177" y="329" width="34" height="14" rx="3" class="c-mask"/>
-        <text x="194" y="339" class="t-backend" font-size="8" text-anchor="middle">TRAIN</text>
 
 
-        <rect x="339.5" y="401" width="34" height="14" rx="3" class="c-mask"/>
-        <text x="356.5" y="411" class="t-backend" font-size="8" text-anchor="middle">F1_UP</text>
-        <rect x="127.4" y="453" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-        <text x="154" y="463" class="t-database" font-size="8" text-anchor="middle">must beat</text>
+        <rect x="296.8" y="205" width="48.4" height="14" rx="3" class="c-mask"/>
+        <text x="321" y="215" class="t-backend" font-size="8" text-anchor="middle">x5 folds</text>
 
-        <rect x="484.1" y="453" width="86.8" height="14" rx="3" class="c-mask"/>
-        <text x="527.5" y="463" class="t-database" font-size="8" text-anchor="middle">kept, not served</text>
 
         <!-- Legend -->
-        <text x="175" y="552" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <rect x="175" y="564" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="195" y="572" class="t-muted" font-size="7">User UI</text>
-        <rect x="260" y="564" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="280" y="572" class="t-muted" font-size="7">Agent logic</text>
-        <rect x="370" y="564" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="390" y="572" class="t-muted" font-size="7">Policy</text>
-        <rect x="455" y="564" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="475" y="572" class="t-muted" font-size="7">Tool action</text>
-        <rect x="565" y="564" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="585" y="572" class="t-muted" font-size="7">Context / trace</text>
+        <text x="175" y="304" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <rect x="175" y="316" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="195" y="324" class="t-muted" font-size="7">User UI</text>
+        <rect x="260" y="316" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="280" y="324" class="t-muted" font-size="7">Agent logic</text>
+        <rect x="370" y="316" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="390" y="324" class="t-muted" font-size="7">Policy</text>
+        <rect x="455" y="316" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+        <text x="475" y="324" class="t-muted" font-size="7">Tool action</text>
+        <rect x="565" y="316" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="585" y="324" class="t-muted" font-size="7">Context / trace</text>
       </svg>
     </div>
 
@@ -680,37 +618,36 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Model Setup</h3>
+          <h3>What is different vs LR / RF</h3>
         </div>
         <ul>
-          <li>&bull; GradientBoostingClassifier, no native class_weight parameter</li>
-          <li>&bull; n_estimators=40, learning_rate=0.2, max_depth=2, subsample=0.6</li>
-          <li>&bull; Class balance handled by passing sample_weight=balanced into fit()</li>
+          <li>&bull; Algorithm: sequential boosting of shallow trees (GradientBoostingClassifier)</li>
+          <li>&bull; Params: n_estimators=120, learning_rate=0.05, max_depth=2, subsample=1.0</li>
+          <li>&bull; No native class_weight; balance is passed as sample_weight into fit()</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>CV vs Test Gap</h3>
+          <h3>CV on TRAIN (how the F1 is produced)</h3>
         </div>
         <ul>
-          <li>&bull; CV F1_UP on TRAIN folds: 0.5441, highest of the 3 tunable models</li>
-          <li>&bull; Held-out TEST: precision_up 0.324, recall_up 0.922, F1_UP 0.4795 (rank 2)</li>
-          <li>&bull; Decision threshold 0.4009 (from full TRAIN) applied to TEST predictions</li>
-          <li>&bull; Largest CV-to-TEST gap among the 3, consistent with boosting overfit risk</li>
+          <li>&bull; TimeSeriesSplit(n_splits=5, gap=5) on TRAIN only, no shuffle</li>
+          <li>&bull; Each fold: fit on train-part, tune threshold on train-part, score val-part</li>
+          <li>&bull; Reported number is the mean UP-class F1 over the 5 folds: 0.5453</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Outcome</h3>
+          <h3>Where this diagram stops</h3>
         </div>
         <ul>
-          <li>&bull; Second-best F1_UP (0.4795) and second-best recall_up (0.922) on TEST</li>
-          <li>&bull; Not selected: Random Forest beats it on TEST F1_UP by a small margin</li>
-          <li>&bull; Kept as the most complex candidate (simplicity rank 3 of 3)</li>
+          <li>&bull; Ends when the CV F1_UP is appended to experiments/tuning_history.csv</li>
+          <li>&bull; Fingerprint f6cb3ac8f820 (20 features) ties the run to this dataset version</li>
+          <li>&bull; Final fit, TEST evaluation and model selection are NOT part of this view</li>
         </ul>
       </div>
     </div>

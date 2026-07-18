@@ -1,3 +1,5 @@
+/* Chỉ định kiểu hiển thị cho bốn Jinja template; không chứa logic ML.
+   Các biến ở :root là design token dùng chung cho màu, bo góc và bóng đổ. */
 :root {
     color-scheme: light;
     --ink: #0f172a;

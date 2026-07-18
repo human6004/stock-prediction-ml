@@ -1,3 +1,9 @@
+"""Flask web layer: nhận request, gọi service và render giao diện.
+
+Thuật toán ML không nằm ở đây. Route prediction gọi prediction_service; route
+tuning gọi tuning_lab; official pipeline được chạy qua scripts/run_pipeline.py.
+"""
+
 import json
 import subprocess
 import sys
@@ -176,6 +182,7 @@ def load_evaluation_rows() -> list[dict]:
 
 
 def _template_context(**extra):
+    """Tạo dữ liệu chung cho trang dự báo, tránh lặp ở GET và POST."""
     meta = get_dataset_meta()
     base = {
         "dataset_max_date": meta["dataset_max_date"],
@@ -200,6 +207,7 @@ def index():
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    """Dự báo một mã; lỗi ghi SQLite không được làm hỏng kết quả trên web."""
     symbol = request.form.get("symbol", "")
     try:
         result = predict_symbol(symbol)
@@ -276,6 +284,7 @@ def _default_active_history_model(cfg: dict) -> str:
 
 
 def _tuning_context(**extra) -> dict:
+    """Ghép lịch sử, config, fingerprint và lock thành trạng thái Tuning Lab."""
     fingerprint = compute_dataset_fingerprint()
     cfg = read_manual_config()
     history = mark_best(read_history())
@@ -332,6 +341,7 @@ def tuning():
 
 @app.route("/tuning/evaluate", methods=["POST"])
 def tuning_evaluate():
+    """Chạy CV một cấu hình trên TRAIN; route này không đọc TEST."""
     model_key = request.form.get("model_key", "")
     if model_key not in get_param_schema():
         return render_template(
@@ -355,6 +365,7 @@ def tuning_evaluate():
 
 @app.route("/tuning/use-config", methods=["POST"])
 def tuning_use_config():
+    """Chốt một run hợp lệ cho model và dataset fingerprint hiện tại."""
     run_id = request.form.get("run_id", "")
     run = find_run(run_id)
     if run is None:
@@ -388,6 +399,7 @@ def tuning_use_config():
 
 @app.route("/tuning/run-pipeline", methods=["POST"])
 def tuning_run_pipeline():
+    """Chạy official pipeline sau khi đủ ba config và TEST chưa bị khóa."""
     fingerprint = compute_dataset_fingerprint()
     cfg = read_manual_config()
 
@@ -452,6 +464,7 @@ def _load_fetch_report() -> dict | None:
 
 @app.route("/tuning/fetch-data", methods=["POST"])
 def tuning_fetch_data():
+    """Khởi chạy refresh_data.py nền; trang status đọc lock và logfile."""
     if is_fetch_running():
         return render_template(
             "tuning.html",

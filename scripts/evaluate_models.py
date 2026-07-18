@@ -1,3 +1,9 @@
+"""Debug evaluator: đọc TEST và ghi model_comparison.csv.
+
+Script độc lập này không kiểm tra test_evaluation_lock.json. Không chạy lặp để
+chọn/tune model; official flow an toàn hơn nằm trong scripts/run_pipeline.py.
+"""
+
 import sys
 from pathlib import Path
 
@@ -23,6 +29,7 @@ def load_split():
 
 
 def main() -> None:
+    # TEST metrics được tạo ở đây; train chỉ giữ để cùng interface split/report.
     train, test, split_report = load_split()
     comparison, _ = evaluate_tuned_models(train, test)
     cols = [c for c in COMPARISON_COLUMNS if c in comparison.columns]

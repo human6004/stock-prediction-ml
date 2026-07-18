@@ -1,3 +1,5 @@
+"""CLI mỏng cho bước làm sạch: đọc raw, clean, rồi ghi CSV/report chất lượng."""
+
 import sys
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from services.preprocessing import clean_data, dataset_check, write_clean_output
 
 
 def main() -> None:
+    # Logic thật nằm trong services.preprocessing; script chỉ nối các bước IO.
     raw_df, report = dataset_check()
     cleaned_all, cleaned_for_training, symbol_stats, clean_report = clean_data(raw_df)
     write_clean_outputs(cleaned_all, symbol_stats)

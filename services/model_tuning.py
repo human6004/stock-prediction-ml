@@ -1,3 +1,9 @@
+"""Xây estimator, chạy CV trên TRAIN và fit model artifact.
+
+Tuning Lab và official pipeline dùng chung các hàm ở đây để cấu hình model giống
+nhau. Module không đánh giá TEST; TEST metrics nằm ở model_evaluation.py.
+"""
+
 from datetime import datetime
 
 import joblib
@@ -113,9 +119,9 @@ def run_cv_metrics(estimator, X: pd.DataFrame, y: pd.Series, model_id: int | Non
     """Run TimeSeriesSplit CV on TRAIN and return F1/precision/recall for UP.
 
     The decision threshold is tuned on each TRAIN fold and applied to the held-out
-    VAL fold (never tuned on VAL), so the reported F1 is honest. The target is
-    imbalanced (~39% UP), so scoring at sklearn's default 0.5 cutoff systematically
-    under-predicts UP; a fold-tuned cutoff fixes that without leakage.
+    VAL fold. It does not read VAL labels while selecting the threshold, but the
+    threshold is still selected from in-sample TRAIN predictions. Also, gap=5 is
+    five pooled rows rather than five trading dates; CV can therefore be optimistic.
 
     GradientBoostingClassifier has no class_weight param (unlike RandomForest's
     balanced_subsample and LogisticRegression's balanced), so when model_id == 4
@@ -128,6 +134,7 @@ def run_cv_metrics(estimator, X: pd.DataFrame, y: pd.Series, model_id: int | Non
 
     f1_folds, precision_folds, recall_folds, threshold_folds = [], [], [], []
     for train_idx, val_idx in cv.split(X):
+        # Mỗi fold tạo model mới để không mang trạng thái học từ fold trước.
         model = clone(estimator)
         X_tr, y_tr = X.iloc[train_idx], y_arr[train_idx]
         X_val, y_val = X.iloc[val_idx], y_arr[val_idx]
@@ -136,6 +143,7 @@ def run_cv_metrics(estimator, X: pd.DataFrame, y: pd.Series, model_id: int | Non
         else:
             model.fit(X_tr, y_tr)
 
+        # Threshold tối ưu F1 trên fold-train, sau đó mới chấm fold-validation.
         threshold = tune_threshold(y_tr, _proba_up(model, X_tr))
         y_pred = (_proba_up(model, X_val) >= threshold).astype(int)
         f1_folds.append(f1_score(y_val, y_pred, pos_label=1, zero_division=0))
@@ -193,6 +201,7 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
     best_params = {}
     fitted_artifacts: dict[int, dict] = {}
 
+    # Dummy luôn đoán lớp phổ biến nhất; chỉ là baseline, không được chọn final.
     dummy = DummyClassifier(strategy="most_frequent", random_state=RANDOM_STATE)
     dummy.fit(X_train, y_train)
     dummy_artifact = _make_artifact(
@@ -205,6 +214,7 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
         model_key = MODEL_KEY[model_id]
         params = selected[model_key].get("params", {})
 
+        # CV tạo metric; fit ngay sau đó huấn luyện artifact trên toàn TRAIN.
         estimator = build_estimator(model_id, params)
         cv = run_cv_metrics(estimator, X_train, y_train, model_id=model_id)
         if model_id == 4:
