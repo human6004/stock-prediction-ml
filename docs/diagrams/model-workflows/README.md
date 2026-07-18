@@ -1,95 +1,129 @@
-# Lưu đồ tuning riêng cho từng model
+# Lưu đồ tuning và chọn Final Model
 
-Thư mục này chứa **3 lưu đồ riêng biệt**, mỗi model một file, mô tả luồng huấn luyện
-của model đó **từ đầu đến lúc ra được điểm F1 và ghi vào lịch sử tuning** — KHÔNG đi tiếp
-tới bước chọn final model hay phục vụ dự đoán.
+Thư mục chứa bốn lưu đồ Archify. Ba lưu đồ đầu mô tả tuning riêng từng model;
+lưu đồ cuối mô tả cách ba cấu hình đã chốt được fit trên TRAIN, đánh giá trên TEST
+và chọn Final Model.
 
-| File | Model | Điểm CV F1_UP (ghi vào lịch sử) |
-|------|-------|---:|
-| `logistic-regression.html` | Logistic Regression | 0.5490 |
-| `random-forest.html` | Random Forest | 0.5488 |
-| `gradient-boosting.html` | Gradient Boosting | 0.5453 |
+| File HTML | Nội dung |
+|---|---|
+| `logistic-regression.html` | Hyperparameter, CV lúc chốt và cấu hình Logistic Regression |
+| `random-forest.html` | Hyperparameter, CV lúc chốt và cấu hình Random Forest |
+| `gradient-boosting.html` | Hyperparameter, CV lúc chốt và cấu hình Gradient Boosting |
+| `final-model-selection.html` | Đánh giá TEST và chọn Gradient Boosting làm Final Model |
 
-File `.json` cùng tên là dữ liệu nguồn để dựng lại sơ đồ bằng renderer archify:
+File `*.workflow.json` cùng tên là nguồn duy nhất để render HTML. Không sửa HTML
+bằng tay.
+
+## Cách đọc ba lưu đồ tuning
+
+Mỗi lưu đồ có cùng bốn lane:
+
+```text
+SHARED DATA FLOW
+Fetch -> Clean -> 20 Features + Label -> Time Split
+                                                |
+                                                v
+TRAIN -> HYPERPARAMETER ĐƯỢC THAY ĐỔI
+      -> Fit model
+      -> TimeSeriesSplit CV trên TRAIN
+      -> Tune decision_threshold trên train-fold
+      -> CV F1_UP lúc chốt
+      -> BỘ THAM SỐ ĐƯỢC CHỐT
 ```
-node renderers/workflow/render-workflow.mjs <file>.workflow.json <file>.html
+
+Phần dùng chung luôn màu xám. Khối hyperparameter, Fit, CV lúc chốt và cấu hình
+chốt dùng màu riêng của model:
+
+| Thành phần | Màu light theme | Archify type |
+|---|---|---|
+| Shared data flow | Slate `#64748b` | `external` |
+| Logistic Regression | Cyan `#0891b2` | `frontend` |
+| Random Forest | Amber `#d97706` | `cloud` |
+| Gradient Boosting | Violet `#7c3aed` | `database` |
+| TEST và Final Model | Emerald `#059669` | `backend` |
+
+Tên model và nhãn lane luôn đi kèm màu; không cần dựa riêng vào màu để hiểu hình.
+
+## Hyperparameter và thiết lập cố định
+
+| Model | Hyperparameter được thay đổi | Thiết lập cố định ở node Fit |
+|---|---|---|
+| Logistic Regression | `C`, `solver` | `StandardScaler`, `class_weight=balanced`, `max_iter=1000`, `random_state=42` |
+| Random Forest | `n_estimators`, `max_depth`, `min_samples_leaf`, `max_features` | `class_weight=balanced_subsample`, `n_jobs=-1`, `random_state=42` |
+| Gradient Boosting | `n_estimators`, `learning_rate`, `max_depth`, `subsample` | `sample_weight=balanced`, `random_state=42` |
+
+`decision_threshold` là output của bước Tune Threshold, không phải hyperparameter
+model. Threshold được tối ưu theo F1_UP trên train-fold rồi áp dụng cho validation-fold.
+`gap=5` hiện là năm dòng trên bảng TRAIN gộp nhiều mã, không phải năm phiên của
+từng mã.
+
+## Bảng nguồn sự thật
+
+Ba loại điểm sau không được dùng thay nhau:
+
+| Model | Cấu hình chốt | Tuning Lab CV lúc chốt | Official CV rerun | TEST F1_UP | TEST Recall_UP |
+|---|---|---:|---:|---:|---:|
+| Logistic Regression | `C=6.5867e-05`, `solver=liblinear` | `0.548995` | `0.548977` | `0.502401` | `0.933190` |
+| Random Forest | `130`, `4`, `25`, `0.35` | `0.549132` | `0.548766` | `0.504059` | `0.942432` |
+| Gradient Boosting | `120`, `0.05`, `2`, `1.0` | `0.545263` | `0.545268` | `0.505315` | `0.917595` |
+
+Nguồn:
+
+- Cấu hình chốt: `experiments/manual_config.json`.
+- Tuning Lab CV lúc chốt: selected run tương ứng trong `experiments/tuning_history.csv`.
+- Official CV rerun: `reports/pipeline_summary.json` và cột `cv_f1_up` trong
+  `reports/model_comparison.csv`.
+- TEST và cờ `selected`: `reports/model_comparison.csv`; đối chiếu
+  `models/model_metadata.json` và `reports/pipeline_summary.json`.
+
+Random Forest phải ghi `0.5491` trên sơ đồ tuning. `0.5488` vẫn đúng, nhưng chỉ
+đúng cho official CV rerun. Cấu hình `max_features=0.35` là cấu hình được chốt;
+`0.36` và `0.37` đồng hạng CV nên không gọi `0.35` là nghiệm tối ưu duy nhất.
+
+## Chọn Final Model
+
+`final-model-selection.html` thể hiện luồng:
+
+```text
+Best LR + Best RF + Best GB
+-> dựng lại estimator và fit trên full TRAIN
+-> chốt threshold trên TRAIN
+-> đánh giá held-out TEST
+-> loại Dummy khỏi danh sách ứng viên
+-> TEST F1_UP giảm dần
+-> nếu bằng nhau: Recall_UP giảm dần
+-> nếu vẫn bằng: ưu tiên LR, rồi RF, rồi GB
+-> Gradient Boosting
 ```
 
-Tất cả số liệu lấy từ `experiments/tuning_history.csv` trên dataset hiện tại
-(fingerprint `f6cb3ac8f820`, 20 feature, split date `2025-06-30`).
+Gradient Boosting được chọn vì TEST F1_UP cao nhất `0.505315`. Chênh lệch với
+Random Forest chỉ khoảng `0.001256`; dùng “cao nhất” hoặc “nhỉnh hơn”, không gọi
+“vượt trội”. Random Forest có Recall_UP cao hơn, nhưng tie-break Recall không được
+dùng vì F1_UP không bằng nhau. Dummy chỉ là baseline và bị loại trước khi xếp hạng.
 
----
+## Render HTML
 
-## Vì sao mỗi lưu đồ dừng ở "ghi vào lịch sử"?
+Chạy từ repo root:
 
-Ý tưởng của bộ sơ đồ này là biểu diễn **vòng đời huấn luyện của MỘT model**, kết thúc
-ngay khi model chạy Cross Validation xong và cho ra điểm F1. Vì vậy mỗi sơ đồ dừng tại
-bước `Log CV F1_UP` (ghi một dòng vào `experiments/tuning_history.csv`).
+```powershell
+$renderer="$env:USERPROFILE\.codex\skills\archify\renderers\workflow\render-workflow.mjs"
+rtk node $renderer "docs\diagrams\model-workflows\logistic-regression.workflow.json" "docs\diagrams\model-workflows\logistic-regression.html"
+rtk node $renderer "docs\diagrams\model-workflows\random-forest.workflow.json" "docs\diagrams\model-workflows\random-forest.html"
+rtk node $renderer "docs\diagrams\model-workflows\gradient-boosting.workflow.json" "docs\diagrams\model-workflows\gradient-boosting.html"
+rtk node $renderer "docs\diagrams\model-workflows\final-model-selection.workflow.json" "docs\diagrams\model-workflows\final-model-selection.html"
+```
 
-**Điểm quan trọng cần hiểu đúng:** con số F1 tại điểm dừng là **CV F1_UP đo trên TRAIN**
-(trung bình 5 fold), KHÔNG phải F1 trên TEST. F1 trên TEST + việc so sánh 3 model + chọn
-`final_model.pkl` thuộc về pipeline chính thức — nằm **ngoài** phạm vi 3 sơ đồ này (xem
-`docs/diagrams/v3/` cho luồng pipeline đầy đủ).
+Renderer phải kết thúc exit code `0`; AJV và layout validator phải pass.
 
----
+## Xuất PNG cho Word
 
-## Cấu trúc chung: 2 lane
+1. Mở HTML, chọn light theme.
+2. Chọn `Export -> Download PNG`; renderer xuất 4x, `2880x2608`.
+3. Lưu vào `docs/report_assets/` với tên `tuning_*.png` và
+   `final_model_selection.png`.
+4. Khi chèn Word, crop `17.18%` phía đáy để bỏ legend generic của Archify; không
+   sửa HTML hoặc renderer.
+5. Chèn rộng tối đa 6 inch và kiểm tra bằng bản render DOCX ở kích thước thật.
 
-Mỗi sơ đồ có 2 lane, đọc từ trên xuống:
-
-1. **Prepare Data (dùng chung — giống hệt ở cả 3 model):**
-   `Fetch` → `Clean` (396 mã đạt chuẩn, đã check cột OHLCV) → `Feature+Label` (20 feature
-   + nhãn UP/NOT_UP) → `Time Split` (chia TRAIN/TEST theo `label_end_date`, mốc
-   `2025-06-30`, TRAIN 417,806 dòng).
-
-2. **Tuning Lab (riêng từng model):**
-   `Set Params` → `Fit` (huấn luyện, cách xử lý mất cân bằng lớp riêng) → `Tune Threshold`
-   (tối ưu ngưỡng F1_UP trên mỗi TRAIN fold, không rò rỉ) → `Log CV F1_UP` (ghi vào
-   `tuning_history.csv`).
-
-> Lane Prepare Data được vẽ **giống nhau** ở cả 3 file và gắn nhãn "shared - identical for
-> all 3 models" ngay trên tiêu đề lane, để nhấn rằng **3 model dùng chung một dataset**,
-> không model nào có dữ liệu riêng.
-
----
-
-## 3 model khác nhau ở đâu?
-
-Chỉ khác nhau ở **2 node** trong lane Tuning Lab (được đánh dấu tag `model-specific`), cộng
-với card "What is different vs ..." ở chân mỗi sơ đồ:
-
-| | Set Params | Fit (thuật toán + cân bằng lớp) | CV F1_UP |
-|---|---|---|---:|
-| **Logistic Regression** | `C=6.59e-05`, `solver=liblinear` | `StandardScaler → LogisticRegression`, `class_weight=balanced` | 0.5490 |
-| **Random Forest** | `n_est=130, depth=4, leaf=25, feat=0.35` | `RandomForestClassifier`, `class_weight=balanced_subsample` | 0.5488 |
-| **Gradient Boosting** | `n_est=120, lr=0.05, depth=2, subsample=1.0` | `GradientBoostingClassifier`, `sample_weight=balanced` (vì không có `class_weight`) | 0.5453 |
-
-Ba điểm đọc nhanh từ bảng:
-
-- **Thuật toán khác họ:** LR là model tuyến tính; RF là rừng cây bagging; GB là cây boosting
-  tuần tự.
-- **Cách cân bằng lớp khác nhau vì API scikit-learn khác nhau:** LR và RF có sẵn tham số
-  `class_weight`; GB không có nên phải truyền `sample_weight` vào `fit()`.
-- **Điểm CV rất sát nhau (0.545–0.549):** chênh lệch giữa 3 model nhỏ, phản ánh trần dự báo
-  của dữ liệu OHLCV chứ không phải một model vượt trội hẳn.
-
----
-
-## Node `Tune Threshold` (có ở cả 3 sơ đồ)
-
-Nhãn UP/NOT_UP không dùng ngưỡng mặc định 0.5. Vì lớp UP là thiểu số (~39% TRAIN), ngưỡng
-0.5 báo UP quá ít. Trong mỗi fold CV, hệ thống tối ưu ngưỡng cho F1_UP cao nhất **trên
-TRAIN fold rồi áp lên VAL fold** — chọn ngưỡng không nhìn vào VAL nên không rò rỉ (tag
-"no leak"). Điểm CV F1_UP ghi vào lịch sử đã phản ánh đúng ngưỡng này.
-
----
-
-## Cách mở & xuất sơ đồ
-
-Mở trực tiếp file `.html` bằng trình duyệt. Mỗi sơ đồ có:
-- Nút đổi nền **sáng/tối** (góc trên, lưu vào `localStorage`).
-- Menu **xuất ảnh**: sao chép/tải PNG (tối đa 4× độ phân giải), JPEG, WebP, hoặc SVG hai
-  chế độ nền — hợp để đưa vào báo cáo/README.
-
-Muốn chỉnh nội dung: sửa file `.json` tương ứng rồi dựng lại bằng renderer workflow của
-skill archify (lệnh ở đầu file này).
+Cards dưới HTML chỉ giải thích bổ sung và không nằm trong PNG. Nội dung bắt buộc
+đã được đặt trong lane/node của SVG.

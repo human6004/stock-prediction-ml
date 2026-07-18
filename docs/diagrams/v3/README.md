@@ -12,6 +12,10 @@ theme sáng/tối và xuất PNG/JPEG/WebP/SVG.
 | `stock-sequence.html` | Một request `POST /predict` đi qua những thành phần nào? |
 | `stock-lifecycle.html` | Một lần chạy pipeline chính thức bị chặn, thất bại hoặc hoàn tất ra sao? |
 
+Ba lưu đồ tuning model-specific và lưu đồ ngắn chọn Final Model nằm tại
+`../model-workflows/`. `stock-workflow.html` vẫn là overview vận hành; không chứa
+chi tiết từng hyperparameter hoặc TEST F1_UP của từng ứng viên.
+
 ## Snapshot dùng trong sơ đồ
 
 Số liệu lấy từ `reports/pipeline_summary.json`, `models/model_metadata.json`,
@@ -121,6 +125,11 @@ nhập params cho một model
 
 Manual config lưu params và provenance CV. Pipeline chính thức vẫn chạy lại CV; ba model
 tunable LR/RF/GB tune final decision threshold trên toàn TRAIN, còn Dummy giữ threshold 0,5.
+
+CV trong selected tuning run và CV do pipeline chính thức chạy lại là hai lần đo
+khác nhau. Final Model không được chọn bằng hai điểm CV này; ba model được xếp hạng
+bằng held-out TEST F1_UP, sau đó Recall_UP nếu F1_UP bằng nhau, rồi simplicity rank.
+Xem `../model-workflows/final-model-selection.html`.
 
 ### Luồng 3: pipeline chính thức
 

@@ -1055,7 +1055,7 @@ Không dùng `evaluate_models.py` hoặc `select_final_model.py` như lệnh th�
 
 ## 29. Giới hạn và điểm kỹ thuật cần biết
 
-1. Khi cần số mới nhất, ưu tiên `reports/pipeline_summary.json`, `reports/model_comparison.csv`, `reports/train_test_summary.csv`, `models/model_metadata.json`. `README.md` hiện vẫn ghi final model là Random Forest và là thông tin cũ; final hiện tại theo metadata/report là Gradient Boosting. Một số sơ đồ/tài liệu khác cũng có thể cũ hơn artifact.
+1. Khi cần số mới nhất, ưu tiên `reports/pipeline_summary.json`, `reports/model_comparison.csv`, `reports/train_test_summary.csv`, `models/model_metadata.json`. README và nhóm sơ đồ model-workflows đã được đồng bộ theo snapshot hiện tại; nếu tài liệu khác artifact, artifact vẫn là nguồn sự thật. Final hiện tại là Gradient Boosting.
 
 2. Trong `templates/index.html`, phần `details` kỹ thuật có dùng `result.selected_report_model` và `result.model_match`, nhưng `services/prediction_service.py` hiện chưa trả hai field này. Phần dự báo chính vẫn hoạt động dựa trên `final_model.pkl` và `model_metadata.json`.
 

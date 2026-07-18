@@ -9,6 +9,7 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 - [Giải thích project](docs/GIAI_THICH_PROJECT.md)
 - [Sơ đồ kiến trúc hệ thống](docs/SO_DO_KIEN_TRUC_HE_THONG.md)
 - [Các sơ đồ HTML export](docs/diagrams/)
+- [Tuning ba model và chọn Final Model](docs/diagrams/model-workflows/README.md)
 
 ## Luồng chính
 
@@ -24,7 +25,7 @@ shared raw CSV
 -> Flask/CLI prediction
 ```
 
-Model cuối hiện tại là `Random Forest`, được chọn theo `F1_UP` trên tập test. Các artefact demo trong `models/`, `reports/` và `data/processed/` được giữ lại để chạy web và phục vụ bảo vệ.
+Model cuối hiện tại là `Gradient Boosting`, được chọn theo `F1_UP` trên tập TEST held-out: `F1_UP=0.5053`, `Recall_UP=0.9176`. Điểm CV official dùng để báo cáo, không dùng để chọn Final Model. Các artefact demo trong `models/`, `reports/` và `data/processed/` được giữ lại để chạy web và phục vụ bảo vệ.
 
 ## Cài đặt
 

@@ -54,14 +54,14 @@ flowchart TD
     B --> C["Làm sạch dữ liệu"]
     C --> D["hose_stock_clean.csv"]
     C --> E["Lọc mã đủ tối thiểu 250 phiên"]
-    E --> F["Tạo 15 feature kỹ thuật"]
+    E --> F["Tạo 20 feature kỹ thuật"]
     F --> G["hose_stock_features.csv"]
     G --> H["Tạo future_return_5d"]
     H --> I["Gắn nhãn UP nếu future_return_5d > 1%"]
     I --> J["ml_dataset.csv"]
     J --> K["Chia train/test theo SPLIT_DATE"]
-    K --> L["Train: label_end_date <= 2025-12-31"]
-    K --> M["Test: label_end_date > 2025-12-31"]
+    K --> L["Train: label_end_date <= 2025-06-30"]
+    K --> M["Test: label_end_date > 2025-06-30"]
     L --> N["Dummy Classifier"]
     L --> O["Logistic Regression tuned"]
     L --> P["Random Forest tuned"]
@@ -98,9 +98,9 @@ raw data
 Theo report hiện tại:
 
 ```text
-Train: 2019-10-23 đến 2025-12-31 theo label_end_date
-Test : 2026-01-05 đến 2026-05-29 theo label_end_date
-Final model: Random Forest
+Train: 417,806 dòng; 2019-10-23 đến 2025-06-23; label_end_date tối đa 2025-06-30
+Test : 95,022 dòng; 2025-03-03 đến 2026-07-03; label_end_date tối thiểu 2025-07-01
+Final model: Gradient Boosting; TEST F1_UP 0.5053; Recall_UP 0.9176
 ```
 
 ## 3. Luồng dự báo trên web/CLI
@@ -177,7 +177,7 @@ vnstock/shared raw CSV
 -> feature
 -> label UP/NOT_UP
 -> split theo thời gian
--> tune/evaluate/select Random Forest
+-> tune/evaluate/select Gradient Boosting trên TEST F1_UP
 -> ghi models/reports
 -> sync SQLite
 -> Flask/CLI dùng final_model.pkl để dự báo và log prediction

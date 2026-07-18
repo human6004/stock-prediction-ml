@@ -10,7 +10,7 @@
 
   <meta name="generator" content="archify 2.6.0">
 
-  <title>Logistic Regression - Tuning Workflow Diagram</title>
+  <title>TEST Evaluation and Final Model Selection Diagram</title>
 
   <script>
 
@@ -990,11 +990,11 @@
 
         <div class="pulse-dot"></div>
 
-        <h1>Logistic Regression - Tuning Workflow</h1>
+        <h1>TEST Evaluation and Final Model Selection</h1>
 
       </div>
 
-      <p class="subtitle">Shared data flow, model-specific hyperparameters, selected-run CV, and locked configuration</p>
+      <p class="subtitle">Three locked configurations are fitted on TRAIN, evaluated on held-out TEST, and ranked without Dummy</p>
 
     </div>
 
@@ -1004,7 +1004,7 @@
 
     <div class="diagram-container">
 
-      <svg viewBox="0 0 720 652" role="img" aria-label="Logistic Regression - Tuning Workflow — Shared data flow, model-specific hyperparameters, selected-run CV, and locked configuration (workflow diagram)">
+      <svg viewBox="0 0 720 652" role="img" aria-label="TEST Evaluation and Final Model Selection — Three locked configurations are fitted on TRAIN, evaluated on held-out TEST, and ranked without Dummy (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -1029,97 +1029,101 @@
 
         <!-- Swimlanes -->
         <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / SHARED DATA FLOW - DÙNG CHUNG</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / BA CẤU HÌNH TỪ manual_config.json + DUMMY BASELINE</text>
 
         <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / LOGISTIC REGRESSION - HYPERPARAMETER ĐƯỢC THAY ĐỔI</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / FIT FULL TRAIN + EVALUATE HELD-OUT TEST</text>
 
         <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / LOGISTIC REGRESSION - FIT + CV + THRESHOLD</text>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / TEST RESULTS - KHÔNG CHỌN BẰNG CV</text>
 
         <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / LOGISTIC REGRESSION - CV LÚC CHỐT + BỘ THAM SỐ ĐƯỢC CHỐT</text>
+        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / TEST RANKING -&gt; FINAL MODEL</text>
 
         <!-- Edge paths -->
-        <path d="M 134 119 L 174 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 266 119 L 358 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 502 119 L 575 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 625 153 L 625 166 L 88 166 L 88 209" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 134 243 L 230 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 430 277 L 430 290 L 220 290 L 220 333" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 310 367 L 350 367" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 510 367 L 571 367" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 625 401 L 625 414 L 88 414 L 88 457" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 134 491 L 190 491" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 88 153 L 88 160 L 220 160 L 220 209" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 300 153 L 300 166 L 220 166 L 220 209" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 500 153 L 500 172 L 220 172 L 220 209" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 625 153 L 625 166 L 500 166 L 500 209" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 300 243 L 410 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 500 277 L 500 284 L 88 284 L 88 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 500 277 L 500 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 500 277 L 500 296 L 500 296 L 500 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 88 401 L 88 408 L 220 408 L 220 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 300 401 L 300 414 L 220 414 L 220 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 500 401 L 500 420 L 220 420 L 220 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 355 491 L 400 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
         <rect x="42" y="85" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="85" width="92" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="88" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fetch</text>
-        <text x="88" y="123" class="t-muted" font-size="8" text-anchor="middle">vnstock / KBS</text>
-        <text x="88" y="141" class="t-external" font-size="7" text-anchor="middle">SHARED</text>
+        <rect x="42" y="85" width="92" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="88" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Best LR</text>
+        <text x="88" y="123" class="t-muted" font-size="8" text-anchor="middle">C=6.5867e-05</text>
+        <text x="88" y="141" class="t-frontend" font-size="7" text-anchor="middle">solver=liblinear</text>
 
-        <rect x="174" y="85" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="174" y="85" width="92" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="220" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Clean</text>
-        <text x="220" y="123" class="t-muted" font-size="8" text-anchor="middle">396 symbols</text>
-        <text x="220" y="141" class="t-external" font-size="7" text-anchor="middle">OHLCV CHECKED</text>
+        <rect x="244" y="85" width="112" height="68" rx="6" class="c-mask"/>
+        <rect x="244" y="85" width="112" height="68" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="300" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Best RF</text>
+        <text x="300" y="123" class="t-muted" font-size="8" text-anchor="middle">130 | 4 | 25 | 0.35</text>
+        <text x="300" y="141" class="t-cloud" font-size="7" text-anchor="middle">n | depth | leaf | feat</text>
 
-        <rect x="358" y="85" width="144" height="68" rx="6" class="c-mask"/>
-        <rect x="358" y="85" width="144" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="430" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">20 Features + Label</text>
-        <text x="430" y="123" class="t-muted" font-size="8" text-anchor="middle">UP / NOT_UP</text>
-        <text x="430" y="141" class="t-external" font-size="7" text-anchor="middle">SHARED</text>
+        <rect x="444" y="85" width="112" height="68" rx="6" class="c-mask"/>
+        <rect x="444" y="85" width="112" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="500" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Best GB</text>
+        <text x="500" y="123" class="t-muted" font-size="8" text-anchor="middle">120 | 0.05 | 2 | 1.0</text>
+        <text x="500" y="141" class="t-database" font-size="7" text-anchor="middle">n | lr | depth | sub</text>
 
-        <rect x="575" y="85" width="100" height="68" rx="6" class="c-mask"/>
-        <rect x="575" y="85" width="100" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="625" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Time Split</text>
-        <text x="625" y="123" class="t-muted" font-size="8" text-anchor="middle">2025-06-30</text>
-        <text x="625" y="141" class="t-external" font-size="7" text-anchor="middle">label_end_date</text>
+        <rect x="581" y="85" width="88" height="68" rx="6" class="c-mask"/>
+        <rect x="581" y="85" width="88" height="68" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="625" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dummy</text>
+        <text x="625" y="123" class="t-muted" font-size="8" text-anchor="middle">baseline only</text>
+        <text x="625" y="141" class="t-external" font-size="7" text-anchor="middle">NOT CANDIDATE</text>
 
-        <rect x="42" y="209" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="209" width="92" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="88" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TRAIN</text>
-        <text x="88" y="247" class="t-muted" font-size="8" text-anchor="middle">417,806 rows</text>
-        <text x="88" y="265" class="t-external" font-size="7" text-anchor="middle">SHARED INPUT</text>
+        <rect x="140" y="209" width="160" height="68" rx="6" class="c-mask"/>
+        <rect x="140" y="209" width="160" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="220" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit 3 Models</text>
+        <text x="220" y="247" class="t-muted" font-size="8" text-anchor="middle">full TRAIN | 417,806</text>
+        <text x="220" y="265" class="t-backend" font-size="7" text-anchor="middle">THRESHOLD ON TRAIN</text>
 
-        <rect x="230" y="209" width="400" height="68" rx="6" class="c-mask"/>
-        <rect x="230" y="209" width="400" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="430" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">C | solver</text>
-        <text x="430" y="247" class="t-muted" font-size="8" text-anchor="middle">HYPERPARAMETER ĐƯỢC THAY ĐỔI</text>
-        <text x="430" y="265" class="t-frontend" font-size="7" text-anchor="middle">MODEL-SPECIFIC | LOGISTIC REGRESSION</text>
+        <rect x="410" y="209" width="180" height="68" rx="6" class="c-mask"/>
+        <rect x="410" y="209" width="180" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="500" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Evaluate TEST</text>
+        <text x="500" y="247" class="t-muted" font-size="8" text-anchor="middle">95,022 held-out rows</text>
+        <text x="500" y="265" class="t-backend" font-size="7" text-anchor="middle">ONE OFFICIAL TEST</text>
 
-        <rect x="130" y="333" width="180" height="68" rx="6" class="c-mask"/>
-        <rect x="130" y="333" width="180" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="220" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">StandardScaler + Fit LR</text>
-        <text x="220" y="371" class="t-muted" font-size="8" text-anchor="middle">class_weight=balanced</text>
-        <text x="220" y="389" class="t-frontend" font-size="7" text-anchor="middle">max_iter=1000 | random_state=42</text>
+        <rect x="42" y="333" width="92" height="68" rx="6" class="c-mask"/>
+        <rect x="42" y="333" width="92" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="88" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Logistic Reg.</text>
+        <text x="88" y="371" class="t-muted" font-size="8" text-anchor="middle">F1_UP=0.5024</text>
+        <text x="88" y="389" class="t-frontend" font-size="7" text-anchor="middle">Recall_UP=0.9332</text>
 
-        <rect x="350" y="333" width="160" height="68" rx="6" class="c-mask"/>
-        <rect x="350" y="333" width="160" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="430" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TimeSeriesSplit CV</text>
-        <text x="430" y="371" class="t-muted" font-size="8" text-anchor="middle">TRAIN only | n_splits=5</text>
-        <text x="430" y="389" class="t-external" font-size="7" text-anchor="middle">gap=5 pooled rows | no shuffle</text>
+        <rect x="245" y="333" width="110" height="68" rx="6" class="c-mask"/>
+        <rect x="245" y="333" width="110" height="68" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Random Forest</text>
+        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">F1_UP=0.5041</text>
+        <text x="300" y="389" class="t-cloud" font-size="7" text-anchor="middle">Recall_UP=0.9424</text>
 
-        <rect x="571" y="333" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="333" width="108" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="625" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tune Threshold</text>
-        <text x="625" y="371" class="t-muted" font-size="8" text-anchor="middle">decision_threshold</text>
-        <text x="625" y="389" class="t-external" font-size="7" text-anchor="middle">MAX F1_UP ON TRAIN-FOLD</text>
+        <rect x="440" y="333" width="120" height="68" rx="6" class="c-mask"/>
+        <rect x="440" y="333" width="120" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="500" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gradient Boosting</text>
+        <text x="500" y="371" class="t-muted" font-size="8" text-anchor="middle">F1_UP=0.5053</text>
+        <text x="500" y="389" class="t-database" font-size="7" text-anchor="middle">Recall_UP=0.9176</text>
 
-        <rect x="42" y="457" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="457" width="92" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="88" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CV LÚC CHỐT</text>
-        <text x="88" y="495" class="t-muted" font-size="8" text-anchor="middle">F1_UP=0.5490</text>
-        <text x="88" y="513" class="t-frontend" font-size="7" text-anchor="middle">MEAN 5 VAL FOLDS</text>
+        <rect x="85" y="457" width="270" height="68" rx="6" class="c-mask"/>
+        <rect x="85" y="457" width="270" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="220" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rank on TEST</text>
+        <text x="220" y="495" class="t-muted" font-size="8" text-anchor="middle">F1_UP desc | Recall_UP desc</text>
+        <text x="220" y="513" class="t-backend" font-size="7" text-anchor="middle">TIES: LR -&gt; RF -&gt; GB | NO DUMMY</text>
 
-        <rect x="190" y="457" width="480" height="68" rx="6" class="c-mask"/>
-        <rect x="190" y="457" width="480" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="430" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">C=6.5867e-05 | solver=liblinear</text>
-        <text x="430" y="495" class="t-muted" font-size="8" text-anchor="middle">manual_config.json | LR_20260711_123644</text>
-        <text x="430" y="513" class="t-frontend" font-size="7" text-anchor="middle">BỘ THAM SỐ ĐƯỢC CHỐT</text>
+        <rect x="400" y="457" width="200" height="68" rx="6" class="c-mask"/>
+        <rect x="400" y="457" width="200" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="500" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FINAL MODEL</text>
+        <text x="500" y="495" class="t-muted" font-size="8" text-anchor="middle">Gradient Boosting</text>
+        <text x="500" y="513" class="t-backend" font-size="7" text-anchor="middle">TEST F1_UP=0.5053</text>
 
         <!-- Edge labels -->
+
+
 
 
 
@@ -1153,36 +1157,36 @@
     <div class="cards">
       <div class="card">
         <div class="card-header">
-          <div class="card-dot cyan"></div>
-          <h3>What changes for Logistic Regression</h3>
+          <div class="card-dot emerald"></div>
+          <h3>Selection rule from code</h3>
         </div>
         <ul>
-          <li>&bull; Tunable hyperparameters: C and solver only</li>
-          <li>&bull; StandardScaler, class_weight, max_iter, and random_state are fixed fit settings</li>
-          <li>&bull; The selected configuration comes from manual_config.json</li>
+          <li>&bull; Exclude Dummy before ranking</li>
+          <li>&bull; Sort TEST F1_UP descending, then Recall_UP descending only on an exact tie</li>
+          <li>&bull; If both metrics tie, prefer simplicity: Logistic Regression, Random Forest, Gradient Boosting</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Why Gradient Boosting is Final</h3>
+        </div>
+        <ul>
+          <li>&bull; Gradient Boosting has the highest TEST F1_UP: 0.5053146841</li>
+          <li>&bull; It is only 0.001256 above Random Forest, so the result is a narrow lead, not superiority</li>
+          <li>&bull; Random Forest has higher Recall_UP, but recall tie-break is not reached</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>Selected-run CV</h3>
+          <h3>Metric boundary</h3>
         </div>
         <ul>
-          <li>&bull; Run LR_20260711_123644 on fingerprint f6cb3ac8f820</li>
-          <li>&bull; Threshold is selected on each train-fold and applied to its validation fold</li>
-          <li>&bull; Mean validation F1_UP is 0.5489947075, displayed as 0.5490</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot rose"></div>
-          <h3>Scope boundary</h3>
-        </div>
-        <ul>
-          <li>&bull; This workflow ends at the locked tuning configuration</li>
-          <li>&bull; TEST evaluation and Final Model selection are shown in final-model-selection.html</li>
+          <li>&bull; Selected-run CV locks each model configuration</li>
+          <li>&bull; Held-out TEST metrics in reports/model_comparison.csv select the Final Model</li>
         </ul>
       </div>
     </div>
