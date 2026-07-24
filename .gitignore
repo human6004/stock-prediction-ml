@@ -25,6 +25,8 @@ Thumbs.db
 # Generated pipeline outputs kept out unless intentionally committed
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
+data/processed/hose_stock_clean.csv
+experiments/random_forest_2h_refine_stderr.log
 database/stock_prediction.db
 experiments/archive/releases/*/stock_prediction.db
 
