@@ -1,0 +1,11 @@
+{
+  "fd7fa2887812": {
+    "experiment_fingerprint": "fd7fa2887812",
+    "content_fingerprint": "f162b3e89bd06feeac1cd1c1b884b251a121dad88a09eb0f73a92863f48e6a75",
+    "policy_id": "legacy_pre_validation_baseline_gate",
+    "status": "published",
+    "model_name": "Random Forest",
+    "migration": "Imported prior TEST evaluation without re-evaluation.",
+    "updated_at": "2026-07-21T08:30:34"
+  }
+}

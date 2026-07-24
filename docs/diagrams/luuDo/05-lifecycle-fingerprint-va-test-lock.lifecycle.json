@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Lifecycle — Snapshot dataset đến release",
+    "subtitle": "Vòng đời fingerprint: refresh, CV/config, VALIDATION gate, TEST một lần và các trạng thái evaluation_registry",
+    "output": "docs/diagrams/luuDo/05-lifecycle-fingerprint-va-test-lock.html",
+    "viewBox": [1000, 700]
+  },
+  "lanes": [
+    { "id": "main", "label": "Vòng đời chính" },
+    { "id": "branch", "label": "Gate, dừng an toàn & vòng lặp fingerprint" },
+    { "id": "terminal", "label": "Kết cục evaluation_registry" }
+  ],
+  "states": [
+    { "id": "refreshed", "type": "start", "label": "Dataset refreshed", "sublabel": "RAW + processed mới", "lane": "main", "col": 0, "step": "01", "tag": "per-symbol fetch" },
+    { "id": "fingerprint", "type": "active", "label": "Fingerprint created", "sublabel": "TRAIN + experiment", "lane": "main", "col": 1, "step": "02", "tag": "2 scope" },
+    { "id": "tuningComplete", "type": "active", "label": "Tuning complete", "sublabel": "đủ 3 CV run", "lane": "main", "col": 2, "step": "03", "tag": "LR/RF/GB" },
+    { "id": "evalStarted", "type": "active", "label": "Evaluation started", "sublabel": "fit + VALIDATION pass", "lane": "main", "col": 3, "step": "04", "tag": "registry: started" },
+    { "id": "evaluated", "type": "active", "label": "Evaluated", "sublabel": "TEST đúng 1 lần", "lane": "main", "col": 4, "step": "05", "tag": "registry: evaluated" },
+
+    { "id": "tuningIncomplete", "type": "waiting", "label": "Tuning incomplete", "sublabel": "thiếu config / stale", "lane": "branch", "col": 0, "tag": "chưa chọn đủ" },
+    { "id": "readyPipeline", "type": "decision", "label": "Ready for pipeline", "sublabel": "preflight snapshot", "lane": "branch", "col": 1, "tag": "chưa đánh giá" },
+    { "id": "superseded", "type": "neutral", "label": "Superseded", "sublabel": "fingerprint mới thay thế", "lane": "branch", "col": 2, "tag": "refresh lại" },
+
+    { "id": "validationRejected", "type": "failure", "label": "Validation rejected", "sublabel": "winner ≤ baseline", "lane": "terminal", "col": 0, "tag": "dừng trước TEST" },
+    { "id": "releaseFailed", "type": "failure", "label": "Release failed", "sublabel": "promotion rollback", "lane": "terminal", "col": 1, "tag": "registry: release_failed" },
+    { "id": "published", "type": "success", "label": "Published", "sublabel": "atomic model + meta", "lane": "terminal", "col": 2, "tag": "registry: published" }
+  ],
+  "transitions": [
+    { "from": "refreshed", "to": "fingerprint", "variant": "emphasis", "route": "straight" },
+    { "from": "fingerprint", "to": "tuningIncomplete", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "tuningIncomplete", "to": "tuningComplete", "label": "chốt đủ 3", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "from": "tuningComplete", "to": "readyPipeline", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "readyPipeline", "to": "evalStarted", "label": "config đủ + chưa đánh giá", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "from": "readyPipeline", "to": "validationRejected", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "evalStarted", "to": "evaluated", "variant": "emphasis", "route": "straight" },
+    { "from": "evaluated", "to": "published", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "evaluated", "to": "releaseFailed", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "from": "published", "to": "superseded", "label": "refresh mới", "variant": "default", "fromSide": "top", "toSide": "bottom", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Hai fingerprint khác scope",
+      "items": [
+        "TRAIN fingerprint gắn tuning history và manual_config.json",
+        "Experiment fingerprint gắn snapshot TRAIN+VALIDATION+TEST và evaluation_registry.json",
+        "Dataset refresh mới sinh fingerprint mới; config cũ stale, phải CV và chọn lại 3 run"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gate trước khi chạm TEST",
+      "items": [
+        "Preflight cần đủ 3 config đúng schema/policy và khớp TRAIN fingerprint hiện tại",
+        "Snapshot đã có entry trong registry (started/evaluated/published/release_failed) không chạy lại TEST",
+        "Winner không vượt baseline tốt nhất trên VALIDATION → dừng trước TEST, release cũ vẫn phục vụ"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Trạng thái registry",
+      "items": [
+        "started: đã qua VALIDATION gate, chuẩn bị chạm TEST",
+        "evaluated: refit TRAIN+VALIDATION và chấm TEST đúng một lần",
+        "published: atomic release model + metadata; lỗi promotion → rollback và release_failed"
+      ]
+    }
+  ]
+}

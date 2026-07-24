@@ -1,6 +1,11 @@
 {
-  "model_name": "Gradient Boosting",
-  "model_id": 4,
+  "policy_id": "legacy_pre_validation_baseline_gate",
+  "content_fingerprint": "f162b3e89bd06feeac1cd1c1b884b251a121dad88a09eb0f73a92863f48e6a75",
+  "training_content_fingerprint": "1ce27fb1a1b3d44ec9cb69414ae816f1ddbf6d384fdf977ef1434bf53d8254e5",
+  "tuning_fingerprint": "9eabd4bf8d11",
+  "experiment_fingerprint": "fd7fa2887812",
+  "model_name": "Random Forest",
+  "model_id": 3,
   "feature_order": [
     "return_1d",
     "return_3d",
@@ -25,36 +30,114 @@
   ],
   "prediction_horizon": 5,
   "up_threshold": 0.01,
-  "decision_threshold": 0.41290799947430695,
-  "split_date": "2025-06-30",
+  "decision_threshold": 0.49,
+  "split_date": "2025-07-10",
+  "train_end_date": "2025-07-10",
+  "validation_end_date": "2026-04-10",
+  "test_end_date": "2026-07-13",
   "cv_config": {
-    "n_splits": 5,
-    "gap": 5
+    "n_splits": 4,
+    "gap_sessions": 5
   },
   "best_params": {
-    "n_estimators": 120,
-    "learning_rate": 0.05,
-    "max_depth": 2,
-    "subsample": 1.0
+    "n_estimators": 130,
+    "max_depth": 8,
+    "min_samples_leaf": 100,
+    "max_features": 0.2
   },
-  "cv_f1_up": 0.5452677481629793,
+  "cv_f1_up": 0.4702755740200911,
+  "baseline_passed": false,
+  "baseline_warning": "Final Model chưa vượt baseline always-UP trên TEST (F1_UP 0.375381 <= 0.383895).",
+  "train_through_date": "2026-04-10",
+  "validation_selection_metrics": {
+    "accuracy": 0.5622324637940549,
+    "precision_up": 0.39520551984431207,
+    "recall_up": 0.6025715955581531,
+    "f1_up": 0.4773403137631996,
+    "precision_not_up": 0.7331965110312981,
+    "recall_not_up": 0.5422060530309794,
+    "f1_not_up": 0.6234009520510155
+  },
+  "final_test_metrics": {
+    "accuracy": 0.5766093366093367,
+    "precision_up": 0.28895089285714287,
+    "recall_up": 0.5355812991311544,
+    "f1_up": 0.375380600260983,
+    "precision_not_up": 0.8028972783143108,
+    "recall_not_up": 0.5893915957721062,
+    "f1_not_up": 0.6797740280978221
+  },
+  "final_test_baselines": [
+    {
+      "model_id": -1,
+      "model_name": "Always UP",
+      "split": "test",
+      "row_type": "baseline",
+      "cv_f1_up": null,
+      "decision_threshold": null,
+      "accuracy": 0.23754299754299754,
+      "precision_up": 0.23754299754299754,
+      "recall_up": 1.0,
+      "f1_up": 0.38389453621346886,
+      "precision_not_up": 0.0,
+      "recall_not_up": 0.0,
+      "f1_not_up": 0.0,
+      "selected": false
+    },
+    {
+      "model_id": -2,
+      "model_name": "Always NOT_UP",
+      "split": "test",
+      "row_type": "baseline",
+      "cv_f1_up": null,
+      "decision_threshold": null,
+      "accuracy": 0.7624570024570024,
+      "precision_up": 0.0,
+      "recall_up": 0.0,
+      "f1_up": 0.0,
+      "precision_not_up": 0.7624570024570024,
+      "recall_not_up": 1.0,
+      "f1_not_up": 0.865220543132772,
+      "selected": false
+    }
+  ],
   "test_metrics": {
-    "accuracy": 0.4107996043021616,
-    "precision_up": 0.34865998488063016,
-    "recall_up": 0.9175945833199628,
-    "f1_up": 0.5053146840789207,
-    "precision_not_up": 0.8025830258302583,
-    "recall_not_up": 0.16348517828340564,
-    "f1_not_up": 0.27163802411958315
+    "accuracy": 0.5766093366093367,
+    "precision_up": 0.28895089285714287,
+    "recall_up": 0.5355812991311544,
+    "f1_up": 0.375380600260983,
+    "precision_not_up": 0.8028972783143108,
+    "recall_not_up": 0.5893915957721062,
+    "f1_not_up": 0.6797740280978221
   },
-  "train_rows": 417806,
-  "test_rows": 95022,
-  "trained_at": "2026-07-17T17:27:44",
+  "train_rows": 419807,
+  "validation_rows": 67047,
+  "train_validation_rows": 486854,
+  "test_rows": 20350,
+  "trained_at": "2026-07-20T23:08:36",
   "selection": {
-    "selected_model_id": 4,
-    "selected_model_name": "Gradient Boosting",
-    "selected_f1_up": 0.5053146840789207,
-    "selected_recall_up": 0.9175945833199628,
-    "selected_cv_f1_up": 0.5452677481629793
+    "policy_id": "legacy_pre_validation_baseline_gate",
+    "selection_split": "validation",
+    "selected_model_id": 3,
+    "selected_model_name": "Random Forest",
+    "selected_f1_up": 0.4773403137631996,
+    "selected_recall_up": 0.6025715955581531,
+    "selected_cv_f1_up": 0.4702755740200911,
+    "validation_selection_metrics": {
+      "accuracy": 0.5622324637940549,
+      "precision_up": 0.39520551984431207,
+      "recall_up": 0.6025715955581531,
+      "f1_up": 0.4773403137631996,
+      "precision_not_up": 0.7331965110312981,
+      "recall_not_up": 0.5422060530309794,
+      "f1_not_up": 0.6234009520510155
+    },
+    "best_validation_baseline": {
+      "model_name": "Always UP",
+      "f1_up": 0.4982192854742972,
+      "recall_up": 1.0
+    },
+    "validation_baseline_passed": false,
+    "validation_baseline_warning": "Selected candidate VALIDATION F1_UP=0.477340 is below Always UP=0.498219."
   }
 }

@@ -2,70 +2,37 @@
   "schema_version": 1,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Gradient Boosting - Tuning Workflow",
-    "subtitle": "Shared data flow, model-specific hyperparameters, selected-run CV, and locked configuration",
-    "output": "docs/diagrams/model-workflows/gradient-boosting.html"
+    "title": "Gradient Boosting Tuning - Protocol v3",
+    "subtitle": "Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold"
   },
   "lanes": [
-    { "id": "shared", "label": "SHARED DATA FLOW - DÙNG CHUNG" },
-    { "id": "config", "label": "GRADIENT BOOSTING - HYPERPARAMETER ĐƯỢC THAY ĐỔI" },
-    { "id": "cv", "label": "GRADIENT BOOSTING - FIT + CV + THRESHOLD" },
-    { "id": "result", "label": "GRADIENT BOOSTING - CV LÚC CHỐT + BỘ THAM SỐ ĐƯỢC CHỐT" }
+    {"id": "params", "label": "Highlighted GB hyperparameters"},
+    {"id": "cv", "label": "TRAIN cross-validation"},
+    {"id": "result", "label": "Ranking + manual selection"}
   ],
   "nodes": [
-    { "id": "fetch", "lane": "shared", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock / KBS", "tag": "SHARED", "width": 92 },
-    { "id": "clean", "lane": "shared", "col": 1, "type": "external", "label": "Clean", "sublabel": "396 symbols", "tag": "OHLCV CHECKED", "width": 92 },
-    { "id": "feature", "lane": "shared", "col": 3, "type": "external", "label": "20 Features + Label", "sublabel": "UP / NOT_UP", "tag": "SHARED", "width": 144 },
-    { "id": "split", "lane": "shared", "col": 5, "type": "external", "label": "Time Split", "sublabel": "2025-06-30", "tag": "label_end_date", "width": 100 },
-
-    { "id": "train", "lane": "config", "col": 0, "type": "external", "label": "TRAIN", "sublabel": "417,806 rows", "tag": "SHARED INPUT", "width": 92 },
-    { "id": "hyperparams", "lane": "config", "col": 3, "type": "database", "label": "n_estimators | learning_rate", "sublabel": "max_depth | subsample", "tag": "MODEL-SPECIFIC | GRADIENT BOOSTING", "width": 400 },
-
-    { "id": "fit", "lane": "cv", "col": 1, "type": "database", "label": "Fit Gradient Boosting", "sublabel": "sample_weight=balanced", "tag": "random_state=42", "width": 180 },
-    { "id": "cv_split", "lane": "cv", "col": 3, "type": "external", "label": "TimeSeriesSplit CV", "sublabel": "TRAIN only | n_splits=5", "tag": "gap=5 pooled rows | no shuffle", "width": 160 },
-    { "id": "threshold", "lane": "cv", "col": 5, "type": "external", "label": "Tune Threshold", "sublabel": "decision_threshold", "tag": "MAX F1_UP ON TRAIN-FOLD", "width": 108 },
-
-    { "id": "cv_score", "lane": "result", "col": 0, "type": "database", "label": "CV LÚC CHỐT", "sublabel": "F1_UP=0.5453", "tag": "MEAN 5 VAL FOLDS", "width": 92 },
-    { "id": "best_config", "lane": "result", "col": 3, "type": "database", "label": "n_estimators=120 | learning_rate=0.05", "sublabel": "max_depth=2 | subsample=1.0", "tag": "BỘ THAM SỐ ĐƯỢC CHỐT | manual_config.json", "width": 480 }
+    {"id": "gb", "lane": "params", "col": 0, "type": "backend", "label": "GB model", "sublabel": "balanced weights", "width": 90},
+    {"id": "trees", "lane": "params", "col": 2, "type": "security", "label": "n_estimators", "sublabel": "120; 60/180/240", "width": 104},
+    {"id": "rate", "lane": "params", "col": 3, "type": "security", "label": "learning_rate", "sublabel": "(0,1] (baseline 0.2)", "width": 96},
+    {"id": "depth", "lane": "params", "col": 5, "type": "security", "label": "max_depth", "sublabel": ">= 1 (baseline 2)", "width": 104},
+    {"id": "sample", "lane": "cv", "col": 0, "type": "security", "label": "subsample", "sublabel": "(0,1] (baseline 0.9)", "width": 92},
+    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "One config x 4 folds", "sublabel": "repeat without limit", "tag": "OOF threshold", "width": 130},
+    {"id": "metrics", "lane": "cv", "col": 5, "type": "frontend", "label": "Fold details", "sublabel": "dates + F1/P/R", "width": 104},
+    {"id": "rank", "lane": "result", "col": 2, "type": "backend", "label": "Deterministic rank", "sublabel": "mean, std, run_id", "width": 126},
+    {"id": "best", "lane": "result", "col": 5, "type": "database", "label": "Best GB run", "sublabel": "user chooses when done", "tag": "no run limit", "width": 104}
   ],
   "edges": [
-    { "from": "fetch", "to": "clean", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "clean", "to": "feature", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "feature", "to": "split", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "split", "to": "train", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "train", "to": "hyperparams", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "hyperparams", "to": "fit", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "fit", "to": "cv_split", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "cv_split", "to": "threshold", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "threshold", "to": "cv_score", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "cv_score", "to": "best_config", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" }
+    {"from": "gb", "to": "trees"},
+    {"from": "trees", "to": "rate"},
+    {"from": "rate", "to": "depth"},
+    {"from": "depth", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "sample", "to": "folds"},
+    {"from": "folds", "to": "metrics"},
+    {"from": "metrics", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "rank", "to": "best", "variant": "emphasis"}
   ],
   "cards": [
-    {
-      "dot": "violet",
-      "title": "What changes for Gradient Boosting",
-      "items": [
-        "Tunable hyperparameters: n_estimators, learning_rate, max_depth, and subsample",
-        "GradientBoostingClassifier has no class_weight parameter",
-        "Balanced sample_weight is supplied to fit and is not a tunable hyperparameter"
-      ]
-    },
-    {
-      "dot": "cyan",
-      "title": "Selected-run CV",
-      "items": [
-        "Run GB_20260716_212612 on fingerprint f6cb3ac8f820",
-        "Threshold is selected on each train-fold and applied to its validation fold",
-        "Mean validation F1_UP is 0.5452628847, displayed as 0.5453"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Scope boundary",
-      "items": [
-        "This selected-run CV score is not a TEST score",
-        "TEST evaluation and Final Model selection are shown in final-model-selection.html"
-      ]
-    }
+    {"dot": "rose", "title": "Parameters highlighted", "items": ["n_estimators sets boosting stages", "learning_rate scales each stage", "max_depth and subsample control complexity"]},
+    {"dot": "cyan", "title": "Fold contract", "items": ["Fresh clone in every fold", "Five trading-session gap", "No label overlap with validation"]}
   ]
 }

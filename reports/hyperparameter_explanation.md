@@ -1,8 +1,10 @@
 # Giai thich sieu tham so
 
 ## TimeSeriesSplit
-- `n_splits=5`: chia train thanh 5 fold theo thoi gian.
-- `gap=5`: bo qua 5 mau giua train/validation de tranh leakage tu nhan 5 phien.
+- `n_splits=4`: chia train thanh 4 fold theo thoi gian tu 2021.
+- `gap=5`: bo dung 5 ngay giao dich chung truoc validation; khong dem row.
+- Purge: loai train row co `label_end_date >= validation_start`.
+- Threshold: chon rieng tung model tu OOF TRAIN, gioi han ty le du bao UP va precision.
 
 ## Logistic Regression
 - `C`: do manh regularization (C nho = regularization manh hon).
@@ -21,6 +23,7 @@
 - `subsample`: ty le mau dung moi stage.
 
 ## Tieu chi chon model
-1. F1_UP tren test cao nhat.
-2. Neu gan bang: Recall_UP cao hon.
-3. Neu van gan bang: model don gian hon (LogReg > RF > GB).
+1. F1_UP tren VALIDATION cao nhat.
+2. Neu bang nhau: Recall_UP cao hon.
+3. Neu van bang nhau: model don gian hon (LogReg > RF > GB).
+4. Refit winner tren TRAIN+VALIDATION, sau do danh gia FINAL TEST mot lan.

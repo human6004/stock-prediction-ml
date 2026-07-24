@@ -4,11 +4,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if tuning_running %}<meta http-equiv="refresh" content="5">{% endif %}
     <title>Tuning Lab — HOSE ML</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
+    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
 </head>
 <body>
     <main class="shell">
@@ -17,12 +19,14 @@
                 <p class="eyebrow">Tuning Lab</p>
                 <h1>Tự tìm cấu hình cho từng model</h1>
                 <p class="subtitle">
-                    Nhập hyperparameter, train và đánh giá CV F1 (lớp UP) chỉ trên tập TRAIN.
-                    Tập TEST chỉ dùng một lần ở pipeline chính thức.
+                    Tự nhập hyperparameter và chạy CV bao nhiêu lần tùy ý; hệ thống luôn đánh dấu cấu hình tốt nhất.
+                    Khi muốn dừng, chọn một cấu hình cho từng model. CV chỉ dùng TRAIN;
+                    VALIDATION chọn loại model và TEST chỉ đánh giá một lần.
                 </p>
             </div>
             <div class="nav-links">
                 <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
+                <a class="nav-link" href="{{ url_for('screener') }}">Bảng xếp hạng</a>
                 <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
             </div>
         </nav>
@@ -31,8 +35,9 @@
             Dataset fingerprint hiện tại: <strong>{{ current_fingerprint }}</strong>
             — {{ fingerprint_parts.dataset_rows }} dòng,
             đến ngày <strong>{{ fingerprint_parts.max_trading_date or "—" }}</strong>.
-            CV: TimeSeriesSplit(n_splits={{ manual_config.cv_settings.n_splits }},
-            gap={{ manual_config.cv_settings.gap }}), metric = F1_UP.
+            Cấu hình đánh giá rolling theo dữ liệu hiện tại.
+                CV: 4 fold theo ngày từ 2021, gap 5 phiên, purge label overlap,
+                threshold OOF riêng từng model.
         </p>
 
         {% if error %}
@@ -46,18 +51,29 @@
         {% if config_stale %}
         <section class="alert warn" role="alert">
             Cấu hình đã chốt thuộc dataset khác (fingerprint {{ manual_config.dataset_fingerprint }}).
-            Dữ liệu hiện tại đã thay đổi — hãy train lại và chốt cấu hình mới.
+            Dữ liệu hiện tại đã thay đổi. Hãy chạy CV và tự chọn lại cấu hình.
         </section>
         {% endif %}
 
-        {% if eval_result %}
+        {% if tuning_job.status == "running" %}
+        <section class="alert warn" role="status">
+            Đang chạy CV nền cho {{ history_model_labels.get(tuning_job.model_key, tuning_job.model_key) }}.
+            Job {{ tuning_job.job_id }}. Trang tự cập nhật sau 5 giây.
+        </section>
+        {% elif tuning_job.status == "error" %}
+        <section class="alert" role="alert">
+            Job {{ tuning_job.job_id }} thất bại: {{ tuning_job.error }}
+        </section>
+        {% elif tuning_job.status == "completed" and tuning_job.result %}
+        {% set eval_result = tuning_job.result %}
         <section class="result-panel cv-result">
-            <p class="section-label">Kết quả CV vừa chạy — {{ eval_result.model_name }}</p>
+            <p class="section-label">CV hoàn tất — {{ eval_result.model_name }}</p>
             <p class="summary-line">
                 CV F1_UP = <strong>{{ "%.4f"|format(eval_result.cv_f1_up_mean) }}</strong>
                 ± {{ "%.4f"|format(eval_result.cv_f1_up_std) }}
                 (Precision_UP {{ "%.4f"|format(eval_result.precision_up_mean) }},
                 Recall_UP {{ "%.4f"|format(eval_result.recall_up_mean) }},
+                Threshold {{ "%.2f"|format(eval_result.decision_threshold) }},
                 {{ "%.2f"|format(eval_result.train_seconds) }}s)
             </p>
             <p class="folds">Điểm từng fold:
@@ -67,18 +83,24 @@
             </p>
             <form method="post" action="{{ url_for('tuning_use_config') }}">
                 <input type="hidden" name="run_id" value="{{ eval_result.run_id }}">
-                <button type="submit">Dùng cấu hình này (run {{ eval_result.run_id }})</button>
+                <button type="submit">Dùng cấu hình này</button>
             </form>
         </section>
         {% endif %}
 
         <section class="model-grid">
             {% for model_id, model_key in model_key_map.items() %}
+            {% set progress = tuning_progress.models.get(model_key) %}
+            {% set stored_choice = manual_config.selected_models.get(model_key) %}
+            {% set chosen = stored_choice if stored_choice and stored_choice.selection_method == "manual" else none %}
             <div class="model-card" id="card-{{ model_key }}">
-                <h2>{{ manual_config.selected_models.get(model_key) and "★ " or "" }}
+                <h2>{{ chosen and "★ " or "" }}
                     {% if model_key == "logistic_regression" %}Logistic Regression
                     {% elif model_key == "random_forest" %}Random Forest
                     {% else %}Gradient Boosting{% endif %}</h2>
+                <p class="model-chip">
+                    {{ progress.valid_config_count }} lần thử CV hợp lệ
+                </p>
                 <form class="train-form" method="post" action="{{ url_for('tuning_evaluate') }}">
                     <input type="hidden" name="model_key" value="{{ model_key }}">
                     {% for field, spec in param_schema[model_key].items() %}
@@ -96,18 +118,27 @@
                            value="{{ param_defaults[model_key][field] }}">
                     {% endif %}
                     {% endfor %}
-                    <button type="submit">Train &amp; đánh giá CV</button>
+                    <button type="submit" {% if tuning_running or pipeline_running or fetch_running %}disabled{% endif %}>
+                        Chạy thử CV
+                    </button>
                 </form>
-                {% set chosen = manual_config.selected_models.get(model_key) %}
                 {% if chosen %}
                 <p class="model-chip">
-                    Đã chốt: {{ chosen.params }}
-                    {% if chosen.cv_f1_up_mean_when_selected is not none %}
-                    (CV F1_UP lúc chốt {{ "%.4f"|format(chosen.cv_f1_up_mean_when_selected) }})
-                    {% endif %}
+                    Đang dùng: {{ chosen.params }}
+                    (CV F1_UP {{ "%.4f"|format(chosen.cv_f1_up_mean) }},
+                    threshold {{ "%.2f"|format(chosen.decision_threshold|default(0.5, true)) }})
                 </p>
                 {% else %}
-                <p class="model-chip muted">Chưa chốt cấu hình.</p>
+                <p class="model-chip muted">Chưa chọn cấu hình.</p>
+                {% endif %}
+                {% set best = progress.best_run %}
+                {% if best %}
+                <p class="model-chip">
+                    CV cao nhất tham khảo: {{ best.params }}
+                    (CV F1_UP {{ "%.4f"|format(best.cv_f1_up_mean) }} ±
+                    {{ "%.4f"|format(best.cv_f1_up_std) }},
+                    threshold {{ "%.2f"|format(best.decision_threshold|default(0.5, true)) }})
+                </p>
                 {% endif %}
             </div>
             {% endfor %}
@@ -130,6 +161,8 @@
                 </span>
                 {% elif pipeline_running %}
                 <span class="status-badge status-badge-warn">Pipeline đang chiếm lock</span>
+                {% elif tuning_running %}
+                <span class="status-badge status-badge-warn">CV tuning đang chạy</span>
                 {% else %}
                 <span class="status-badge status-badge-idle">Sẵn sàng</span>
                 {% endif %}
@@ -166,7 +199,7 @@
 
             <div class="fetch-actions">
                 <form id="fetch-data-form" method="post" action="{{ url_for('tuning_fetch_data') }}">
-                    <button type="submit" class="btn-fetch" {% if fetch_running or pipeline_running %}disabled{% endif %}>
+                    <button type="submit" class="btn-fetch" {% if fetch_running or pipeline_running or tuning_running %}disabled{% endif %}>
                         Lấy dữ liệu mới
                     </button>
                 </form>
@@ -175,10 +208,11 @@
         </section>
 
         <section class="config-panel">
-            <p class="section-label">Cấu hình đã chốt &amp; chạy pipeline chính thức</p>
+            <p class="section-label">Cấu hình tự chọn &amp; pipeline chính thức</p>
             <ul class="config-summary">
                 {% for model_id, model_key in model_key_map.items() %}
-                {% set chosen = manual_config.selected_models.get(model_key) %}
+                {% set stored_choice = manual_config.selected_models.get(model_key) %}
+                {% set chosen = stored_choice if stored_choice and stored_choice.selection_method == "manual" else none %}
                 <li>
                     <strong>
                         {% if model_key == "logistic_regression" %}Logistic Regression
@@ -188,13 +222,13 @@
                     {% if chosen %}
                     <code>{{ chosen.params }}</code> (run {{ chosen.run_id }})
                     {% else %}
-                    <em class="muted">chưa chốt</em>
+                    <em class="muted">chưa chọn cấu hình</em>
                     {% endif %}
                 </li>
                 {% endfor %}
             </ul>
 
-            {% if test_locked %}
+                        {% if snapshot_evaluated %}
             <p class="alert warn">
                 TEST của dataset hiện tại đã được dùng (đã khóa để tránh leakage).
                 Cập nhật dữ liệu để có fingerprint mới nếu cần đánh giá lại.
@@ -203,143 +237,256 @@
             <p class="alert warn">Pipeline đang chạy, vui lòng đợi hoàn tất.</p>
             {% elif fetch_running %}
             <p class="alert warn">Đang làm mới dữ liệu — không thể chạy pipeline trong lúc này.</p>
+            {% elif tuning_running %}
+            <p class="alert warn">CV tuning đang chạy — chờ job hoàn tất.</p>
             {% elif not config_complete %}
             <p class="model-chip muted">
-                Cần chốt đủ 3 model trên dataset hiện tại mới chạy được pipeline.
+                Hãy chạy CV và tự chọn một cấu hình hợp lệ cho từng model.
             </p>
             {% endif %}
 
             <form id="run-pipeline-form" method="post" action="{{ url_for('tuning_run_pipeline') }}">
                 <button type="submit" {% if not can_run %}disabled{% endif %}>
-                    Chạy pipeline chính thức (train + đánh giá TEST + chọn final)
+                    Chạy pipeline chính thức (VALIDATION chọn model + TEST một lần)
                 </button>
             </form>
         </section>
 
         <section class="history-panel">
             <p class="section-label">Lịch sử huấn luyện theo model</p>
-            <div class="history-tabs" role="tablist" aria-label="Lọc lịch sử huấn luyện theo model">
-                {% for model_id, model_key in model_key_map.items() %}
-                {% set model_rows = history_by_model.get(model_key, []) %}
-                <button
-                    type="button"
-                    id="history-tab-{{ model_key }}"
-                    class="history-tab {{ 'is-active' if model_key == active_history_model else '' }}"
-                    data-history-tab="{{ model_key }}"
-                    aria-controls="history-panel-{{ model_key }}"
-                    aria-selected="{{ 'true' if model_key == active_history_model else 'false' }}"
-                    role="tab"
+            <nav class="history-tabs" aria-label="Chọn model cho lịch sử huấn luyện">
+                {% for tab in history_tabs %}
+                <a
+                    id="history-tab-{{ tab.model_key }}"
+                    class="history-tab {{ 'is-active' if tab.is_active else '' }}"
+                    href="{{ tab.url }}"
+                    {% if tab.is_active %}aria-current="page"{% endif %}
                 >
-                    <span>{{ history_model_labels.get(model_key, model_key) }}</span>
-                    <span class="history-tab-count">({{ model_rows|length }} lần)</span>
-                </button>
+                    <span>{{ tab.label }}</span>
+                    <span class="history-tab-count">({{ tab.count }} lần)</span>
+                </a>
+                {% endfor %}
+            </nav>
+
+            {% if history_filter_warnings %}
+            <div class="alert warn history-filter-warning" role="status">
+                {% for warning in history_filter_warnings %}
+                <span>{{ warning }}</span>
                 {% endfor %}
             </div>
+            {% endif %}
 
-            {% for model_id, model_key in model_key_map.items() %}
-            {% set model_rows = history_by_model.get(model_key, []) %}
-            <div
-                id="history-panel-{{ model_key }}"
-                class="history-tab-panel {{ 'is-active' if model_key == active_history_model else '' }}"
-                data-history-panel="{{ model_key }}"
-                aria-labelledby="history-tab-{{ model_key }}"
-                role="tabpanel"
-                {% if model_key != active_history_model %}hidden{% endif %}
-            >
-                <div class="table-wrap">
-                    <table class="history-table">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Thời điểm</th>
-                                <th>Model</th>
-                                <th>Tham số</th>
-                                <th>CV F1_UP</th>
-                                <th>±std</th>
-                                <th>Giây</th>
-                                <th>Dataset</th>
-                                <th>Trạng thái</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in model_rows %}
-                            <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'stale-row' if row.dataset_fingerprint != current_fingerprint else '' }}">
-                                <td>{{ '★' if row.is_best else '' }}</td>
-                                <td>{{ row.timestamp }}</td>
-                                <td>{{ row.model_name }}</td>
-                                <td class="params-cell"><code>{{ row.params }}</code></td>
-                                <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
-                                <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
-                                <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
-                                <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
-                                <td>{{ row.status }}</td>
-                                <td>
-                                    {% if row.status == 'ok' and row.dataset_fingerprint == current_fingerprint %}
-                                    <form method="post" action="{{ url_for('tuning_use_config') }}">
-                                        <input type="hidden" name="run_id" value="{{ row.run_id }}">
-                                        <button type="submit" class="link-btn">Dùng</button>
-                                    </form>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not model_rows %}
-                            <tr><td colspan="10" class="empty">Chưa có lần train nào cho model này.</td></tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+            <form class="history-filter-form" method="get" action="{{ url_for('tuning') }}">
+                <input type="hidden" name="history_model" value="{{ active_history_model }}">
+
+                <div class="history-filter-actions">
+                    <label class="history-check">
+                        <input type="checkbox" name="best" value="1" {% if history_filters.get('best') %}checked{% endif %}>
+                        <span>Chỉ cấu hình tốt nhất</span>
+                    </label>
+                    <label class="history-check">
+                        <input type="checkbox" name="selected" value="1" {% if history_filters.get('selected') %}checked{% endif %}>
+                        <span>Cấu hình đang dùng</span>
+                    </label>
+                    <button type="submit">Lọc kết quả</button>
+                    <a class="history-reset" href="{{ history_reset_url }}">Xóa bộ lọc</a>
                 </div>
+            </form>
+
+            <div class="table-wrap history-table-wrap">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Dấu hiệu</th>
+                            <th scope="col">Thời điểm</th>
+                            {% for field in history_param_schema %}
+                            <th scope="col">{{ field }}</th>
+                            {% endfor %}
+                            <th scope="col">CV F1_UP</th>
+                            <th scope="col">±std</th>
+                            <th scope="col">Threshold</th>
+                            <th scope="col">Giây</th>
+                            <th scope="col">Dataset</th>
+                            <th scope="col">Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in history_rows %}
+                        {% set is_stale = row.dataset_fingerprint != current_fingerprint %}
+                        <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'selected-run' if row.is_selected else '' }} {{ 'stale-row' if is_stale else '' }}">
+                            <td>
+                                <div class="history-run-markers">
+                                    {% if row.is_best %}<span class="history-state-badge badge-best">Tốt nhất</span>{% endif %}
+                                    {% if row.is_selected %}<span class="history-state-badge badge-selected">Đang dùng</span>{% endif %}
+                                    {% if is_stale %}<span class="history-state-badge badge-stale">Dataset cũ</span>{% endif %}
+                                </div>
+                                    {% if not row.is_selected and not is_stale and row.policy_id == experiment_policy_id %}
+                                <form method="post" action="{{ url_for('tuning_use_config') }}">
+                                    <input type="hidden" name="run_id" value="{{ row.run_id }}">
+                                    {% if history_filters.get('best') %}<input type="hidden" name="best" value="1">{% endif %}
+                                    {% if history_filters.get('selected') %}<input type="hidden" name="selected" value="1">{% endif %}
+                                    <input type="hidden" name="page" value="{{ history_pagination.page }}">
+                                    <button type="submit" class="link-btn">Dùng cấu hình này</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.timestamp }}</td>
+                            {% for field in history_param_schema %}
+                            {% set param_value = row.params.get(field) %}
+                            <td class="history-param-value">
+                                {% if field not in row.params %}—
+                                {% elif param_value is none %}None (không giới hạn)
+                                {% else %}{{ param_value }}{% endif %}
+                            </td>
+                            {% endfor %}
+                            <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.decision_threshold is not none %}{{ "%.2f"|format(row.decision_threshold) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
+                            <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
+                            <td>{{ row.status }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not history_rows %}
+                                <tr><td colspan="{{ history_param_schema|length + 8 }}" class="empty">Không có kết quả phù hợp.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
-            {% endfor %}
+
+            <nav class="history-pagination" aria-label="Phân trang lịch sử huấn luyện">
+                <p class="history-page-summary">
+                    {{ history_pagination.start }}–{{ history_pagination.end }} trên tổng {{ history_pagination.total }} kết quả
+                </p>
+                <div class="history-page-links">
+                    {% if history_pagination.prev_url %}
+                    <a class="history-page-link" href="{{ history_pagination.prev_url }}" rel="prev">Trang trước</a>
+                    {% else %}
+                    <span class="history-page-link is-disabled" aria-disabled="true">Trang trước</span>
+                    {% endif %}
+                    <span class="history-page-current">Trang {{ history_pagination.page }}/{{ history_pagination.total_pages }}</span>
+                    {% if history_pagination.next_url %}
+                    <a class="history-page-link" href="{{ history_pagination.next_url }}" rel="next">Trang sau</a>
+                    {% else %}
+                    <span class="history-page-link is-disabled" aria-disabled="true">Trang sau</span>
+                    {% endif %}
+                </div>
+            </nav>
 
             <p class="eval-note">
-                ★ = cấu hình tốt nhất (CV F1_UP cao nhất, tie-break std nhỏ hơn) theo từng model
-                trong cùng dataset fingerprint. Chỉ cấu hình thuộc dataset hiện tại mới chốt được.
+                Nhãn Tốt nhất chỉ là gợi ý theo CV F1_UP mean cao nhất, rồi std thấp nhất.
+                Bạn quyết định cấu hình dùng cho pipeline.
             </p>
         </section>
 
         <p class="disclaimer">
             Điểm trong Tuning Lab là CV trên tập TRAIN, chỉ dùng để chọn cấu hình.
-            Độ chính xác thật được đánh giá trên tập TEST ở pipeline chính thức.
+            VALIDATION chọn loại model. TEST chỉ báo cáo Final Model một lần.
         </p>
     </main>
     <script>
-        document.querySelectorAll("form.train-form").forEach(function (form) {
-            form.addEventListener("submit", function () {
-                var btn = form.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang train..."; }
-            });
-        });
-        var runForm = document.getElementById("run-pipeline-form");
-        if (runForm) {
-            runForm.addEventListener("submit", function () {
-                var btn = runForm.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang chạy pipeline..."; }
-            });
-        }
-        var fetchForm = document.getElementById("fetch-data-form");
-        if (fetchForm) {
-            fetchForm.addEventListener("submit", function () {
-                var btn = fetchForm.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang khởi động fetch..."; }
-            });
-        }
-        document.querySelectorAll("[data-history-tab]").forEach(function (tab) {
-            tab.addEventListener("click", function () {
-                var target = tab.getAttribute("data-history-tab");
-                document.querySelectorAll("[data-history-tab]").forEach(function (item) {
-                    var isActive = item.getAttribute("data-history-tab") === target;
-                    item.classList.toggle("is-active", isActive);
-                    item.setAttribute("aria-selected", isActive ? "true" : "false");
+        // Điều hướng trong panel lịch sử (tabs, lọc, phân trang, "Dùng cấu hình này")
+        // dùng fetch để thay riêng phần <main>, giữ nguyên vị trí cuộn — không reload cả trang.
+        // Các form train/pipeline/fetch vẫn điều hướng bình thường (chỉ khóa nút khi submit).
+        // Dùng event delegation để phần vừa thay vào vẫn hoạt động.
+        (function () {
+            var main = document.querySelector("main.shell");
+            var canAjax = main && window.fetch && window.history && window.history.pushState;
+            var busy = false;
+
+            function lockButton(btn, text) {
+                if (btn) { btn.disabled = true; btn.textContent = text; }
+            }
+
+            function saveScroll() {
+                var wrap = document.querySelector(".history-table-wrap");
+                return {
+                    y: window.scrollY,
+                    top: wrap ? wrap.scrollTop : 0,
+                    left: wrap ? wrap.scrollLeft : 0
+                };
+            }
+
+            function restoreScroll(s) {
+                window.scrollTo(0, s.y);
+                var wrap = document.querySelector(".history-table-wrap");
+                if (wrap) { wrap.scrollTop = s.top; wrap.scrollLeft = s.left; }
+            }
+
+            function swap(html, url) {
+                var doc = new DOMParser().parseFromString(html, "text/html");
+                var next = doc.querySelector("main.shell");
+                if (!next) { window.location.assign(url); return; }
+                var s = saveScroll();
+                main.replaceWith(next);
+                main = next;
+                if (doc.title) { document.title = doc.title; }
+                if (url) { window.history.pushState({}, "", url); }
+                // Phần <main> mới không có nút theme (JS chèn) — gắn lại.
+                if (window.mountThemeToggle) { window.mountThemeToggle(); }
+                restoreScroll(s);
+            }
+
+            function load(url, opts) {
+                if (busy) { return; }
+                busy = true;
+                var isPost = opts && opts.method === "POST";
+                fetch(url, opts || {})
+                    .then(function (r) {
+                        return r.text().then(function (t) {
+                            // POST chỉ push URL khi server đã redirect sang GET sạch;
+                            // nếu vẫn ở endpoint POST (lỗi 400) thì không push để tránh POST lại khi reload.
+                            var pushUrl = isPost ? (r.redirected ? r.url : null) : (r.url || url);
+                            return { text: t, url: pushUrl };
+                        });
+                    })
+                    .then(function (res) { swap(res.text, res.url); })
+                    .catch(function () { window.location.assign(url); })
+                    .then(function () { busy = false; });
+            }
+
+            if (canAjax) {
+                document.addEventListener("click", function (e) {
+                    var a = e.target.closest("a.history-tab, a.history-reset, a.history-page-link");
+                    if (!a) { return; }
+                    if (a.classList.contains("is-disabled")) { e.preventDefault(); return; }
+                    var href = a.getAttribute("href");
+                    if (!href) { return; }
+                    e.preventDefault();
+                    load(href);
                 });
-                document.querySelectorAll("[data-history-panel]").forEach(function (panel) {
-                    var isActive = panel.getAttribute("data-history-panel") === target;
-                    panel.classList.toggle("is-active", isActive);
-                    panel.hidden = !isActive;
+
+                window.addEventListener("popstate", function () {
+                    load(window.location.href);
                 });
+            }
+
+            document.addEventListener("submit", function (e) {
+                var form = e.target;
+                var action = form.getAttribute("action") || "";
+
+                if (canAjax && form.classList.contains("history-filter-form")) {
+                    e.preventDefault();
+                    var q = new URLSearchParams(new FormData(form)).toString();
+                    load(form.action + (q ? "?" + q : ""));
+                    return;
+                }
+                if (canAjax && action.indexOf("use-config") !== -1) {
+                    e.preventDefault();
+                    lockButton(form.querySelector("button[type=submit]"), "Đang lưu...");
+                    load(form.action, { method: "POST", body: new FormData(form) });
+                    return;
+                }
+                // Các form chạy job dài — điều hướng bình thường, chỉ khóa nút.
+                if (form.classList.contains("train-form")) {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang train...");
+                } else if (form.id === "run-pipeline-form") {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang chạy pipeline...");
+                } else if (form.id === "fetch-data-form") {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang khởi động fetch...");
+                }
             });
-        });
+        })();
     </script>
 </body>
 </html>

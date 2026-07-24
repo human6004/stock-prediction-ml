@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kiến trúc hệ thống — HOSE Stock Prediction",
+    "subtitle": "Flask server-rendered · Python jobs · file artifacts — SQLite đã loại bỏ",
+    "output": "docs/diagrams/luuDo/01-kien-truc-runtime-local.html",
+    "viewBox": [1520, 900]
+  },
+  "components": [
+    { "id": "vnstock", "type": "external", "label": "vnstock KBS", "sublabel": "Quote.history · 1D", "pos": [30, 80], "size": [155, 64], "tag": "external" },
+    { "id": "raw", "type": "database", "label": "Shared Raw CSV", "sublabel": "hose_stock_raw.csv", "pos": [30, 235], "size": [155, 68], "tag": "ngoài repo" },
+    { "id": "browser", "type": "external", "label": "Người dùng", "sublabel": "browser · HTML forms", "pos": [30, 400], "size": [155, 64] },
+    { "id": "terminal", "type": "external", "label": "CLI", "sublabel": "predict_stock.py", "pos": [30, 560], "size": [155, 64] },
+
+    { "id": "refresh", "type": "backend", "label": "Refresh job", "sublabel": "refresh_data.py", "pos": [290, 80], "size": [160, 68], "tag": "Popen nền" },
+    { "id": "flask", "type": "frontend", "label": "Flask + Jinja", "sublabel": "app.py · :5000", "pos": [290, 470], "size": [160, 68], "tag": "server-rendered" },
+
+    { "id": "pipeline", "type": "backend", "label": "Official pipeline", "sublabel": "run_pipeline.py", "pos": [520, 80], "size": [170, 68], "tag": "subprocess sync" },
+    { "id": "tuning", "type": "backend", "label": "Tuning Lab CV", "sublabel": "1 daemon thread", "pos": [520, 300], "size": [170, 68], "tag": "TRAIN only" },
+    { "id": "prediction", "type": "backend", "label": "Prediction service", "sublabel": "predict_symbols()", "pos": [520, 540], "size": [170, 68], "tag": "1–2 mã" },
+
+    { "id": "mlcore", "type": "backend", "label": "Data + ML services", "sublabel": "clean · feature · tune · eval", "pos": [780, 80], "size": [175, 68], "tag": "20 features" },
+
+    { "id": "processed", "type": "database", "label": "Processed CSV", "sublabel": "clean · features · ml_dataset", "pos": [1030, 80], "size": [185, 68], "tag": "file source" },
+    { "id": "experiments", "type": "security", "label": "Experiment state", "sublabel": "history · config · registry · lock", "pos": [1030, 300], "size": [185, 68], "tag": "2 fingerprint" },
+    { "id": "models", "type": "database", "label": "Release artifacts", "sublabel": "final_model.pkl · metadata · reports", "pos": [1030, 540], "size": [185, 68], "tag": "Final Model đọc từ artifact" }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Repo local · Flask single-process + Python jobs + generated artifacts",
+      "wraps": [
+        "refresh", "flask", "pipeline", "tuning", "prediction", "mlcore",
+        "processed", "experiments", "models"
+      ]
+    }
+  ],
+  "connections": [
+    { "from": "vnstock", "to": "refresh", "label": "OHLCV 1D", "variant": "emphasis" },
+    { "from": "refresh", "to": "raw", "label": "merge atomic", "variant": "emphasis", "fromSide": "top", "toSide": "right", "route": "orthogonal-v", "via": [[260, 60], [210, 60], [210, 269]], "labelAt": [205, 200] },
+    { "from": "raw", "to": "mlcore", "label": "raw snapshot", "variant": "emphasis", "fromSide": "left", "toSide": "top", "route": "orthogonal-v", "via": [[5, 269], [5, 5], [868, 5]], "labelAt": [700, 18] },
+
+    { "from": "browser", "to": "flask", "label": "GET / POST HTML", "variant": "emphasis" },
+    { "from": "terminal", "to": "prediction", "label": "CLI predict", "variant": "dashed", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-v", "via": [[230, 592], [605, 660], [605, 612]], "labelAt": [400, 648] },
+    { "from": "flask", "to": "refresh", "label": "Popen nền", "variant": "dashed", "fromSide": "top", "toSide": "left", "route": "orthogonal-v", "via": [[260, 450], [260, 114]], "labelAt": [238, 300] },
+    { "from": "flask", "to": "pipeline", "label": "run + wait", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[370, 240], [605, 240]], "labelAt": [485, 228] },
+    { "from": "flask", "to": "tuning", "label": "start CV", "variant": "default", "fromSide": "right", "toSide": "left", "route": "orthogonal-v", "via": [[480, 504], [480, 334]], "labelAt": [458, 420] },
+    { "from": "flask", "to": "prediction", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[370, 574], [520, 574]] },
+
+    { "from": "pipeline", "to": "mlcore", "variant": "emphasis" },
+    { "from": "mlcore", "to": "processed", "label": "CSV outputs", "variant": "emphasis", "labelAt": [998, 102] },
+    { "from": "tuning", "to": "processed", "label": "đọc ml_dataset", "variant": "default", "fromSide": "bottom", "toSide": "bottom", "route": "orthogonal-v", "via": [[955, 410], [1122, 410]], "labelAt": [1050, 398] },
+    { "from": "tuning", "to": "experiments", "label": "history + selected run", "variant": "security" },
+    { "from": "pipeline", "to": "experiments", "label": "registry + locks", "variant": "security", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[605, 205], [1000, 205], [1000, 334]], "labelAt": [790, 196] },
+
+    { "from": "prediction", "to": "processed", "label": "đọc clean.csv", "variant": "default", "fromSide": "bottom", "toSide": "right", "route": "orthogonal-v", "via": [[730, 620], [730, 780], [1460, 780], [1460, 114]], "labelAt": [1100, 768] },
+    { "from": "prediction", "to": "models", "label": "load PKL + metadata (không retrain)", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [860, 560] },
+    { "from": "mlcore", "to": "models", "label": "reports + atomic release", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[867, 480], [1000, 480], [1000, 574]], "labelAt": [880, 300] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Runtime thật",
+      "items": [
+        "Flask monolith local tại 127.0.0.1:5000; HTML forms + Jinja, không có JSON REST API",
+        "Trang /evaluation đọc report CSV/JSON/PNG đã sinh; không gọi model để tính lại",
+        "Tuning Lab là một daemon thread trong process, chỉ chạy 4-fold CV trên TRAIN",
+        "Official pipeline chặn request bằng subprocess.run; refresh chạy nền bằng Popen + PID lock + logfile"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Nguồn dữ liệu và serving",
+      "items": [
+        "Raw CSV nằm trong shared_dataset ngoài repo; refresh fetch cửa sổ riêng từng symbol rồi ghi atomic",
+        "Prediction đọc clean CSV + final_model.pkl + model_metadata.json trực tiếp, không retrain",
+        "Final Model phục vụ được đọc từ artifact; prediction horizon và threshold lấy động từ metadata",
+        "Web gồm prediction, compare, evaluation, tuning và refresh status"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Đã loại khỏi runtime",
+      "items": [
+        "Không còn SQLite: thư mục database/ đã xóa, không có mirror DB trên đường inference",
+        "Không còn Dummy model hay intermediate tuned artifacts",
+        "Không còn roadmap / document gate trong pipeline runtime"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Giới hạn triển khai",
+      "items": [
+        "Không có auth, Docker, reverse proxy hay production WSGI trong repo",
+        "Tuning/pipeline lock chỉ an toàn cho single-process",
+        "Raw path đang hard-code theo máy hiện tại"
+      ]
+    }
+  ]
+}

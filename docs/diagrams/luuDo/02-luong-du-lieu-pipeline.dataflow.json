@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Data flow — Raw OHLCV đến TRAIN / VALIDATION / TEST và publish",
+    "subtitle": "cleaned_all · training universe · 20 features · exact market t+5 · rolling split · TEST một lần · prediction",
+    "output": "docs/diagrams/luuDo/02-luong-du-lieu-pipeline.html",
+    "viewBox": [1100, 780]
+  },
+  "stages": [
+    { "label": "Nguồn" },
+    { "label": "Làm sạch" },
+    { "label": "Biến đổi" },
+    { "label": "Rolling split" },
+    { "label": "Chọn + publish" }
+  ],
+  "nodes": [
+    { "id": "raw", "type": "external", "label": "Raw OHLCV CSV", "sublabel": "shared_dataset", "tag": "ngoài repo", "stage": 0, "row": 2, "width": 130 },
+
+    { "id": "cleanAll", "type": "database", "label": "cleaned_all", "sublabel": "mọi mã hợp lệ", "tag": "clean.csv · predict", "stage": 1, "row": 0, "width": 130 },
+    { "id": "eligible", "type": "security", "label": "Training universe", "sublabel": "symbol ≥ 250 phiên", "tag": "chỉ train", "stage": 1, "row": 3, "width": 130 },
+
+    { "id": "features", "type": "backend", "label": "20 features", "sublabel": "rolling / symbol", "tag": "FEATURE_COLUMNS", "stage": 2, "row": 0, "width": 130 },
+    { "id": "labels", "type": "backend", "label": "Nhãn exact t+5", "sublabel": "phiên chung", "tag": "> 1% → UP", "stage": 2, "row": 3, "width": 130 },
+
+    { "id": "train", "type": "database", "label": "TRAIN", "sublabel": "rolling boundary", "tag": "4-fold CV · fit", "stage": 3, "row": 0, "width": 130 },
+    { "id": "validation", "type": "database", "label": "VALIDATION", "sublabel": "rolling boundary", "tag": "chọn + gate", "stage": 3, "row": 2, "width": 130 },
+    { "id": "test", "type": "security", "label": "TEST", "sublabel": "rolling snapshot", "tag": "1 lần", "stage": 3, "row": 4, "width": 130 },
+
+    { "id": "release", "type": "backend", "label": "Final Model", "sublabel": "PKL + metadata", "tag": "atomic publish", "stage": 4, "row": 1, "width": 130 },
+    { "id": "predict", "type": "cloud", "label": "Prediction", "sublabel": "latest feature row", "tag": "đọc artifact", "stage": 4, "row": 3, "width": 130 }
+  ],
+  "flows": [
+    {
+      "from": "raw", "to": "cleanAll", "label": "OHLCV sạch",
+      "classification": "drop NA/dup",
+      "variant": "emphasis", "fromSide": "top", "toSide": "left", "route": "auto", "labelAt": [207, 250]
+    },
+    {
+      "from": "raw", "to": "eligible", "label": "mã đủ ĐK",
+      "classification": "≥ 250 phiên",
+      "variant": "default", "fromSide": "bottom", "toSide": "left", "route": "auto", "labelAt": [207, 505]
+    },
+    {
+      "from": "cleanAll", "to": "features", "label": "feature rows",
+      "classification": "window ≤ 50",
+      "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [422, 157]
+    },
+    {
+      "from": "eligible", "to": "labels", "label": "lịch t+5",
+      "classification": "phiên chung",
+      "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [422, 499]
+    },
+    {
+      "from": "features", "to": "train", "label": "ml_dataset",
+      "classification": "RAM split",
+      "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [637, 157]
+    },
+    {
+      "from": "labels", "to": "train", "label": "UP / NOT_UP",
+      "classification": "thiếu → bỏ",
+      "variant": "default", "fromSide": "right", "toSide": "bottom", "route": "auto", "labelAt": [637, 438]
+    },
+    {
+      "from": "train", "to": "validation", "label": "4-fold CV",
+      "classification": "gap 5",
+      "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [700, 271]
+    },
+    {
+      "from": "validation", "to": "test", "label": "baseline gate",
+      "classification": "> baseline",
+      "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [745, 499]
+    },
+    {
+      "from": "test", "to": "release", "label": "refit TR+VAL",
+      "classification": "1 lần",
+      "variant": "emphasis", "fromSide": "right", "toSide": "bottom", "route": "auto", "labelAt": [852, 438]
+    },
+    {
+      "from": "release", "to": "predict", "label": "final_model.pkl",
+      "classification": "artifact",
+      "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [960, 385]
+    },
+    {
+      "from": "cleanAll", "to": "predict", "label": "clean.csv",
+      "classification": "prediction đọc",
+      "variant": "dashed", "fromSide": "bottom", "toSide": "bottom",
+      "via": [[28, 186], [28, 700], [960, 700]], "labelAt": [500, 708]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Hai nhánh sau clean_data()",
+      "items": [
+        "cleaned_all giữ mọi symbol OHLCV hợp lệ, ghi hose_stock_clean.csv, phục vụ prediction",
+        "Training universe chỉ giữ symbol có ≥ 250 phiên; MIN_AVERAGE_VOLUME hiện bằng 0 nên chỉ đếm số phiên",
+        "Không tạo file split riêng; TRAIN/VALIDATION/TEST cắt trong RAM theo rolling boundary từ dataset hiện tại"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Target exact market t+5",
+      "items": [
+        "Lịch đích lấy từ danh sách trading_date chung của toàn dataset (phiên thị trường chung)",
+        "Symbol phải có close đúng phiên t+5; thiếu thì row bị bỏ, không nhảy sang phiên riêng kế tiếp",
+        "UP chỉ khi future_return_5d > 1%; đúng 1% vẫn là NOT_UP"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Chọn model và TEST",
+      "items": [
+        "CV 4 fold purged chỉ chạy trên TRAIN; VALIDATION chọn model và so với baseline Always-UP / Always-NOT-UP",
+        "Winner không vượt baseline tốt nhất trên VALIDATION thì pipeline dừng trước TEST",
+        "TEST là của rolling snapshot, chấm đúng một lần cho mỗi experiment fingerprint; dataset mới tạo fingerprint mới"
+      ]
+    }
+  ]
+}

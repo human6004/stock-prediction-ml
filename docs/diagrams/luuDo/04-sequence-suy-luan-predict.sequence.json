@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Sequence — Refresh → CV → chọn config → official pipeline → prediction",
+    "subtitle": "User, Flask UI, refresh scripts, Tuning Lab, official pipeline, evaluation registry và model artifact",
+    "output": "docs/diagrams/luuDo/04-sequence-suy-luan-predict.html",
+    "viewBox": [920, 1020]
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "User", "sublabel": "browser" },
+    { "id": "ui", "type": "frontend", "label": "Flask UI", "sublabel": "app.py" },
+    { "id": "refresh", "type": "backend", "label": "Refresh", "sublabel": "refresh_data.py" },
+    { "id": "tuning", "type": "backend", "label": "Tuning Lab", "sublabel": "CV TRAIN" },
+    { "id": "pipeline", "type": "backend", "label": "Pipeline", "sublabel": "run_pipeline.py" },
+    { "id": "registry", "type": "security", "label": "Registry", "sublabel": "evaluation" },
+    { "id": "artifact", "type": "database", "label": "Artifact", "sublabel": "PKL + meta" }
+  ],
+  "segments": [
+    { "from": 158, "to": 268, "label": "01 / REFRESH → FINGERPRINT MỚI" },
+    { "from": 278, "to": 478, "label": "02 / CV TRAIN + CHỌN 3 CONFIG" },
+    { "from": 488, "to": 792, "label": "03 / OFFICIAL: VALIDATION GATE → TEST → PUBLISH" },
+    { "from": 802, "to": 940, "label": "04 / PREDICTION" }
+  ],
+  "messages": [
+    { "from": "user", "to": "ui", "y": 182, "label": "POST fetch-data", "variant": "emphasis" },
+    { "from": "ui", "to": "refresh", "y": 216, "label": "chạy refresh_data.py", "variant": "default", "note": "[1/3] fetch per-symbol · [2/3] clean · [3/3] build + label + split" },
+    { "from": "refresh", "to": "ui", "y": 250, "label": "RAW + processed mới", "variant": "return", "note": "dataset mới → TRAIN fingerprint mới, config cũ stale" },
+
+    { "from": "user", "to": "ui", "y": 294, "label": "start CV / model", "variant": "emphasis" },
+    { "from": "ui", "to": "tuning", "y": 328, "label": "run_cv (TRAIN)", "variant": "default", "note": "4 recent purged folds, gap 5 phiên, chỉ TRAIN" },
+    { "from": "tuning", "to": "ui", "y": 362, "label": "history rows", "variant": "return" },
+    { "from": "user", "to": "ui", "y": 396, "label": "chọn 1 run × LR/RF/GB", "variant": "emphasis" },
+    { "from": "ui", "to": "tuning", "y": 430, "label": "save_selected_model", "variant": "security", "note": "3 config lưu manual_config.json, gắn TRAIN fingerprint" },
+    { "from": "tuning", "to": "ui", "y": 464, "label": "manual_config đủ 3", "variant": "return" },
+
+    { "from": "user", "to": "ui", "y": 508, "label": "POST run-pipeline", "variant": "emphasis" },
+    { "from": "ui", "to": "pipeline", "y": 542, "label": "subprocess run_pipeline.py", "variant": "emphasis", "note": "request chờ pipeline chạy xong" },
+    { "from": "pipeline", "to": "registry", "y": 576, "label": "has_evaluated_snapshot?", "variant": "security" },
+    { "from": "registry", "to": "pipeline", "y": 610, "label": "chưa đánh giá", "variant": "return", "note": "đã đánh giá → dừng, không chạy lại TEST" },
+    { "from": "pipeline", "to": "registry", "y": 644, "label": "started", "variant": "default", "note": "fit 3 model TRAIN → VALIDATION chọn winner; thua baseline tốt nhất thì dừng trước TEST" },
+    { "from": "pipeline", "to": "registry", "y": 678, "label": "evaluated", "variant": "default", "note": "refit TRAIN+VALIDATION, chấm TEST đúng 1 lần" },
+    { "from": "pipeline", "to": "artifact", "y": 712, "label": "atomic release PKL + meta", "variant": "emphasis", "note": "lỗi promotion → rollback + release_failed" },
+    { "from": "pipeline", "to": "registry", "y": 746, "label": "published", "variant": "default" },
+    { "from": "pipeline", "to": "ui", "y": 780, "label": "pipeline summary", "variant": "return" },
+
+    { "from": "user", "to": "ui", "y": 824, "label": "POST /predict", "variant": "emphasis" },
+    { "from": "ui", "to": "artifact", "y": 858, "label": "load final_model.pkl + meta", "variant": "default", "note": "không retrain; horizon + threshold đọc từ artifact" },
+    { "from": "artifact", "to": "ui", "y": 892, "label": "model + order + threshold", "variant": "return" },
+    { "from": "ui", "to": "user", "y": 926, "label": "UP / NOT_UP", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "ui", "from": 178, "to": 930, "type": "frontend" },
+    { "participant": "refresh", "from": 212, "to": 254, "type": "backend" },
+    { "participant": "tuning", "from": 324, "to": 468, "type": "backend" },
+    { "participant": "pipeline", "from": 538, "to": 784, "type": "backend" },
+    { "participant": "registry", "from": 572, "to": 750, "type": "security" },
+    { "participant": "artifact", "from": 708, "to": 896, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Refresh mở fingerprint mới",
+      "items": [
+        "refresh_data.py fetch OHLCV theo cửa sổ riêng từng symbol rồi clean, build feature và split",
+        "Dataset mới sinh TRAIN fingerprint mới; manual_config cũ trở nên stale và phải CV + chọn lại",
+        "Không còn SQLite; refresh chỉ ghi RAW/processed/report"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "CV và chọn 3 config",
+      "items": [
+        "Mỗi model chạy CV chỉ trên TRAIN: 4 recent purged folds, gap 5 phiên",
+        "User chọn đúng một CV run cho từng model LR/RF/GB",
+        "Ba lựa chọn lưu manual_config.json và gắn với TRAIN fingerprint hiện tại"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Official run và prediction",
+      "items": [
+        "Pipeline fit 3 model TRAIN, chọn bằng VALIDATION so với baseline Always-UP/Always-NOT-UP",
+        "Chỉ winner hợp lệ mới refit TRAIN+VALIDATION và chạm TEST đúng một lần; registry: started → evaluated → published",
+        "Prediction đọc final_model.pkl + model_metadata.json, không retrain; horizon đọc động từ artifact"
+      ]
+    }
+  ]
+}

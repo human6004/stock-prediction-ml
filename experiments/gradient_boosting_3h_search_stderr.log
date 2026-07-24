@@ -1,4 +1,0 @@
-  File "C:\Users\nhan\AppData\Local\Temp\gb_3h_search_20260707_073435.py", line 14
-    STAMP = datetime.now().strftime(%Y%m%d_%H%M%S)
-                                    ^
-SyntaxError: invalid syntax

@@ -10,8 +10,9 @@
     <title>Tiến độ fetch — HOSE ML</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
+    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
 </head>
 <body>
     <main class="shell">
@@ -30,7 +31,7 @@
         </nav>
 
         <section class="fetch-hero {% if fetch_progress.status == 'completed' %}fetch-hero-done{% elif fetch_progress.status == 'failed' %}fetch-hero-failed{% elif running %}fetch-hero-running{% endif %}">
-            <div class="fetch-hero-main">
+            <div class="fetch-hero-main" role="status">
                 {% if running %}
                 <span class="status-badge status-badge-running">
                     <span class="live-dot" aria-hidden="true"></span>
@@ -146,7 +147,7 @@
                 <span class="fetch-log-live muted">200 dòng cuối</span>
                 {% endif %}
             </div>
-            <pre>{% if log %}{{ log }}{% else %}Chưa có log. Hãy bắt đầu job từ Tuning Lab.{% endif %}</pre>
+            <pre id="fetch-log">{% if log %}{{ log }}{% else %}Chưa có log. Hãy bắt đầu job từ Tuning Lab.{% endif %}</pre>
         </section>
 
         <div class="fetch-actions fetch-actions-footer">
@@ -156,5 +157,12 @@
             {% endif %}
         </div>
     </main>
+    <script>
+        // Trang tự refresh mỗi 5s khi đang chạy; cuộn log xuống cuối để luôn thấy dòng mới nhất.
+        (function () {
+            var pre = document.getElementById("fetch-log");
+            if (pre) { pre.scrollTop = pre.scrollHeight; }
+        })();
+    </script>
 </body>
 </html>

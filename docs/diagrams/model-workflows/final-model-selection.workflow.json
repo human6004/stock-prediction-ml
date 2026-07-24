@@ -2,72 +2,47 @@
   "schema_version": 1,
   "diagram_type": "workflow",
   "meta": {
-    "title": "TEST Evaluation and Final Model Selection",
-    "subtitle": "Three locked configurations are fitted on TRAIN, evaluated on held-out TEST, and ranked without Dummy",
-    "output": "docs/diagrams/model-workflows/final-model-selection.html"
+    "title": "Final Model Selection - Protocol v3",
+    "subtitle": "CV chooses configs, VALIDATION chooses family, TEST reports once at per-model threshold"
   },
   "lanes": [
-    { "id": "candidates", "label": "BA CẤU HÌNH TỪ manual_config.json + DUMMY BASELINE" },
-    { "id": "official", "label": "FIT FULL TRAIN + EVALUATE HELD-OUT TEST" },
-    { "id": "test", "label": "TEST RESULTS - KHÔNG CHỌN BẰNG CV" },
-    { "id": "final", "label": "TEST RANKING -> FINAL MODEL" }
+    {"id": "tuning", "label": "TRAIN tuning"},
+    {"id": "candidates", "label": "Full TRAIN candidates"},
+    {"id": "validation", "label": "VALIDATION selection"},
+    {"id": "test", "label": "Final TEST"},
+    {"id": "release", "label": "Release and inference"}
   ],
   "nodes": [
-    { "id": "best_lr", "lane": "candidates", "col": 0, "type": "frontend", "label": "Best LR", "sublabel": "C=6.5867e-05", "tag": "solver=liblinear", "width": 92 },
-    { "id": "best_rf", "lane": "candidates", "col": 2, "type": "cloud", "label": "Best RF", "sublabel": "130 | 4 | 25 | 0.35", "tag": "n | depth | leaf | feat", "width": 112 },
-    { "id": "best_gb", "lane": "candidates", "col": 4, "type": "database", "label": "Best GB", "sublabel": "120 | 0.05 | 2 | 1.0", "tag": "n | lr | depth | sub", "width": 112 },
-    { "id": "dummy", "lane": "candidates", "col": 5, "type": "external", "label": "Dummy", "sublabel": "baseline only", "tag": "NOT CANDIDATE", "width": 88 },
-
-    { "id": "fit", "lane": "official", "col": 1, "type": "backend", "label": "Fit 3 Models", "sublabel": "full TRAIN | 417,806", "tag": "THRESHOLD ON TRAIN", "width": 160 },
-    { "id": "evaluate", "lane": "official", "col": 4, "type": "backend", "label": "Evaluate TEST", "sublabel": "95,022 held-out rows", "tag": "ONE OFFICIAL TEST", "width": 180 },
-
-    { "id": "test_lr", "lane": "test", "col": 0, "type": "frontend", "label": "Logistic Reg.", "sublabel": "F1_UP=0.5024", "tag": "Recall_UP=0.9332", "width": 92 },
-    { "id": "test_rf", "lane": "test", "col": 2, "type": "cloud", "label": "Random Forest", "sublabel": "F1_UP=0.5041", "tag": "Recall_UP=0.9424", "width": 110 },
-    { "id": "test_gb", "lane": "test", "col": 4, "type": "database", "label": "Gradient Boosting", "sublabel": "F1_UP=0.5053", "tag": "Recall_UP=0.9176", "width": 120 },
-
-    { "id": "rank", "lane": "final", "col": 1, "type": "backend", "label": "Rank on TEST", "sublabel": "F1_UP desc | Recall_UP desc", "tag": "TIES: LR -> RF -> GB | NO DUMMY", "width": 270 },
-    { "id": "final_model", "lane": "final", "col": 4, "type": "backend", "label": "FINAL MODEL", "sublabel": "Gradient Boosting", "tag": "TEST F1_UP=0.5053", "width": 200 }
+    {"id": "lrbest", "lane": "tuning", "col": 0, "type": "backend", "label": "Chosen LR", "sublabel": "user-picked CV run"},
+    {"id": "rfbest", "lane": "tuning", "col": 2, "type": "cloud", "label": "Chosen RF", "sublabel": "user-picked CV run"},
+    {"id": "gbbest", "lane": "tuning", "col": 5, "type": "backend", "label": "Chosen GB", "sublabel": "user-picked CV run"},
+    {"id": "lr", "lane": "candidates", "col": 0, "type": "backend", "label": "LR candidate", "sublabel": "fit all TRAIN"},
+    {"id": "rf", "lane": "candidates", "col": 2, "type": "cloud", "label": "RF candidate", "sublabel": "fit all TRAIN"},
+    {"id": "gb", "lane": "candidates", "col": 5, "type": "backend", "label": "GB candidate", "sublabel": "fit all TRAIN"},
+    {"id": "compare", "lane": "validation", "col": 2, "type": "frontend", "label": "Compare on VALIDATION", "sublabel": "F1, Recall, simplicity LR→RF→GB", "tag": "each at own threshold", "width": 154},
+    {"id": "baselinesv", "lane": "validation", "col": 5, "type": "database", "label": "Val baselines", "sublabel": "always-UP / NOT_UP", "width": 104},
+    {"id": "refit", "lane": "test", "col": 0, "type": "backend", "label": "Fresh refit", "sublabel": "TRAIN + VALIDATION", "width": 92},
+    {"id": "once", "lane": "test", "col": 2, "type": "security", "label": "TEST exactly once", "sublabel": "at artifact threshold", "tag": "locked", "width": 122},
+    {"id": "baselinest", "lane": "test", "col": 5, "type": "database", "label": "TEST baselines", "sublabel": "pass flag", "width": 104},
+    {"id": "atomic", "lane": "release", "col": 2, "type": "database", "label": "Atomic promotion", "sublabel": "exact tested artifact", "tag": "no post-TEST refit", "width": 132},
+    {"id": "ui", "lane": "release", "col": 5, "type": "frontend", "label": "UI / CLI", "sublabel": "score >= threshold is UP", "width": 104}
   ],
   "edges": [
-    { "from": "best_lr", "to": "fit", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
-    { "from": "best_rf", "to": "fit", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "best_gb", "to": "fit", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.8 },
-    { "from": "dummy", "to": "evaluate", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "fit", "to": "evaluate", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "evaluate", "to": "test_lr", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
-    { "from": "evaluate", "to": "test_rf", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "evaluate", "to": "test_gb", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.8 },
-    { "from": "test_lr", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.2 },
-    { "from": "test_rf", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "test_gb", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.8 },
-    { "from": "rank", "to": "final_model", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight" }
+    {"from": "lrbest", "to": "lr", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "rfbest", "to": "rf", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "gbbest", "to": "gb", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "lr", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "rf", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "gb", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "baselinesv", "to": "compare", "variant": "dashed"},
+    {"from": "compare", "to": "refit", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "refit", "to": "once", "variant": "emphasis"},
+    {"from": "once", "to": "baselinest"},
+    {"from": "once", "to": "atomic", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "atomic", "to": "ui", "variant": "emphasis"}
   ],
   "cards": [
-    {
-      "dot": "emerald",
-      "title": "Selection rule from code",
-      "items": [
-        "Exclude Dummy before ranking",
-        "Sort TEST F1_UP descending, then Recall_UP descending only on an exact tie",
-        "If both metrics tie, prefer simplicity: Logistic Regression, Random Forest, Gradient Boosting"
-      ]
-    },
-    {
-      "dot": "violet",
-      "title": "Why Gradient Boosting is Final",
-      "items": [
-        "Gradient Boosting has the highest TEST F1_UP: 0.5053146841",
-        "It is only 0.001256 above Random Forest, so the result is a narrow lead, not superiority",
-        "Random Forest has higher Recall_UP, but recall tie-break is not reached"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "Metric boundary",
-      "items": [
-        "Selected-run CV locks each model configuration",
-        "Held-out TEST metrics in reports/model_comparison.csv select the Final Model"
-      ]
-    }
+    {"dot": "emerald", "title": "Selection boundary", "items": ["CV selects one config inside each family", "VALIDATION selects the family", "TEST never participates in ranking"]},
+    {"dot": "rose", "title": "Release rules", "items": ["Winner is fit fresh on TRAIN plus VALIDATION", "The exact tested object is promoted", "A failed pipeline keeps the active final model"]}
   ]
 }

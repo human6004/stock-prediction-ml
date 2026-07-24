@@ -1,0 +1,29 @@
+MODEL SELECTION REPORT (v2_date_purged_fixed_050):
+
+1. Chon model chi tren VALIDATION; TEST khong tham gia xep hang.
+2. Tieu chi phu: Recall_UP cao hon neu F1_UP bang nhau.
+3. Tieu chi don gian: Logistic Regression < Random Forest < Gradient Boosting.
+
+4. Xep hang VALIDATION theo F1_UP, Recall_UP, roi do don gian:
+   1. Model: Gradient Boosting, F1_UP: 0.443682, Recall_UP: 0.490665, Accuracy: 0.580303, CV_F1_UP: 0.463420
+   2. Model: Random Forest, F1_UP: 0.441623, Recall_UP: 0.474219, Accuracy: 0.590971, CV_F1_UP: 0.458637
+   3. Model: Logistic Regression, F1_UP: 0.384051, Recall_UP: 0.372274, Accuracy: 0.592697, CV_F1_UP: 0.426808
+
+   Baselines tren VALIDATION:
+   - Always UP: F1_UP=0.508676, Recall_UP=1.000000
+   - Always NOT_UP: F1_UP=0.000000, Recall_UP=0.000000
+
+5. Model duoc chon tren VALIDATION:
+   Model: Gradient Boosting
+   F1_UP: 0.443682
+   Recall_UP: 0.490665
+   Validation baseline passed: False
+   Validation baseline warning: Selected candidate VALIDATION F1_UP=0.443682 is below Always UP=0.508676.
+
+6. Danh gia FINAL TEST mot lan:
+   F1_UP: 0.405164
+   Recall_UP: 0.519681
+   TEST always-UP passed: False
+   TEST baseline warning: Final Model chưa vượt baseline always-UP trên TEST (F1_UP 0.405164 <= 0.428487).
+
+7. File model cuoi cung: models/final_model.pkl

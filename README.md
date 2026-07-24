@@ -17,15 +17,19 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 shared raw CSV
 -> clean data
 -> build technical features
--> create UP/NOT_UP labels
--> split train/test by label_end_date
--> tune and evaluate models
--> select final model
+-> create exact common-market t+5 UP/NOT_UP labels
+-> TRAIN / VALIDATION / TEST by fixed dates
+-> manually try and select one config/model with purged date CV on TRAIN
+-> select model family on VALIDATION
+-> refit winner on TRAIN+VALIDATION
+-> evaluate TEST once and publish the same artifact
 -> sync SQLite
 -> Flask/CLI prediction
 ```
 
-Model cuối hiện tại là `Gradient Boosting`, được chọn theo `F1_UP` trên tập TEST held-out: `F1_UP=0.5053`, `Recall_UP=0.9176`. Điểm CV official dùng để báo cáo, không dùng để chọn Final Model. Các artefact demo trong `models/`, `reports/` và `data/processed/` được giữ lại để chạy web và phục vụ bảo vệ.
+Policy hiện hành là `v3_recent4_oof_threshold`: `UP` nghĩa là giá đúng phiên thị trường `t+5` tăng hơn `1%`. Tuning dùng time-series CV 4 fold từ `2021-01-01`, purge 5 phiên và threshold OOF riêng cho từng model. TRAIN kết thúc `30/06/2025`, VALIDATION kết thúc `31/03/2026`, TEST chính thức được đóng băng từ `01/04/2026` đến `03/07/2026`. Dữ liệu mới hơn chỉ phục vụ inference. Model family được chọn trên VALIDATION; TEST chỉ đánh giá một lần model đã chọn và refit.
+
+Tuning history dùng fingerprint riêng của TRAIN. TEST lock dùng fingerprint của snapshot TRAIN+VALIDATION+TEST đóng băng. Vì vậy refresh dữ liệu inference không mở lại TEST.
 
 ## Cài đặt
 
@@ -43,16 +47,16 @@ python scripts/fetch_hose_data.py
 python scripts/run_pipeline.py
 ```
 
-Hoặc chạy từng bước:
+Chuẩn bị dataset riêng:
 
 ```powershell
 python scripts/preprocess_data.py
 python scripts/build_features.py
-python scripts/train_tune_models.py
-python scripts/evaluate_models.py
-python scripts/select_final_model.py
-python database/init_db.py
 ```
+
+Sau đó thử hyperparameter và tự chọn một run hợp lệ cho từng model tại `/tuning`. Final Model chỉ
+được chọn và publish bằng `python scripts/run_pipeline.py`; không chạy riêng
+từng bước VALIDATION/TEST vì sẽ phá TEST lock và tính nhất quán artifact.
 
 ## Dự báo
 
@@ -97,6 +101,8 @@ data/processed/ml_dataset.csv
 models/final_model.pkl
 models/model_metadata.json
 reports/model_comparison.csv
+reports/final_model_evaluation.csv
+reports/cv_fold_results.csv
 reports/confusion_matrix.csv
 reports/confusion_matrix.png
 reports/feature_importance.csv

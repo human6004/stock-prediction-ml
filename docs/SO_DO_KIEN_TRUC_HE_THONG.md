@@ -1,184 +1,120 @@
-# Sơ đồ kiến trúc hệ thống dự báo xu hướng cổ phiếu HOSE
+# Sơ đồ kiến trúc hệ thống HOSE ML - protocol v2
 
-Tài liệu này mô tả kiến trúc theo code hiện tại của project. CSV vẫn là artefact chính của pipeline, còn SQLite được dùng để sync dữ liệu/report và lưu lịch sử dự báo.
-
-## 1. Kiến trúc tổng thể hiện tại
+## 1. Kiến trúc tổng thể
 
 ```mermaid
 flowchart LR
-    A["Nguồn OHLCV HOSE"] --> B["shared_dataset/hose_stock_raw.csv"]
-    C["scripts/fetch_hose_data.py"] --> B
-    E["config/settings.py"] --> C
-    E --> D["scripts/run_pipeline.py"]
-    B --> D
-    F["Roadmap markdown"] --> D
+    A["Raw HOSE OHLCV"] --> B["Preprocessing"]
+    B --> C["Clean OHLCV"]
+    C --> D["20 technical features"]
+    C --> E["Exact common-market t+5 labels"]
+    D --> F["ML dataset"]
+    E --> F
+    F --> G["Fixed TRAIN / VALIDATION / TEST"]
+    G --> H["Tuning Lab: user-entered configs"]
+    H --> I["Manual choice LR / RF / GB"]
+    I --> J["TRAIN candidates"]
+    J --> K["VALIDATION selection"]
+    K --> L["TRAIN+VALIDATION refit"]
+    L --> M["One-time TEST"]
+    M --> N["Atomic final_model.pkl + metadata"]
+    N --> O["Flask / CLI inference"]
+    O --> P["UP / NOT_UP at score 0.5"]
 
-    D --> G["data/processed/hose_stock_clean.csv"]
-    D --> H["data/processed/hose_stock_features.csv"]
-    D --> I["data/processed/ml_dataset.csv"]
-    D --> J["models/*.pkl + model_metadata.json"]
-    D --> K["reports/*.csv, *.png, *.json, *.txt, *.md"]
-
-    I --> L["Train/Test split theo label_end_date"]
-    L --> M["Tune 3 model chính + Dummy baseline"]
-    M --> N["Đánh giá trên test set"]
-    N --> O["Chọn final model theo F1_UP"]
-    O --> P["models/final_model.pkl"]
-
-    G --> Q["services/database_service.py"]
-    H --> Q
-    K --> Q
-    Q --> R["database/stock_prediction.db"]
-
-    P --> S["app.py Flask"]
-    H --> S
-    K --> S
-    R --> S
-    S --> T["templates/ + static/"]
-    T --> U["Người dùng dự báo UP / NOT_UP"]
+    F --> Q["CSV reports"]
+    Q --> R["SQLite sync"]
+    O --> R
 ```
 
-### Cách đọc sơ đồ
-
-- `hose_stock_raw.csv` là dữ liệu OHLCV gốc nằm ngoài repo trong shared dataset.
-- `scripts/run_pipeline.py` là luồng chính: đọc roadmap, kiểm tra dataset, clean, tạo feature, tạo label, split, tune, evaluate, chọn model, ghi report và sync database.
-- `models/final_model.pkl` và `models/model_metadata.json` là artefact web/CLI dùng để dự báo.
-- `database/stock_prediction.db` được tạo từ `database/init_db.sql` và sync qua `services/database_service.py`.
-- `templates/` và `static/` là giao diện Flask.
-
-## 2. Pipeline xử lý dữ liệu và train model
+## 2. Ranh giới dữ liệu
 
 ```mermaid
 flowchart TD
-    A["hose_stock_raw.csv"] --> B["Kiểm tra cột bắt buộc và chất lượng OHLCV"]
-    B --> C["Làm sạch dữ liệu"]
-    C --> D["hose_stock_clean.csv"]
-    C --> E["Lọc mã đủ tối thiểu 250 phiên"]
-    E --> F["Tạo 20 feature kỹ thuật"]
-    F --> G["hose_stock_features.csv"]
-    G --> H["Tạo future_return_5d"]
-    H --> I["Gắn nhãn UP nếu future_return_5d > 1%"]
-    I --> J["ml_dataset.csv"]
-    J --> K["Chia train/test theo SPLIT_DATE"]
-    K --> L["Train: label_end_date <= 2025-06-30"]
-    K --> M["Test: label_end_date > 2025-06-30"]
-    L --> N["Dummy Classifier"]
-    L --> O["Logistic Regression tuned"]
-    L --> P["Random Forest tuned"]
-    L --> Q["Gradient Boosting tuned"]
-    M --> R["Đánh giá model"]
-    N --> R
-    O --> R
-    P --> R
-    Q --> R
-    R --> S["model_comparison.csv"]
-    R --> T["classification_report.csv"]
-    R --> U["confusion_matrix.csv / .png"]
-    R --> V["feature_importance.csv"]
-    S --> W["Chọn model theo F1_UP, Recall_UP, độ đơn giản"]
-    W --> X["final_model.pkl + model_metadata.json"]
+    A["ML dataset có trading_date và label_end_date"] --> B{"Ranh giới"}
+    B -->|"label_end <= 30/06/2025"| C["TRAIN"]
+    B -->|"trading > 30/06/2025 và label_end <= 31/03/2026"| D["VALIDATION"]
+B -->|"31/03/2026 < trading <= 03/07/2026"| E["TEST đóng băng"]
+    B -->|"label cắt qua boundary"| F["PURGED"]
+    C --> G["5-fold date CV, gap 5 sessions"]
+    D --> H["Chọn LR / RF / GB"]
+    E --> I["Chỉ đánh giá winner đã refit"]
 ```
 
-### Ý chính
+## 3. Ba pipeline tuning
 
-Pipeline không train trực tiếp từ raw cho web. Nó tạo các tầng artefact rõ ràng:
+Luồng giống nhau; hộp hyperparameter là phần khác nhau bắt buộc làm nổi bật.
 
-```text
-raw data
--> cleaned data
--> feature data
--> ML dataset có target
--> train/test split theo label_end_date
--> train/tune/evaluate
--> final_model.pkl
--> reports
--> SQLite sync
+```mermaid
+flowchart LR
+    A["Logistic Regression"] --> B["User enters C and solver"]
+    B --> C["Date-purged CV runs"]
+    C --> D["User selects LR config"]
+
+    E["Random Forest"] --> F["n_estimators\nmax_depth\nmin_samples_leaf\nmax_features"]
+    F --> G["Date-purged CV runs"]
+    G --> H["User selects RF config"]
+
+    I["Gradient Boosting"] --> J["n_estimators\nlearning_rate\nmax_depth\nsubsample"]
+    J --> K["Date-purged CV runs"]
+    K --> L["User selects GB config"]
+
+    D --> M["Fit full TRAIN candidates"]
+    H --> M
+    L --> M
+    M --> N["VALIDATION selection"]
 ```
 
-Theo report hiện tại:
+Chi tiết giới hạn tham số nằm tại [Giải thích project](GIAI_THICH_PROJECT.md#7-tuning-ba-model).
 
-```text
-Train: 417,806 dòng; 2019-10-23 đến 2025-06-23; label_end_date tối đa 2025-06-30
-Test : 95,022 dòng; 2025-03-03 đến 2026-07-03; label_end_date tối thiểu 2025-07-01
-Final model: Gradient Boosting; TEST F1_UP 0.5053; Recall_UP 0.9176
+## 4. Final Model lifecycle
+
+```mermaid
+flowchart LR
+    A["Best params per family"] --> B["Fresh LR candidate on TRAIN"]
+    A --> C["Fresh RF candidate on TRAIN"]
+    A --> D["Fresh GB candidate on TRAIN"]
+    B --> E["VALIDATION metrics"]
+    C --> E
+    D --> E
+    E --> F["F1_UP -> Recall_UP -> LR/RF/GB"]
+    F --> G["Clone winner"]
+    G --> H["Fit TRAIN+VALIDATION"]
+    H --> I["TEST once at threshold 0.5"]
+    I --> J["Compare always-UP / always-NOT_UP"]
+    J --> K["Atomic promote exact tested artifact"]
+    K --> L["Write metadata and TEST lock"]
 ```
 
-## 3. Luồng dự báo trên web/CLI
+## 5. Inference
 
 ```mermaid
 sequenceDiagram
     actor User as Người dùng
-    participant CLI as scripts/predict_stock.py
-    participant Web as app.py Flask
-    participant Service as services/prediction_service.py
-    participant Features as hose_stock_features.csv
+    participant UI as Flask UI / CLI
+    participant Service as prediction_service
+    participant Data as Clean OHLCV
     participant Model as final_model.pkl
     participant Meta as model_metadata.json
-    participant DB as stock_prediction.db
-    participant UI as HTML template
 
-    User->>Web: Nhập mã cổ phiếu, ví dụ FPT
-    Web->>Service: predict_symbol(symbol)
-    CLI->>Service: predict_symbol(symbol)
-    Service->>Features: Đọc feature theo symbol
-    Features-->>Service: Dòng mới nhất theo trading_date
-    Service->>Model: Load model cuối
-    Service->>Meta: Load metadata và feature_order
-    Model-->>Service: UP / NOT_UP + probability_up
-    Service-->>Web: Kết quả dự báo
-    Service-->>CLI: Kết quả dự báo
-    Web->>DB: Log prediction nếu không lỗi
-    CLI->>DB: Log prediction khi có --log-db
-    Web->>UI: Render kết quả
-    UI-->>User: Hiển thị dự báo và giải thích
+    User->>UI: Chọn mã
+    UI->>Service: predict_symbol / predict_symbols
+    Service->>Data: Tính feature đến ngày tham chiếu
+    Service->>Model: Load exact tested artifact
+    Service->>Meta: Kiểm policy/fingerprint
+    Model-->>Service: Điểm UP
+    Service->>Service: score >= 0.5 ? UP : NOT_UP
+    Service-->>UI: Kết quả + 5 phiên dự kiến + baseline warning
+    UI-->>User: Biểu đồ và Điểm UP
 ```
 
-## 4. SQLite database hiện tại
+## 6. Report contract
 
-SQLite đã có trong code hiện tại:
-
-- `database/init_db.sql`: định nghĩa schema.
-- `database/db_connection.py`: mở connection và chạy schema.
-- `database/init_db.py`: khởi tạo database và sync toàn bộ dữ liệu/report.
-- `services/database_service.py`: sync raw/clean/features/tuning/evaluation và log prediction.
-
-Các bảng chính:
-
-| Bảng | Vai trò |
+| File | Nội dung |
 |---|---|
-| `raw_prices` | Dữ liệu OHLCV thô |
-| `clean_prices` | Dữ liệu sau làm sạch |
-| `features` | Feature kỹ thuật theo mã/ngày |
-| `tuning_results` | Kết quả tuning model |
-| `model_evaluations` | Kết quả đánh giá model |
-| `predictions` | Lịch sử dự báo từ Flask/CLI |
+| `tuning_results.csv` | CV best config trên TRAIN |
+| `cv_fold_results.csv` | Metric và dải ngày từng fold |
+| `model_comparison.csv` | Ba candidates và baselines trên VALIDATION |
+| `final_model_evaluation.csv` | Final Model và hai baselines trên TEST |
+| `model_metadata.json` | Policy, fingerprint, feature order, Validation/TEST metrics, baseline status |
 
-## 5. Các thành phần chính
-
-| Thành phần | Vai trò |
-|---|---|
-| `config/settings.py` | Cấu hình đường dẫn, feature, split date, threshold, model |
-| `scripts/fetch_hose_data.py` | Cập nhật dữ liệu OHLCV bằng `vnstock` |
-| `scripts/run_pipeline.py` | Pipeline đầy đủ từ raw đến model/report/database |
-| `services/preprocessing.py` | Kiểm tra và làm sạch dữ liệu |
-| `services/feature_engineering.py` | Tạo feature, label và train/test split |
-| `services/model_tuning.py` | Tune Logistic Regression, Random Forest, Gradient Boosting |
-| `services/model_evaluation.py` | Đánh giá, chọn final model, ghi reports |
-| `services/prediction_service.py` | Load feature/model/metadata và dự báo một symbol |
-| `services/database_service.py` | Sync SQLite và log lịch sử dự báo |
-| `app.py` | Flask backend cho web demo |
-| `docs/diagrams/` | Các sơ đồ HTML export để xem trực quan |
-
-## 6. Sơ đồ một câu
-
-```text
-vnstock/shared raw CSV
--> clean
--> feature
--> label UP/NOT_UP
--> split theo thời gian
--> tune/evaluate/select Gradient Boosting trên TEST F1_UP
--> ghi models/reports
--> sync SQLite
--> Flask/CLI dùng final_model.pkl để dự báo và log prediction
-```
+Artifact hiện có vẫn là legacy cho tới khi Tuning Lab đạt `12/12` cho cả ba model và pipeline v2 hoàn tất. Không có metric v2 được ghi cứng trong tài liệu này.

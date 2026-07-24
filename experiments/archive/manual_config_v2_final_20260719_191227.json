@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "policy_version": "v2_date_purged_fixed_050",
+  "dataset_fingerprint": "66bdb23e8b5a",
+  "dataset_fingerprint_parts": {
+    "fingerprint_scope": "train",
+    "data_protocol_version": 2,
+    "dataset_rows": 416811,
+    "max_trading_date": "2025-06-23",
+    "split_date": "2025-06-30",
+    "validation_end_date": "2026-03-31",
+    "test_end_date": "2026-07-03",
+    "prediction_horizon": 5,
+    "up_threshold": 0.01,
+    "decision_threshold": 0.5,
+    "feature_columns": [
+      "return_1d",
+      "return_3d",
+      "return_5d",
+      "close_open_return",
+      "sma5",
+      "sma20",
+      "sma50",
+      "close_vs_sma20",
+      "sma20_vs_sma50",
+      "rsi14",
+      "volatility_5d",
+      "volatility_20d",
+      "price_range",
+      "volume_change_1d",
+      "volume_ratio_20",
+      "return_10d",
+      "return_20d",
+      "dist_high20",
+      "dist_low20",
+      "month"
+    ],
+    "content_sha256": "9cf8f4c431a9e89fea5b7379f196f9505b74cc80396a163d96d8d5191f2204d1"
+  },
+  "cv_settings": {
+    "n_splits": 5,
+    "gap_sessions": 5,
+    "metric": "f1_up",
+    "decision_threshold": 0.5
+  },
+  "selected_models": {
+    "random_forest": {
+      "run_id": "RF_20260719_183638_062920",
+      "params": {
+        "n_estimators": 130,
+        "max_depth": 6,
+        "min_samples_leaf": 40,
+        "max_features": 0.25
+      },
+      "cv_f1_up_mean": 0.46429599230257923,
+      "cv_f1_up_std": 0.04209335967167365,
+      "selected_at": "2026-07-19T19:12:27",
+      "selection_method": "manual"
+    },
+    "gradient_boosting": {
+      "run_id": "GB_20260719_182735_909711",
+      "params": {
+        "n_estimators": 120,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.9
+      },
+      "cv_f1_up_mean": 0.4715296007103693,
+      "cv_f1_up_std": 0.0321141932671274,
+      "selected_at": "2026-07-19T19:12:27",
+      "selection_method": "manual"
+    },
+    "logistic_regression": {
+      "run_id": "LR_20260719_183629_961027",
+      "params": {
+        "C": 4.123160000000001e-07,
+        "solver": "liblinear"
+      },
+      "cv_f1_up_mean": 0.43149843837065366,
+      "cv_f1_up_std": 0.045713277725860424,
+      "selected_at": "2026-07-19T19:12:27",
+      "selection_method": "manual"
+    }
+  },
+  "content_fingerprint": "9cf8f4c431a9e89fea5b7379f196f9505b74cc80396a163d96d8d5191f2204d1"
+}

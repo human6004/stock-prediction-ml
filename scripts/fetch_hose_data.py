@@ -4,7 +4,6 @@ Mỗi mã được chuẩn hóa về cùng schema OHLCV. `new_rows` trong fetch 
 record tải về trước dedupe; số dòng raw tăng ròng có thể nhỏ hơn.
 """
 
-import json
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -31,6 +30,7 @@ from config.settings import (  # noqa: E402
     REPORTS_DIR,
     REQUIRED_COLUMNS,
 )
+from services.pipeline_utils import write_json  # noqa: E402
 
 COLUMN_ALIASES = {
     "time": "trading_date",
@@ -106,14 +106,19 @@ def fetch_symbol_history(symbol: str, start: str, end: str) -> pd.DataFrame:
     raise RuntimeError(str(last_error))
 
 
-def resolve_fetch_window(existing: pd.DataFrame) -> tuple[str, str, bool]:
-    dates = pd.to_datetime(existing["trading_date"], errors="coerce")
-    max_date = dates.max().date()
-    fetch_start = (max_date + timedelta(days=1)).isoformat()
-    fetch_end = FETCH_END_DATE or date.today().isoformat()
-    if fetch_start > fetch_end:
-        return fetch_start, fetch_end, False
-    return fetch_start, fetch_end, True
+def resolve_fetch_windows(
+    existing: pd.DataFrame, *, end: str | None = None
+) -> dict[str, tuple[str, str, bool]]:
+    """Resolve an incremental window from each symbol's own latest row."""
+    frame = existing[["symbol", "trading_date"]].copy()
+    frame["symbol"] = frame["symbol"].astype(str).str.strip().str.upper()
+    frame["trading_date"] = pd.to_datetime(frame["trading_date"], errors="raise")
+    fetch_end = end or FETCH_END_DATE or date.today().isoformat()
+    windows = {}
+    for symbol, latest in frame.groupby("symbol")["trading_date"].max().items():
+        fetch_start = (latest.date() + timedelta(days=1)).isoformat()
+        windows[symbol] = (fetch_start, fetch_end, fetch_start <= fetch_end)
+    return windows
 
 
 def merge_and_save(existing: pd.DataFrame, new_rows: pd.DataFrame) -> pd.DataFrame:
@@ -126,7 +131,13 @@ def merge_and_save(existing: pd.DataFrame, new_rows: pd.DataFrame) -> pd.DataFra
     combined = combined.dropna(subset=REQUIRED_COLUMNS)
     combined = combined.drop_duplicates(subset=["symbol", "trading_date"], keep="last")
     combined = combined.sort_values(["symbol", "trading_date"]).reset_index(drop=True)
-    combined.to_csv(RAW_DATA_PATH, index=False)
+    target = Path(RAW_DATA_PATH)
+    temp_path = target.with_suffix(target.suffix + ".tmp")
+    try:
+        combined.to_csv(temp_path, index=False)
+        temp_path.replace(target)
+    finally:
+        temp_path.unlink(missing_ok=True)
     return combined
 
 
@@ -142,7 +153,10 @@ def main() -> None:
         raise ValueError(f"Dataset thieu cot: {missing_cols}")
 
     symbols = sorted(existing["symbol"].astype(str).str.strip().str.upper().unique())
-    fetch_start, fetch_end, should_fetch = resolve_fetch_window(existing)
+    windows = resolve_fetch_windows(existing)
+    should_fetch = any(window[2] for window in windows.values())
+    fetch_end = FETCH_END_DATE or date.today().isoformat()
+    fetch_start = min((window[0] for window in windows.values()), default=fetch_end)
 
     report = {
         "fetched_at": datetime.now().isoformat(timespec="seconds"),
@@ -163,9 +177,7 @@ def main() -> None:
 
     if not should_fetch:
         print(f"Dataset da cap nhat den {report['date_max_after']}. Khong can fetch.")
-        FETCH_REPORT_PATH.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        write_json(FETCH_REPORT_PATH, report)
         return
 
     print(
@@ -175,15 +187,15 @@ def main() -> None:
     frames = []
     combined = existing
     for index, symbol in enumerate(symbols, start=1):
+        symbol_start, symbol_end, symbol_should_fetch = windows[symbol]
+        if not symbol_should_fetch:
+            report["success_symbols"].append(symbol)
+            print(f"[{index}/{len(symbols)}] {symbol}: da cap nhat")
+            continue
         try:
-            chunk = fetch_symbol_history(symbol, fetch_start, fetch_end)
+            chunk = fetch_symbol_history(symbol, symbol_start, symbol_end)
             if not chunk.empty:
                 frames.append(chunk)
-                combined = merge_and_save(combined, chunk)
-                report["rows_after"] = int(len(combined))
-                report["date_max_after"] = str(
-                    pd.to_datetime(combined["trading_date"]).max().date()
-                )
             report["success_symbols"].append(symbol)
             print(f"[{index}/{len(symbols)}] {symbol}: {len(chunk)} dong")
         except Exception as exc:  # noqa: BLE001
@@ -191,14 +203,16 @@ def main() -> None:
             print(f"[{index}/{len(symbols)}] {symbol}: LOI - {exc}")
         time.sleep(FETCH_SLEEP_SECONDS)
 
+    if frames:
+        combined = merge_and_save(existing, pd.concat(frames, ignore_index=True))
+    report["rows_after"] = int(len(combined))
+    report["date_max_after"] = str(pd.to_datetime(combined["trading_date"]).max().date())
     report["new_rows"] = int(sum(len(frame) for frame in frames))
     report["date_min_after"] = str(
         pd.to_datetime(combined["trading_date"]).min().date()
     )
 
-    FETCH_REPORT_PATH.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    write_json(FETCH_REPORT_PATH, report)
     print(f"Fetch report: {FETCH_REPORT_PATH}")
     print(
         f"Hoan tat: +{report['new_rows']} dong | "
@@ -206,6 +220,10 @@ def main() -> None:
         f"Loi {len(report['failed_symbols'])} | "
         f"date_max={report['date_max_after']}"
     )
+    if report["failed_symbols"]:
+        raise RuntimeError(
+            f"Fetch partial: {len(report['failed_symbols'])} symbol(s) failed; retry required."
+        )
 
 
 if __name__ == "__main__":

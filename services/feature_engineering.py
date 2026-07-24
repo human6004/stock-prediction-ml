@@ -1,7 +1,7 @@
-"""Biến OHLCV thành feature, label và TRAIN/TEST dataset.
+"""Biến OHLCV thành feature, exact-market labels và TRAIN/TEST dataset.
 
-Mọi rolling/shift chạy riêng theo symbol. Window `5/20/50` đếm row có dữ liệu
-của mã, không bảo đảm tương ứng số ngày thị trường khi mã giao dịch thưa.
+Feature rolling chạy riêng theo symbol. Target dùng phiên thứ năm trên lịch
+thị trường chung và yêu cầu symbol có giá đúng tại phiên đích.
 """
 
 import numpy as np
@@ -12,10 +12,11 @@ from config.settings import (
     FEATURE_DATA_PATH,
     ML_DATA_PATH,
     PREDICTION_HORIZON,
-    SPLIT_DATE,
-    TRAIN_TEST_SUMMARY_PATH,
+    SPLIT_SUMMARY_PATH,
     UP_THRESHOLD,
 )
+from services.protocol_dates import resolve_protocol_dates
+from services.pipeline_utils import atomic_dataframe_to_csv
 
 
 def compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
@@ -75,35 +76,96 @@ def build_features(clean_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return features, report
 
 
-def _label_end_date_for_row(group: pd.DataFrame) -> pd.Series:
-    dates = pd.to_datetime(group["trading_date"])
-    indexed = pd.Series(dates.values, index=group.index)
-    shifted = indexed.shift(-PREDICTION_HORIZON)
-    return shifted.dt.strftime("%Y-%m-%d")
+def create_labels(
+    clean_df: pd.DataFrame,
+    features: pd.DataFrame,
+    *,
+    horizon: int = PREDICTION_HORIZON,
+    up_threshold: float = UP_THRESHOLD,
+) -> tuple[pd.DataFrame, dict]:
+    """Attach exact common-market t+horizon targets to feature-valid rows.
 
+    The market calendar comes from all clean rows. A symbol must have a close on
+    the exact future market session; missing prices are dropped, never skipped.
+    """
+    required_clean = {"symbol", "trading_date", "close"}
+    required_features = {"symbol", "trading_date"}
+    if missing := required_clean - set(clean_df.columns):
+        raise ValueError(f"Clean data missing label columns: {sorted(missing)}")
+    if missing := required_features - set(features.columns):
+        raise ValueError(f"Features missing label keys: {sorted(missing)}")
+    if horizon < 1:
+        raise ValueError("Prediction horizon must be at least one market session.")
 
-def create_labels(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Tạo target từ close ở row thứ PREDICTION_HORIZON kế tiếp cùng symbol."""
-    frames = []
-    for _, group in features.groupby("symbol", sort=False):
-        g = group.sort_values("trading_date").copy()
-        # shift(-5) là 5 row kế tiếp của mã, không nhất thiết 5 ngày liên tiếp.
-        g["future_close_5d"] = g["close"].shift(-PREDICTION_HORIZON)
-        g["future_return_5d"] = (g["future_close_5d"] / g["close"]) - 1
-        g["label_end_date"] = _label_end_date_for_row(g)
-        frames.append(g)
+    prices = clean_df[["symbol", "trading_date", "close"]].copy()
+    prices["symbol"] = prices["symbol"].astype(str).str.strip().str.upper()
+    prices["trading_date"] = pd.to_datetime(
+        prices["trading_date"], errors="raise"
+    ).dt.strftime("%Y-%m-%d")
+    if prices.duplicated(["symbol", "trading_date"]).any():
+        raise ValueError("Clean data contains duplicate symbol/trading_date rows.")
 
-    dataset = pd.concat(frames, ignore_index=True)
-    dataset = dataset.dropna(subset=["future_return_5d", "label_end_date"]).copy()
-    dataset["target"] = (dataset["future_return_5d"] > UP_THRESHOLD).astype(int)
+    market_dates = pd.Series(sorted(prices["trading_date"].unique()))
+    future_by_date = dict(zip(market_dates, market_dates.shift(-horizon)))
+    labels = prices.rename(columns={"close": "close_at_label_start"})
+    labels["label_end_date"] = labels["trading_date"].map(future_by_date)
+
+    future_prices = prices.rename(
+        columns={"trading_date": "label_end_date", "close": "future_close_5d"}
+    )
+    labels = labels.merge(
+        future_prices,
+        on=["symbol", "label_end_date"],
+        how="left",
+        validate="many_to_one",
+    )
+    labels["future_return_5d"] = (
+        labels["future_close_5d"] / labels["close_at_label_start"]
+    ) - 1
+    labels["target"] = (labels["future_return_5d"] > up_threshold).astype("int8")
+    labels["target_label"] = np.where(labels["target"] == 1, "UP", "NOT_UP")
+
+    rows_without_market_horizon = int(labels["label_end_date"].isna().sum())
+    rows_missing_symbol_future_close = int(
+        (labels["label_end_date"].notna() & labels["future_close_5d"].isna()).sum()
+    )
+    label_columns = [
+        "symbol",
+        "trading_date",
+        "future_close_5d",
+        "future_return_5d",
+        "label_end_date",
+        "target",
+        "target_label",
+    ]
+    feature_rows = features.copy()
+    feature_rows["symbol"] = feature_rows["symbol"].astype(str).str.strip().str.upper()
+    feature_rows["trading_date"] = pd.to_datetime(
+        feature_rows["trading_date"], errors="raise"
+    ).dt.strftime("%Y-%m-%d")
+    dataset = feature_rows.merge(
+        labels[label_columns],
+        on=["symbol", "trading_date"],
+        how="left",
+        validate="one_to_one",
+    )
+    dataset = dataset.dropna(
+        subset=["future_close_5d", "future_return_5d", "label_end_date"]
+    ).copy()
+    if dataset.empty:
+        raise ValueError("No feature rows have an exact future market-session price.")
+    dataset["target"] = (dataset["future_return_5d"] > up_threshold).astype(int)
     dataset["target_label"] = np.where(dataset["target"] == 1, "UP", "NOT_UP")
     dataset = dataset.sort_values(["trading_date", "symbol"]).reset_index(drop=True)
 
     up_count = int((dataset["target"] == 1).sum())
     not_up_count = int((dataset["target"] == 0).sum())
     report = {
-        "horizon": PREDICTION_HORIZON,
-        "threshold": UP_THRESHOLD,
+        "horizon": horizon,
+        "threshold": up_threshold,
+        "target_calendar": "common_market_exact_session",
+        "rows_without_market_horizon": rows_without_market_horizon,
+        "rows_missing_symbol_future_close": rows_missing_symbol_future_close,
         "rows_after_labeling": int(len(dataset)),
         "up_count": up_count,
         "not_up_count": not_up_count,
@@ -113,40 +175,89 @@ def create_labels(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return dataset, report
 
 
-def time_based_split(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """Split theo ngày kết thúc label, không phải tuyệt đối theo trading_date.
+def protocol_time_split(
+    dataset: pd.DataFrame,
+    *,
+    train_end_date: str | None = None,
+    validation_end_date: str | None = None,
+    test_end_date: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+    """Split rolling TRAIN/VALIDATION/TEST windows.
 
-    TRAIN chỉ giữ label_end_date <= SPLIT_DATE. Mã dữ liệu thưa vẫn có thể tạo
-    TEST row với trading_date sớm hơn một số TRAIN row; xem tài liệu giới hạn.
+    Khi không truyền mốc tường minh, mốc được suy động từ chính ``dataset``
+    (rolling walk-forward) qua ``resolve_protocol_dates`` — cùng nguồn với
+    fingerprint ở ``experiment_state`` nên split và fingerprint không lệch nhau.
     """
-    split_date = SPLIT_DATE
-    train = dataset[dataset["label_end_date"] <= split_date].copy()
-    test = dataset[dataset["label_end_date"] > split_date].copy()
-    if train.empty or test.empty:
+    required = {"trading_date", "label_end_date", "target"}
+    if missing := required - set(dataset.columns):
+        raise ValueError(f"Dataset missing split columns: {sorted(missing)}")
+    if train_end_date is None or validation_end_date is None or test_end_date is None:
+        resolved = resolve_protocol_dates(dataset)
+        train_end_date = train_end_date or resolved["train_end_date"]
+        validation_end_date = validation_end_date or resolved["validation_end_date"]
+        test_end_date = test_end_date or resolved["test_end_date"]
+    if not train_end_date < validation_end_date < test_end_date:
         raise ValueError(
-            f"Time-based split produced empty set (train={len(train)}, test={len(test)}, "
-            f"split_date={split_date})."
+            "Expected TRAIN_END_DATE < VALIDATION_END_DATE < TEST_END_DATE."
         )
 
-    overlap = set(train.index).intersection(set(test.index))
+    frame = dataset.copy()
+    trading_dates = pd.to_datetime(frame["trading_date"], errors="raise")
+    label_end_dates = pd.to_datetime(frame["label_end_date"], errors="raise")
+    train_end = pd.Timestamp(train_end_date)
+    validation_end = pd.Timestamp(validation_end_date)
+    test_end = pd.Timestamp(test_end_date)
+
+    train_mask = label_end_dates <= train_end
+    validation_mask = (trading_dates > train_end) & (
+        label_end_dates <= validation_end
+    )
+    test_mask = (trading_dates > validation_end) & (trading_dates <= test_end)
+
+    train = frame.loc[train_mask].copy()
+    validation = frame.loc[validation_mask].copy()
+    test = frame.loc[test_mask].copy()
+    if train.empty or validation.empty or test.empty:
+        raise ValueError(
+            "Protocol split produced an empty set "
+            f"(train={len(train)}, validation={len(validation)}, test={len(test)})."
+        )
+
+    train_validation_purge = (~train_mask) & (trading_dates <= train_end)
+    validation_test_purge = (
+        (trading_dates > train_end)
+        & (trading_dates <= validation_end)
+        & (label_end_dates > validation_end)
+    )
+    post_test_rows = trading_dates > test_end
     report = {
-        "split_method": "label_end_date",
-        "split_date": split_date,
-        "shuffle": False,
+        "split_method": "rolling_dates_with_label_purge",
+        "train_end_date": train_end_date,
+        "validation_end_date": validation_end_date,
+        "test_end_date": test_end_date,
         "train_rows": int(len(train)),
+        "validation_rows": int(len(validation)),
         "test_rows": int(len(test)),
+        "purged_train_validation_rows": int(train_validation_purge.sum()),
+        "purged_validation_test_rows": int(validation_test_purge.sum()),
+        "post_test_inference_rows": int(post_test_rows.sum()),
         "train_date_min": str(train["trading_date"].min()),
         "train_date_max": str(train["trading_date"].max()),
         "train_label_end_max": str(train["label_end_date"].max()),
+        "validation_date_min": str(validation["trading_date"].min()),
+        "validation_date_max": str(validation["trading_date"].max()),
+        "validation_label_end_max": str(validation["label_end_date"].max()),
         "test_date_min": str(test["trading_date"].min()),
         "test_date_max": str(test["trading_date"].max()),
-        "test_label_end_min": str(test["label_end_date"].min()),
-        "overlap_rows": int(len(overlap)),
     }
-    return train, test, report
+    return train, validation, test, report
 
 
-def write_train_test_summary(train: pd.DataFrame, test: pd.DataFrame) -> None:
+def write_split_summary(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    validation: pd.DataFrame | None = None,
+) -> None:
     rows = [
         {
             "split": "train",
@@ -158,6 +269,21 @@ def write_train_test_summary(train: pd.DataFrame, test: pd.DataFrame) -> None:
             "up_count": int((train["target"] == 1).sum()),
             "not_up_count": int((train["target"] == 0).sum()),
         },
+    ]
+    if validation is not None:
+        rows.append(
+            {
+                "split": "validation",
+                "rows": len(validation),
+                "symbols": validation["symbol"].nunique(),
+                "date_min": validation["trading_date"].min(),
+                "date_max": validation["trading_date"].max(),
+                "label_end_max": validation["label_end_date"].max(),
+                "up_count": int((validation["target"] == 1).sum()),
+                "not_up_count": int((validation["target"] == 0).sum()),
+            }
+        )
+    rows.append(
         {
             "split": "test",
             "rows": len(test),
@@ -167,30 +293,56 @@ def write_train_test_summary(train: pd.DataFrame, test: pd.DataFrame) -> None:
             "label_end_min": test["label_end_date"].min(),
             "up_count": int((test["target"] == 1).sum()),
             "not_up_count": int((test["target"] == 0).sum()),
-        },
-    ]
-    TRAIN_TEST_SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(TRAIN_TEST_SUMMARY_PATH, index=False)
+        }
+    )
+    SPLIT_SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    atomic_dataframe_to_csv(pd.DataFrame(rows), SPLIT_SUMMARY_PATH, index=False)
 
 
 def write_feature_outputs(features: pd.DataFrame, dataset: pd.DataFrame) -> None:
     FEATURE_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    features.to_csv(FEATURE_DATA_PATH, index=False)
-    dataset.to_csv(ML_DATA_PATH, index=False)
+    atomic_dataframe_to_csv(features, FEATURE_DATA_PATH, index=False)
+    atomic_dataframe_to_csv(dataset, ML_DATA_PATH, index=False)
 
 
-def verify_data_pipeline(train: pd.DataFrame, test: pd.DataFrame) -> None:
-    """Kiểm tra boundary label và chặn cột tương lai lọt vào FEATURE_COLUMNS."""
-    if train["label_end_date"].max() > SPLIT_DATE:
-        raise ValueError(
-            f"Train max label_end_date {train['label_end_date'].max()} > SPLIT_DATE {SPLIT_DATE}"
-        )
-    if test["label_end_date"].min() <= SPLIT_DATE:
-        raise ValueError(
-            f"Test min label_end_date {test['label_end_date'].min()} <= SPLIT_DATE {SPLIT_DATE}"
-        )
-    leaked = {"future_close_5d", "future_return_5d", "target", "label_end_date"} & set(
-        FEATURE_COLUMNS
-    )
+def verify_protocol_splits(
+    train: pd.DataFrame,
+    validation: pd.DataFrame,
+    test: pd.DataFrame,
+    *,
+    dates: dict | None = None,
+) -> None:
+    """Reject any date/label leakage across rolling boundaries.
+
+    ``dates`` là 3 mốc thực tế đã dùng để cắt split (lấy từ report của
+    ``protocol_time_split``). Nếu None, suy lại mốc từ chính dữ liệu split để
+    dùng chung một nguồn với bước cắt.
+    """
+    if dates is None:
+        combined = pd.concat([train, validation, test], ignore_index=True)
+        dates = resolve_protocol_dates(combined)
+    train_end_date = dates["train_end_date"]
+    validation_end_date = dates["validation_end_date"]
+    test_end_date = dates["test_end_date"]
+    if train["label_end_date"].max() > train_end_date:
+        raise ValueError("TRAIN label window crosses TRAIN_END_DATE.")
+    if validation["trading_date"].min() <= train_end_date:
+        raise ValueError("VALIDATION starts inside TRAIN period.")
+    if validation["label_end_date"].max() > validation_end_date:
+        raise ValueError("VALIDATION label window crosses VALIDATION_END_DATE.")
+    if test["trading_date"].min() <= validation_end_date:
+        raise ValueError("TEST starts inside VALIDATION period.")
+    if test["trading_date"].max() > test_end_date:
+        raise ValueError("TEST extends past the resolved TEST boundary.")
+    if train["label_end_date"].max() >= validation["trading_date"].min():
+        raise ValueError("TRAIN labels overlap VALIDATION features.")
+    if validation["label_end_date"].max() >= test["trading_date"].min():
+        raise ValueError("VALIDATION labels overlap TEST features.")
+    leaked = {
+        "future_close_5d",
+        "future_return_5d",
+        "target",
+        "label_end_date",
+    } & set(FEATURE_COLUMNS)
     if leaked:
         raise ValueError(f"Label columns leaked into FEATURE_COLUMNS: {leaked}")

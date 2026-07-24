@@ -1,0 +1,142 @@
+{
+  "policy_version": "v2_date_purged_fixed_050",
+  "content_fingerprint": "86cff275a4d59830af1ffb3857b4a5c92c868fbfa992a12654de3d6e114ff827",
+  "training_content_fingerprint": "9cf8f4c431a9e89fea5b7379f196f9505b74cc80396a163d96d8d5191f2204d1",
+  "tuning_fingerprint": "66bdb23e8b5a",
+  "experiment_fingerprint": "beca8757138b",
+  "model_name": "Gradient Boosting",
+  "model_id": 4,
+  "feature_order": [
+    "return_1d",
+    "return_3d",
+    "return_5d",
+    "close_open_return",
+    "sma5",
+    "sma20",
+    "sma50",
+    "close_vs_sma20",
+    "sma20_vs_sma50",
+    "rsi14",
+    "volatility_5d",
+    "volatility_20d",
+    "price_range",
+    "volume_change_1d",
+    "volume_ratio_20",
+    "return_10d",
+    "return_20d",
+    "dist_high20",
+    "dist_low20",
+    "month"
+  ],
+  "prediction_horizon": 5,
+  "up_threshold": 0.01,
+  "decision_threshold": 0.5,
+  "split_date": "2025-06-30",
+  "train_end_date": "2025-06-30",
+  "validation_end_date": "2026-03-31",
+  "test_end_date": "2026-07-03",
+  "cv_config": {
+    "n_splits": 5,
+    "gap_sessions": 5
+  },
+  "best_params": {
+    "n_estimators": 100,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "subsample": 0.85
+  },
+  "cv_f1_up": 0.4634201173328779,
+  "baseline_passed": false,
+  "baseline_warning": "Final Model chưa vượt baseline always-UP trên TEST (F1_UP 0.405164 <= 0.428487).",
+  "train_through_date": "2026-03-31",
+  "validation_selection_metrics": {
+    "accuracy": 0.5803029401261754,
+    "precision_up": 0.4049101839519061,
+    "recall_up": 0.4906648054440761,
+    "f1_up": 0.4436818334220855,
+    "precision_not_up": 0.7038727839914783,
+    "recall_not_up": 0.6267049047059886,
+    "f1_not_up": 0.6630511390106674
+  },
+  "final_test_metrics": {
+    "accuracy": 0.5839440215592644,
+    "precision_up": 0.3320039880358923,
+    "recall_up": 0.5196809432980752,
+    "f1_up": 0.40516425577937004,
+    "precision_not_up": 0.7715275486638073,
+    "recall_not_up": 0.608034321372855,
+    "f1_not_up": 0.680093063835975
+  },
+  "final_test_baselines": [
+    {
+      "model_id": -1,
+      "model_name": "Always UP",
+      "split": "test",
+      "row_type": "baseline",
+      "cv_f1_up": null,
+      "accuracy": 0.27265850314405937,
+      "precision_up": 0.27265850314405937,
+      "recall_up": 1.0,
+      "f1_up": 0.428486514599896,
+      "precision_not_up": 0.0,
+      "recall_not_up": 0.0,
+      "f1_not_up": 0.0,
+      "selected": false
+    },
+    {
+      "model_id": -2,
+      "model_name": "Always NOT_UP",
+      "split": "test",
+      "row_type": "baseline",
+      "cv_f1_up": null,
+      "accuracy": 0.7273414968559406,
+      "precision_up": 0.0,
+      "recall_up": 0.0,
+      "f1_up": 0.0,
+      "precision_not_up": 0.7273414968559406,
+      "recall_not_up": 1.0,
+      "f1_not_up": 0.8421513617079512,
+      "selected": false
+    }
+  ],
+  "test_metrics": {
+    "accuracy": 0.5839440215592644,
+    "precision_up": 0.3320039880358923,
+    "recall_up": 0.5196809432980752,
+    "f1_up": 0.40516425577937004,
+    "precision_not_up": 0.7715275486638073,
+    "recall_not_up": 0.608034321372855,
+    "f1_not_up": 0.680093063835975
+  },
+  "train_rows": 416811,
+  "validation_rows": 67208,
+  "train_validation_rows": 484019,
+  "test_rows": 21151,
+  "trained_at": "2026-07-19T15:27:24",
+  "selection": {
+    "policy_version": "v2_date_purged_fixed_050",
+    "selection_split": "validation",
+    "selected_model_id": 4,
+    "selected_model_name": "Gradient Boosting",
+    "selected_f1_up": 0.4436818334220855,
+    "selected_recall_up": 0.4906648054440761,
+    "selected_cv_f1_up": 0.4634201173328779,
+    "validation_selection_metrics": {
+      "accuracy": 0.5803029401261754,
+      "precision_up": 0.4049101839519061,
+      "recall_up": 0.4906648054440761,
+      "f1_up": 0.4436818334220855,
+      "precision_not_up": 0.7038727839914783,
+      "recall_not_up": 0.6267049047059886,
+      "f1_not_up": 0.6630511390106674
+    },
+    "best_validation_baseline": {
+      "model_name": "Always UP",
+      "f1_up": 0.5086761638485776,
+      "recall_up": 1.0
+    },
+    "validation_baseline_passed": false,
+    "validation_baseline_warning": "Selected candidate VALIDATION F1_UP=0.443682 is below Always UP=0.508676."
+  },
+  "test_reuse_disclosure": "Giai đoạn sau 31/03/2026 từng thuộc TEST của protocol legacy; không tuyên bố hoàn toàn chưa từng được quan sát."
+}

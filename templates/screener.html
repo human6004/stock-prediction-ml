@@ -1,0 +1,127 @@
+<!doctype html>
+<!-- Bảng xếp hạng tín hiệu toàn sàn: Flask truyền up_rows/not_up_rows đã sort. -->
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bảng xếp hạng tín hiệu HOSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
+    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
+</head>
+<body>
+    <main class="shell">
+        <nav class="topbar">
+            <div>
+                <p class="eyebrow">HOSE ML</p>
+                <h1>Bảng xếp hạng tín hiệu</h1>
+                <p class="subtitle">
+                    Dự báo mã có tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên kế tiếp,
+                    xếp theo điểm UP của model. Chọn mã để xem chi tiết.
+                </p>
+            </div>
+            <div class="nav-links">
+                <a class="nav-link" href="{{ url_for('index') }}">Dự báo một mã</a>
+                <a class="nav-link" href="{{ url_for('compare') }}">So sánh hai mã</a>
+                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
+            </div>
+        </nav>
+
+        {% if dataset_max_date %}
+        <p class="dataset-banner">
+            Dữ liệu offline (đã xử lý) đến ngày: <strong>{{ dataset_max_date|date_vi }}</strong>
+            — {{ symbol_count }} mã. Model đang dùng: <strong>{{ selected_model or "chưa có" }}</strong>. Không cập nhật realtime.
+        </p>
+        {% endif %}
+
+        <section class="workspace">
+            {% if error %}
+            <section class="alert" role="alert">{{ error }}</section>
+            {% endif %}
+
+            {% if baseline_warning %}
+            <section class="alert warn" role="status">{{ baseline_warning }}</section>
+            {% endif %}
+
+            {% if up_rows is defined and not error %}
+            <p class="screener-summary">
+                Tổng <strong>{{ total_count }}</strong> mã có đủ dữ liệu:
+                <span class="pill pill-up">{{ up_count }} tăng (UP)</span>
+                <span class="pill pill-down">{{ not_up_count }} không đủ điều kiện</span>
+            </p>
+
+            <div class="screener-grid">
+                {% set columns = [
+                    ("up", "Tăng (UP)", up_rows, up_count),
+                    ("down", "Không đủ điều kiện", not_up_rows, not_up_count)
+                ] %}
+                {% for kind, title, col_rows, col_count in columns %}
+                <section class="screener-col screener-col-{{ kind }}" aria-labelledby="col-{{ kind }}">
+                    <header class="screener-col-head">
+                        <span class="screener-col-mark" aria-hidden="true">{{ "▲" if kind == "up" else "▬" }}</span>
+                        <h2 id="col-{{ kind }}">{{ title }}</h2>
+                        <span class="screener-col-count">{{ col_count }} mã</span>
+                    </header>
+
+                    {% if col_rows %}
+                    <div class="table-wrap">
+                        <table class="screener-table">
+                            <colgroup>
+                                <col class="col-symbol">
+                                <col class="col-score">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Mã</th>
+                                    <th scope="col">Điểm UP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in col_rows %}
+                                <tr>
+                                    <th scope="row" class="screener-symbol">
+                                        <span class="screener-symbol-row">
+                                            <a href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                                            {% if row.is_stale %}<span class="stale-badge" title="Ngày tham chiếu cũ hơn phiên mới nhất của dataset">cũ</span>{% endif %}
+                                        </span>
+                                        <span class="screener-ref-price">{{ "%.2f"|format(row.close_at_reference) }}</span>
+                                    </th>
+                                    <td class="screener-score">
+                                        {% if row.probability_up is not none %}
+                                        <div class="prob-bar" role="meter"
+                                             aria-valuenow="{{ (row.probability_up * 100)|round(1) }}"
+                                             aria-valuemin="0" aria-valuemax="100"
+                                             aria-label="Điểm UP của {{ row.symbol }}">
+                                            <div class="prob-fill" style="width: {{ (row.probability_up * 100)|round(1) }}%;"></div>
+                                        </div>
+                                        <span class="prob-value">{{ "%.1f%%"|format(row.probability_up * 100) }}</span>
+                                        {% else %}
+                                        <span class="prob-value muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="screener-empty">Không có mã nào.</p>
+                    {% endif %}
+                </section>
+                {% endfor %}
+            </div>
+            {% elif not error %}
+            <section class="alert" role="alert">
+                Chưa có dữ liệu để xếp hạng. Hãy chạy pipeline trước.
+            </section>
+            {% endif %}
+        </section>
+
+        <p class="disclaimer">
+            Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
+        </p>
+    </main>
+</body>
+</html>

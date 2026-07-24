@@ -1,99 +1,142 @@
 import json
+import math
+import os
 import shutil
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
-from config.settings import (
-    BASE_DIR,
-    BEST_PARAMS_PATH,
-    FETCH_REPORT_PATH,
-    MODEL_METADATA_PATH,
-    MODELS_DIR,
-    PRESERVED_REPORT_JSON,
-    PROCESSED_DIR,
-    REPORTS_DIR,
-    ROADMAP_PATH,
-)
+import joblib
 
-OUTPUT_DIRS = [PROCESSED_DIR, MODELS_DIR, REPORTS_DIR]
-
-
-def ensure_output_dirs() -> None:
-    for directory in OUTPUT_DIRS:
-        directory.mkdir(parents=True, exist_ok=True)
-
-
-def cleanup_outputs() -> dict:
-    """Remove generated artifacts; preserve fetch_report, best_params, model_metadata."""
-    ensure_output_dirs()
-    removed = []
-    missing = []
-
-    cleanup_targets = [
-        PROCESSED_DIR,
-        BASE_DIR / "data" / "cleaned",
-        BASE_DIR / "data" / "features",
-    ]
-    cleanup_patterns = [
-        (MODELS_DIR, "*.pkl"),
-        (MODELS_DIR, "*.joblib"),
-        (REPORTS_DIR, "*.csv"),
-        (REPORTS_DIR, "*.png"),
-        (REPORTS_DIR, "*.txt"),
-        (REPORTS_DIR, "*.md"),
-    ]
-
-    for target in cleanup_targets:
-        if target.exists():
-            for item in target.iterdir():
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-                removed.append(str(item.relative_to(BASE_DIR)))
-        else:
-            missing.append(str(target.relative_to(BASE_DIR)))
-
-    for directory, pattern in cleanup_patterns:
-        if directory.exists():
-            for item in directory.glob(pattern):
-                if item.is_file():
-                    item.unlink()
-                    removed.append(str(item.relative_to(BASE_DIR)))
-        else:
-            missing.append(str(directory.relative_to(BASE_DIR)))
-
-    if REPORTS_DIR.exists():
-        for item in REPORTS_DIR.glob("*.json"):
-            if item.name in PRESERVED_REPORT_JSON:
-                continue
-            if item.is_file():
-                item.unlink()
-                removed.append(str(item.relative_to(BASE_DIR)))
-
-    for cache_dir in BASE_DIR.rglob("__pycache__"):
-        if ".venv" in cache_dir.parts or ".cursor" in cache_dir.parts:
-            continue
-        shutil.rmtree(cache_dir)
-        removed.append(str(cache_dir.relative_to(BASE_DIR)))
-
-    ensure_output_dirs()
-    return {"removed": removed, "missing": sorted(set(missing))}
-
-
-def read_roadmap() -> dict:
-    roadmap = Path(ROADMAP_PATH)
-    exists = roadmap.exists()
-    text = ""
-    if exists:
-        text = roadmap.read_text(encoding="utf-8", errors="replace")
-    return {
-        "path": str(roadmap),
-        "exists": exists,
-        "read_success": exists,
-        "chars": len(text),
-    }
+@contextmanager
+def atomic_output_path(path: Path):
+    """Yield a sibling temp path and replace the target only after success."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.stem}.", suffix=f".tmp{path.suffix}", dir=path.parent
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        yield temp_path
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def write_json(path: Path, payload: dict) -> None:
+    atomic_write_text(
+        path,
+        json.dumps(_json_safe(payload), ensure_ascii=False, indent=2, allow_nan=False),
+    )
+
+
+def atomic_write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        temp_path.write_text(text, encoding=encoding)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def atomic_dataframe_to_csv(frame, path: Path, **kwargs) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        frame.to_csv(temp_path, **kwargs)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def _json_safe(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def atomic_joblib_dump(value, path: Path) -> None:
+    """Write one joblib artifact beside its target, then replace atomically."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        joblib.dump(value, temp_path)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def atomic_model_release(
+    artifact: dict,
+    metadata: dict,
+    *,
+    model_path: Path,
+    metadata_path: Path,
+) -> None:
+    """Promote model and metadata together; restore both if either replace fails."""
+    model_path = Path(model_path)
+    metadata_path = Path(metadata_path)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+
+    staged_model = model_path.with_name(f".{model_path.name}.{os.getpid()}.tmp")
+    staged_metadata = metadata_path.with_name(
+        f".{metadata_path.name}.{os.getpid()}.tmp"
+    )
+    backups: dict[Path, Path] = {}
+    try:
+        joblib.dump(artifact, staged_model)
+        staged_metadata.write_text(
+            json.dumps(
+                _json_safe(metadata),
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            ),
+            encoding="utf-8",
+        )
+        for target in (model_path, metadata_path):
+            if not target.exists():
+                continue
+            backup = target.with_name(f".{target.name}.{os.getpid()}.backup")
+            shutil.copy2(target, backup)
+            backups[target] = backup
+
+        try:
+            os.replace(staged_model, model_path)
+            os.replace(staged_metadata, metadata_path)
+        except Exception:
+            for target in (model_path, metadata_path):
+                backup = backups.get(target)
+                if backup and backup.exists():
+                    os.replace(backup, target)
+                elif target.exists():
+                    target.unlink()
+            raise
+    finally:
+        staged_model.unlink(missing_ok=True)
+        staged_metadata.unlink(missing_ok=True)
+        for backup in backups.values():
+            backup.unlink(missing_ok=True)

@@ -1,17 +1,29 @@
-MODEL SELECTION REPORT:
+MODEL SELECTION REPORT (legacy_pre_validation_baseline_gate):
 
-1. Tieu chi chinh: F1_UP cao nhat tren tap test.
-2. Tieu chi phu: Recall_UP cao hon neu F1_UP gan bang nhau.
+1. Chon model chi tren VALIDATION; TEST khong tham gia xep hang.
+2. Tieu chi phu: Recall_UP cao hon neu F1_UP bang nhau.
 3. Tieu chi don gian: Logistic Regression < Random Forest < Gradient Boosting.
 
-4. Xep hang theo F1_UP (giam dan), tie-break Recall_UP, roi do don gian:
-   1. Model: Gradient Boosting, F1_UP: 0.505315, Recall_UP: 0.917595, Accuracy: 0.410800, CV_F1_UP: 0.545268
-   2. Model: Random Forest, F1_UP: 0.504059, Recall_UP: 0.942432, Accuracy: 0.391804, CV_F1_UP: 0.548766
-   3. Model: Logistic Regression, F1_UP: 0.502401, Recall_UP: 0.933190, Accuracy: 0.393761, CV_F1_UP: 0.548977
+4. Xep hang VALIDATION theo F1_UP, Recall_UP, roi do don gian:
+   1. Model: Random Forest, F1_UP: 0.477340, Recall_UP: 0.602572, Accuracy: 0.562232, CV_F1_UP: 0.470276
+   2. Model: Gradient Boosting, F1_UP: 0.473379, Recall_UP: 0.577800, Accuracy: 0.573508, CV_F1_UP: 0.471385
+   3. Model: Logistic Regression, F1_UP: 0.435008, Recall_UP: 0.494852, Accuracy: 0.573553, CV_F1_UP: 0.457343
 
-6. Model duoc chon:
-   Model: Gradient Boosting
-   F1_UP: 0.505315
-   Recall_UP: 0.917595
+   Baselines tren VALIDATION:
+   - Always UP: F1_UP=0.498219, Recall_UP=1.000000
+   - Always NOT_UP: F1_UP=0.000000, Recall_UP=0.000000
+
+5. Model duoc chon tren VALIDATION:
+   Model: Random Forest
+   F1_UP: 0.477340
+   Recall_UP: 0.602572
+   Validation baseline passed: False
+   Validation baseline warning: Selected candidate VALIDATION F1_UP=0.477340 is below Always UP=0.498219.
+
+6. Danh gia FINAL TEST mot lan:
+   F1_UP: 0.375381
+   Recall_UP: 0.535581
+   TEST always-UP passed: False
+   TEST baseline warning: Final Model chưa vượt baseline always-UP trên TEST (F1_UP 0.375381 <= 0.383895).
 
 7. File model cuoi cung: models/final_model.pkl

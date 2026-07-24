@@ -2,70 +2,35 @@
   "schema_version": 1,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Logistic Regression - Tuning Workflow",
-    "subtitle": "Shared data flow, model-specific hyperparameters, selected-run CV, and locked configuration",
-    "output": "docs/diagrams/model-workflows/logistic-regression.html"
+    "title": "Logistic Regression Tuning - Protocol v3",
+    "subtitle": "Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold"
   },
   "lanes": [
-    { "id": "shared", "label": "SHARED DATA FLOW - DÙNG CHUNG" },
-    { "id": "config", "label": "LOGISTIC REGRESSION - HYPERPARAMETER ĐƯỢC THAY ĐỔI" },
-    { "id": "cv", "label": "LOGISTIC REGRESSION - FIT + CV + THRESHOLD" },
-    { "id": "result", "label": "LOGISTIC REGRESSION - CV LÚC CHỐT + BỘ THAM SỐ ĐƯỢC CHỐT" }
+    {"id": "params", "label": "Hyperparameters"},
+    {"id": "cv", "label": "TRAIN cross-validation"},
+    {"id": "result", "label": "Ranking + manual selection"}
   ],
   "nodes": [
-    { "id": "fetch", "lane": "shared", "col": 0, "type": "external", "label": "Fetch", "sublabel": "vnstock / KBS", "tag": "SHARED", "width": 92 },
-    { "id": "clean", "lane": "shared", "col": 1, "type": "external", "label": "Clean", "sublabel": "396 symbols", "tag": "OHLCV CHECKED", "width": 92 },
-    { "id": "feature", "lane": "shared", "col": 3, "type": "external", "label": "20 Features + Label", "sublabel": "UP / NOT_UP", "tag": "SHARED", "width": 144 },
-    { "id": "split", "lane": "shared", "col": 5, "type": "external", "label": "Time Split", "sublabel": "2025-06-30", "tag": "label_end_date", "width": 100 },
-
-    { "id": "train", "lane": "config", "col": 0, "type": "external", "label": "TRAIN", "sublabel": "417,806 rows", "tag": "SHARED INPUT", "width": 92 },
-    { "id": "hyperparams", "lane": "config", "col": 3, "type": "frontend", "label": "C | solver", "sublabel": "HYPERPARAMETER ĐƯỢC THAY ĐỔI", "tag": "MODEL-SPECIFIC | LOGISTIC REGRESSION", "width": 400 },
-
-    { "id": "fit", "lane": "cv", "col": 1, "type": "frontend", "label": "StandardScaler + Fit LR", "sublabel": "class_weight=balanced", "tag": "max_iter=1000 | random_state=42", "width": 180 },
-    { "id": "cv_split", "lane": "cv", "col": 3, "type": "external", "label": "TimeSeriesSplit CV", "sublabel": "TRAIN only | n_splits=5", "tag": "gap=5 pooled rows | no shuffle", "width": 160 },
-    { "id": "threshold", "lane": "cv", "col": 5, "type": "external", "label": "Tune Threshold", "sublabel": "decision_threshold", "tag": "MAX F1_UP ON TRAIN-FOLD", "width": 108 },
-
-    { "id": "cv_score", "lane": "result", "col": 0, "type": "frontend", "label": "CV LÚC CHỐT", "sublabel": "F1_UP=0.5490", "tag": "MEAN 5 VAL FOLDS", "width": 92 },
-    { "id": "best_config", "lane": "result", "col": 3, "type": "frontend", "label": "C=6.5867e-05 | solver=liblinear", "sublabel": "manual_config.json | LR_20260711_123644", "tag": "BỘ THAM SỐ ĐƯỢC CHỐT", "width": 480 }
+    {"id": "lr", "lane": "params", "col": 0, "type": "backend", "label": "Logistic Reg.", "sublabel": "scaled + balanced", "width": 92},
+    {"id": "c", "lane": "params", "col": 2, "type": "security", "label": "C", "sublabel": "> 0 (baseline 4.1e-7)", "width": 178},
+    {"id": "solver", "lane": "params", "col": 5, "type": "security", "label": "solver", "sublabel": "lbfgs / liblinear", "width": 104},
+    {"id": "dates", "lane": "cv", "col": 0, "type": "database", "label": "Trading dates", "sublabel": "whole-date folds", "width": 92},
+    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "4 temporary models", "sublabel": "gap 5 + label purge", "tag": "OOF threshold", "width": 122},
+    {"id": "metrics", "lane": "cv", "col": 5, "type": "frontend", "label": "Fold metrics", "sublabel": "F1 / P / R", "width": 104},
+    {"id": "rank", "lane": "result", "col": 2, "type": "backend", "label": "Rank valid runs", "sublabel": "mean desc, std asc, run_id asc", "width": 154},
+    {"id": "best", "lane": "result", "col": 5, "type": "database", "label": "Best LR run", "sublabel": "user chooses when done", "tag": "no run limit", "width": 104}
   ],
   "edges": [
-    { "from": "fetch", "to": "clean", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "clean", "to": "feature", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "feature", "to": "split", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "split", "to": "train", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "train", "to": "hyperparams", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "hyperparams", "to": "fit", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "fit", "to": "cv_split", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "cv_split", "to": "threshold", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" },
-    { "from": "threshold", "to": "cv_score", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "cv_score", "to": "best_config", "variant": "default", "fromSide": "right", "toSide": "left", "route": "straight" }
+    {"from": "lr", "to": "c"},
+    {"from": "c", "to": "solver"},
+    {"from": "solver", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "dates", "to": "folds"},
+    {"from": "folds", "to": "metrics"},
+    {"from": "metrics", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "rank", "to": "best", "variant": "emphasis"}
   ],
   "cards": [
-    {
-      "dot": "cyan",
-      "title": "What changes for Logistic Regression",
-      "items": [
-        "Tunable hyperparameters: C and solver only",
-        "StandardScaler, class_weight, max_iter, and random_state are fixed fit settings",
-        "The selected configuration comes from manual_config.json"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "Selected-run CV",
-      "items": [
-        "Run LR_20260711_123644 on fingerprint f6cb3ac8f820",
-        "Threshold is selected on each train-fold and applied to its validation fold",
-        "Mean validation F1_UP is 0.5489947075, displayed as 0.5490"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Scope boundary",
-      "items": [
-        "This workflow ends at the locked tuning configuration",
-        "TEST evaluation and Final Model selection are shown in final-model-selection.html"
-      ]
-    }
+    {"dot": "rose", "title": "Manual trials", "items": ["Enter any valid C and solver", "Repeat until satisfied", "No fixed run count"]},
+    {"dot": "cyan", "title": "Leakage controls", "items": ["Split by trading dates, never pooled rows", "Exactly five sessions between train and validation", "Purge label_end_date at validation boundary"]}
   ]
 }
