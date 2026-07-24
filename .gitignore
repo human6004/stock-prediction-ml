@@ -10,6 +10,9 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+.env
+.trace-coverage/
+.trace-chatbot/
 
 # Local editor/tooling state
 .claude/

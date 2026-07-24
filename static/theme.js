@@ -1,7 +1,8 @@
-/* theme.js — chế độ sáng/tối dùng chung cho mọi trang.
+/* theme.js — chế độ sáng/tối + menu điều hướng mobile, dùng chung mọi trang.
    Dùng 2 phần:
    1) applyTheme() gọi NGAY trong <head> (trước khi body render) để chống nhấp nháy.
-   2) Phần cuối tự chèn nút bật/tắt vào .nav-links sau khi DOM sẵn sàng.
+   2) Sau khi DOM sẵn sàng: gắn listener cho nút #theme-toggle (render sẵn từ
+      base.html) và nút #nav-toggle của sidebar mobile.
    Lựa chọn lưu ở localStorage; nếu chưa chọn thì theo cài đặt hệ điều hành. */
 (function () {
     var KEY = "hose-theme";
@@ -55,25 +56,58 @@
         syncButton();
     }
 
+    // Nút #theme-toggle nay render sẵn từ base.html (không còn tạo bằng JS).
+    // Ở đây chỉ tìm nút có sẵn rồi gắn listener một lần (dataset.bound chống
+    // gắn trùng khi gọi lại sau AJAX swap) và đồng bộ icon.
     function mountButton() {
-        var nav = document.querySelector(".nav-links");
-        if (!nav || document.getElementById("theme-toggle")) { return; }
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.id = "theme-toggle";
-        btn.className = "theme-toggle";
-        btn.addEventListener("click", toggle);
-        nav.appendChild(btn);
+        var btn = document.getElementById("theme-toggle");
+        if (!btn) { return; }
+        if (!btn.dataset.bound) {
+            btn.addEventListener("click", toggle);
+            btn.dataset.bound = "1";
+        }
         syncButton();
     }
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", mountButton);
-    } else {
-        mountButton();
+    // Menu điều hướng dạng đóng/mở trên mobile. Sidebar luôn trong DOM; nút
+    // #nav-toggle chỉ bật/tắt trạng thái mở và hỗ trợ Escape trả focus.
+    function mountNav() {
+        var toggle = document.getElementById("nav-toggle");
+        var shell = document.getElementById("app-shell");
+        if (!toggle || !shell || toggle.dataset.bound) { return; }
+        toggle.dataset.bound = "1";
+
+        function setOpen(open) {
+            shell.classList.toggle("nav-open", open);
+            toggle.setAttribute("aria-expanded", open ? "true" : "false");
+            toggle.setAttribute(
+                "aria-label", open ? "Đóng menu điều hướng" : "Mở menu điều hướng"
+            );
+        }
+
+        toggle.addEventListener("click", function () {
+            setOpen(!shell.classList.contains("nav-open"));
+        });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && shell.classList.contains("nav-open")) {
+                setOpen(false);
+                toggle.focus();
+            }
+        });
     }
 
-    // Cho trang khác (vd Tuning Lab thay <main> bằng AJAX) gắn lại nút sau khi
-    // DOM đổi — nút nằm trong nav thuộc <main> nên bị mất sau mỗi lần swap.
+    function mount() {
+        mountButton();
+        mountNav();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", mount);
+    } else {
+        mount();
+    }
+
+    // Cho Tuning Lab gắn lại nút theme sau mỗi lần swap #main-content (nút theme
+    // nằm trong shell, ngoài vùng swap, nên chỉ cần đồng bộ icon là đủ).
     window.mountThemeToggle = mountButton;
 })();

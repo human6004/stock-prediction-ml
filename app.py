@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 from flask import (
     Flask,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -68,6 +69,7 @@ from services.prediction_service import (  # noqa: E402
     predict_symbol,
     predict_symbols,
 )
+from services import chatbot_service  # noqa: E402
 from services.tuning_lab import (  # noqa: E402
     get_param_defaults,
     get_param_schema,
@@ -234,6 +236,8 @@ def _template_context(**extra):
         "symbols": meta["symbols"],
         "horizon": PREDICTION_HORIZON,
         "threshold_percent": int(UP_THRESHOLD * 100),
+        # Mặc định trang dự báo; route khác override qua **extra.
+        "active_page": "prediction",
     }
     base.update(extra)
     return base
@@ -266,8 +270,87 @@ def index():
     selected_model = load_selected_model_from_report()
     return render_template(
         "index.html",
-        **_template_context(selected_model=selected_model),
+        **_template_context(selected_model=selected_model, active_page="prediction"),
     )
+
+
+def _chat_error(code: str, message: str, status: int):
+    return jsonify({"error": {"code": code, "message": message}}), status
+
+
+def _validate_chat_payload(payload) -> tuple[str, list[dict]]:
+    if (
+        not isinstance(payload, dict)
+        or "message" not in payload
+        or set(payload) - {"message", "history"}
+    ):
+        raise ValueError
+    message = payload["message"]
+    if not isinstance(message, str):
+        raise ValueError
+    message = message.strip()
+    if not 1 <= len(message) <= chatbot_service.MAX_MESSAGE_CHARS:
+        raise ValueError
+
+    history = payload.get("history", [])
+    if (
+        not isinstance(history, list)
+        or len(history) > chatbot_service.MAX_HISTORY_MESSAGES
+        or len(history) % 2
+    ):
+        raise ValueError
+    normalized_history = []
+    total_chars = 0
+    for index, item in enumerate(history):
+        expected_role = "user" if index % 2 == 0 else "assistant"
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"role", "content"}
+            or item.get("role") != expected_role
+            or not isinstance(item.get("content"), str)
+        ):
+            raise ValueError
+        content = item["content"].strip()
+        if not 1 <= len(content) <= chatbot_service.MAX_MESSAGE_CHARS:
+            raise ValueError
+        total_chars += len(content)
+        normalized_history.append({"role": expected_role, "content": content})
+    if total_chars > chatbot_service.MAX_HISTORY_CHARS:
+        raise ValueError
+    return message, normalized_history
+
+
+@app.route("/chat", methods=["GET"])
+def chat_page():
+    return render_template(
+        "chat.html",
+        **_template_context(
+            selected_model=load_selected_model_from_report(), active_page="chat"
+        ),
+    )
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat_api():
+    if request.mimetype != "application/json":
+        return _chat_error(
+            "invalid_request", "Request phải dùng Content-Type application/json.", 400
+        )
+    try:
+        message, history = _validate_chat_payload(request.get_json(silent=True))
+    except ValueError:
+        return _chat_error(
+            "invalid_request", "Message hoặc history không hợp lệ.", 400
+        )
+    try:
+        return jsonify(chatbot_service.chat(message, history))
+    except chatbot_service.ChatbotServiceError as exc:
+        return _chat_error(exc.code, exc.message, exc.status)
+    except Exception:
+        app.logger.error("Unexpected chatbot error")
+        return _chat_error(
+            "internal_error", "Trợ lý gặp lỗi nội bộ. Vui lòng thử lại sau.", 500
+        )
 
 
 @app.route("/predict", methods=["GET", "POST"])
@@ -314,6 +397,7 @@ def compare():
     context = {
         "symbol_a": symbol_a,
         "symbol_b": symbol_b,
+        "active_page": "compare",
     }
     if request.method == "GET":
         context["selected_model"] = load_selected_model_from_report()
@@ -345,7 +429,10 @@ def compare():
 @app.route("/screener", methods=["GET"])
 def screener():
     """Bảng xếp hạng tín hiệu toàn sàn: chia nhóm UP / NOT_UP, sort điểm UP."""
-    context = {"selected_model": load_selected_model_from_report()}
+    context = {
+        "selected_model": load_selected_model_from_report(),
+        "active_page": "screener",
+    }
     try:
         rows = predict_all_symbols()
     except Exception as exc:  # noqa: BLE001
@@ -368,9 +455,10 @@ def screener():
         reverse=True,
     )
     baseline_warning = rows[0]["baseline_warning"] if rows else None
+    # Một bảng thống nhất: UP trước (đã sort điểm giảm dần), rồi NOT_UP.
+    all_rows = up_rows + not_up_rows
     context.update(
-        up_rows=up_rows,
-        not_up_rows=not_up_rows,
+        all_rows=all_rows,
         up_count=len(up_rows),
         not_up_count=len(not_up_rows),
         total_count=len(rows),
@@ -397,6 +485,7 @@ def evaluation():
         baseline_warning=sections["baseline_warning"],
         selected_model=selected_model,
         dataset_max_date=get_dataset_meta()["dataset_max_date"],
+        active_page="evaluation",
     )
 
 
@@ -841,9 +930,17 @@ def _tuning_context(**extra) -> dict:
     return base
 
 
+def _render_tuning_ctx(**extra):
+    """Context cho tuning.html + luôn kèm active_page ở tầng route (không chôn
+    trong _tuning_context để test có thể mock builder mà nav vẫn sáng đúng)."""
+    ctx = _tuning_context(**extra)
+    ctx.setdefault("active_page", "tuning")
+    return ctx
+
+
 @app.route("/tuning", methods=["GET"])
 def tuning():
-    return render_template("tuning.html", **_tuning_context())
+    return render_template("tuning.html", **_render_tuning_ctx())
 
 
 @app.route("/tuning/evaluate", methods=["POST"])
@@ -853,12 +950,12 @@ def tuning_evaluate():
     if model_key not in get_param_schema():
         return render_template(
             "tuning.html",
-            **_tuning_context(error=f"Model không hợp lệ: {model_key}"),
+            **_render_tuning_ctx(error=f"Model không hợp lệ: {model_key}"),
         ), 400
     if is_pipeline_running() or is_fetch_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(
+            **_render_tuning_ctx(
                 error="Không thể tuning khi pipeline hoặc job làm mới dữ liệu đang chạy.",
                 active_model=model_key,
             ),
@@ -869,7 +966,7 @@ def tuning_evaluate():
         if job_id is None:
             return render_template(
                 "tuning.html",
-                **_tuning_context(
+                **_render_tuning_ctx(
                     error="Một cấu hình khác đang được đánh giá. Hãy chờ job hoàn tất.",
                     active_model=model_key,
                 ),
@@ -878,7 +975,7 @@ def tuning_evaluate():
     except Exception as exc:  # noqa: BLE001
         return render_template(
             "tuning.html",
-            **_tuning_context(error=str(exc), active_model=model_key),
+            **_render_tuning_ctx(error=str(exc), active_model=model_key),
         ), 400
 
 
@@ -890,14 +987,14 @@ def tuning_use_config():
     if run is None:
         return render_template(
             "tuning.html",
-            **_tuning_context(error=f"Không tìm thấy run_id: {run_id}"),
+            **_render_tuning_ctx(error=f"Không tìm thấy run_id: {run_id}"),
         ), 400
 
     fingerprint = compute_dataset_fingerprint()
     if run.get("dataset_fingerprint") != fingerprint["hash"]:
         return render_template(
             "tuning.html",
-            **_tuning_context(
+            **_render_tuning_ctx(
                 error="Cấu hình này thuộc phiên bản dataset khác với hiện tại. "
                 "Hãy chạy CV và tự chọn lại cấu hình trên dataset hiện tại."
             ),
@@ -905,7 +1002,7 @@ def tuning_use_config():
     if run.get("status") != "ok":
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Run này bị lỗi, không thể chốt làm cấu hình."),
+            **_render_tuning_ctx(error="Run này bị lỗi, không thể chốt làm cấu hình."),
         ), 400
 
     params = json.loads(run.get("params_json") or "{}")
@@ -914,7 +1011,7 @@ def tuning_use_config():
         save_selected_model(run["model_key"], run_id, params, cv_mean, fingerprint)
     except ValueError as exc:
         return render_template(
-            "tuning.html", **_tuning_context(error=str(exc), active_model=run["model_key"])
+            "tuning.html", **_render_tuning_ctx(error=str(exc), active_model=run["model_key"])
         ), 400
     history_filters = _parse_history_query(
         request.form, run["model_key"], get_param_schema()
@@ -932,7 +1029,7 @@ def tuning_run_pipeline():
     if not is_config_complete(cfg, fingerprint["hash"]):
         return render_template(
             "tuning.html",
-            **_tuning_context(
+            **_render_tuning_ctx(
                 error="Chưa tự chọn cấu hình hợp lệ cho cả 3 model trên dataset hiện tại. "
                 "Hãy chạy CV và chốt đủ 3 model trước."
             ),
@@ -940,7 +1037,7 @@ def tuning_run_pipeline():
     if has_evaluated_snapshot(experiment_fingerprint["hash"]):
         return render_template(
             "tuning.html",
-            **_tuning_context(
+            **_render_tuning_ctx(
                 error="Snapshot dữ liệu hiện tại đã được đánh giá. Hãy làm mới dữ liệu "
                 "để tạo fingerprint mới trước khi chạy lại."
             ),
@@ -948,17 +1045,17 @@ def tuning_run_pipeline():
     if is_pipeline_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Pipeline đang chạy. Vui lòng đợi hoàn tất."),
+            **_render_tuning_ctx(error="Pipeline đang chạy. Vui lòng đợi hoàn tất."),
         ), 409
     if is_fetch_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Đang làm mới dữ liệu, vui lòng đợi."),
+            **_render_tuning_ctx(error="Đang làm mới dữ liệu, vui lòng đợi."),
         ), 409
     if is_tuning_job_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Tuning CV đang chạy. Hãy chờ job hoàn tất."),
+            **_render_tuning_ctx(error="Tuning CV đang chạy. Hãy chờ job hoàn tất."),
         ), 409
 
     try:
@@ -977,7 +1074,7 @@ def tuning_run_pipeline():
         write_pipeline_log((exc.stdout or "") + "\n" + (exc.stderr or ""))
         return render_template(
             "tuning.html",
-            **_tuning_context(
+            **_render_tuning_ctx(
                 error="Pipeline chạy thất bại. Xem log bên dưới.",
                 pipeline_log=read_pipeline_log_tail(),
             ),
@@ -999,17 +1096,17 @@ def tuning_fetch_data():
     if is_fetch_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Đang làm mới dữ liệu, vui lòng đợi."),
+            **_render_tuning_ctx(error="Đang làm mới dữ liệu, vui lòng đợi."),
         ), 409
     if is_pipeline_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Pipeline đang chạy. Vui lòng đợi hoàn tất."),
+            **_render_tuning_ctx(error="Pipeline đang chạy. Vui lòng đợi hoàn tất."),
         ), 409
     if is_tuning_job_running():
         return render_template(
             "tuning.html",
-            **_tuning_context(error="Tuning CV đang chạy. Hãy chờ job hoàn tất."),
+            **_render_tuning_ctx(error="Tuning CV đang chạy. Hãy chờ job hoàn tất."),
         ), 409
 
     ensure_experiments_dir()
@@ -1036,6 +1133,7 @@ def tuning_fetch_status():
         log=log,
         fetch_report=fetch_report,
         fetch_progress=fetch_progress,
+        active_page="tuning",
     )
 
 

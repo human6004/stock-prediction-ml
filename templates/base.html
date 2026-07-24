@@ -1,0 +1,258 @@
+<!doctype html>
+{# Shell dùng chung cho mọi trang (plan redesign §2). Sidebar điều hướng tách khỏi
+   #main-content để AJAX của Tuning chỉ thay nội dung, không nuốt shell. #}
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}HOSE ML — Dự báo xu hướng cổ phiếu{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
+    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <a class="skip-link" href="#main-content">Bỏ qua điều hướng, tới nội dung chính</a>
+
+    {% set active_page = active_page | default('') %}
+    {% set nav_groups = [
+        ('Người dùng', [
+            ('prediction', url_for('index'), 'Dự báo'),
+            ('screener', url_for('screener'), 'Xếp hạng'),
+            ('compare', url_for('compare'), 'So sánh'),
+            ('chat', url_for('chat_page'), 'Trợ lý'),
+        ]),
+        ('Model & Dữ liệu', [
+            ('evaluation', url_for('evaluation'), 'Đánh giá'),
+            ('tuning', url_for('tuning'), 'Tuning Lab'),
+        ]),
+    ] %}
+
+    <div id="app-shell">
+        <header class="app-sidebar" id="app-sidebar">
+            <div class="sidebar-head">
+                <a class="brand" href="{{ url_for('index') }}">HOSE ML</a>
+                <button type="button" id="nav-toggle" class="nav-toggle"
+                        aria-expanded="false" aria-controls="primary-nav"
+                        aria-label="Mở menu điều hướng">Menu</button>
+            </div>
+            <nav id="primary-nav" class="primary-nav" aria-label="Điều hướng chính">
+                {% for group_label, items in nav_groups %}
+                <p class="nav-group-label">{{ group_label }}</p>
+                {% for slug, href, label in items %}
+                <a class="nav-link" data-nav="{{ slug }}" href="{{ href }}"
+                   {%- if slug == active_page %} aria-current="page"{% endif %}>{{ label }}</a>
+                {% endfor %}
+                {% endfor %}
+            </nav>
+        </header>
+
+        <div class="app-body">
+            <header class="app-topbar">
+                <div class="topbar-main">
+                    {% block page_header %}<h1>HOSE ML</h1>{% endblock %}
+                </div>
+                <div class="topbar-aside">
+                    <button type="button" id="theme-toggle" class="theme-toggle"
+                            aria-label="Chuyển chế độ sáng/tối"></button>
+                </div>
+            </header>
+
+            {% block dataset_status %}
+            {% if dataset_max_date %}
+            <div id="dataset-status" class="dataset-status">
+                <span class="status-chip">Offline</span>
+                <span class="status-item">Dữ liệu <strong>{{ dataset_max_date|date_vi }}</strong></span>
+                <span class="status-item">{{ symbol_count }} mã</span>
+                {% if selected_model %}
+                <span class="status-item status-model">{{ selected_model }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endblock %}
+
+            <main id="main-content" class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    {# Khung chat nổi góc phải: quick-access trợ lý trên mọi trang. Không render
+       trên /chat để tránh trùng id với trang chat đầy đủ. Dùng lại /api/chat,
+       id riêng chat-dock-* nên độc lập với script trang /chat. #}
+    {% if active_page != 'chat' %}
+    <div id="chat-dock" class="chat-dock" data-open="false">
+        <section id="chat-dock-panel" class="chat-dock-panel"
+                 role="dialog" aria-label="Trợ lý HOSE" aria-modal="false" hidden>
+            <header class="chat-dock-head">
+                <div class="chat-dock-head-text">
+                    <strong>Trợ lý HOSE</strong>
+                    <span class="chat-dock-sub">Trả lời từ dữ liệu offline</span>
+                </div>
+                <a class="chat-dock-expand" href="{{ url_for('chat_page') }}"
+                   aria-label="Mở toàn màn hình" title="Mở toàn màn hình">⤢</a>
+                <button type="button" id="chat-dock-close" class="chat-dock-close"
+                        aria-label="Đóng trợ lý">✕</button>
+            </header>
+            <ol id="chat-dock-transcript" class="chat-dock-transcript"
+                aria-label="Nội dung hội thoại" aria-live="polite"></ol>
+            <form id="chat-dock-form" class="chat-dock-form" aria-busy="false">
+                <label class="visually-hidden" for="chat-dock-message">Câu hỏi</label>
+                <textarea id="chat-dock-message" rows="1" maxlength="1000" required
+                          placeholder="Hỏi về mã, model, xếp hạng…"></textarea>
+                <button id="chat-dock-send" type="submit" aria-label="Gửi câu hỏi">➤</button>
+            </form>
+        </section>
+        <button type="button" id="chat-dock-toggle" class="chat-dock-toggle"
+                aria-expanded="false" aria-controls="chat-dock-panel"
+                aria-label="Mở trợ lý HOSE">
+            <span class="chat-dock-toggle-icon" aria-hidden="true">💬</span>
+            <span class="chat-dock-toggle-text">Trợ lý</span>
+        </button>
+    </div>
+
+    <script>
+        // Khung chat nổi: độc lập với trang /chat. Dùng lại POST /api/chat,
+        // textContent-only (không innerHTML). Nav "Trợ lý" cũng mở dock này.
+        (() => {
+            const dock = document.getElementById("chat-dock");
+            if (!dock) return;
+            const toggle = document.getElementById("chat-dock-toggle");
+            const panel = document.getElementById("chat-dock-panel");
+            const closeBtn = document.getElementById("chat-dock-close");
+            const form = document.getElementById("chat-dock-form");
+            const input = document.getElementById("chat-dock-message");
+            const send = document.getElementById("chat-dock-send");
+            const transcript = document.getElementById("chat-dock-transcript");
+            const history = [];
+            let busy = false;
+            let greeted = false;
+
+            function appendMessage(role, content) {
+                const item = document.createElement("li");
+                item.className = `chat-dock-entry chat-dock-entry-${role}`;
+                const text = document.createElement("p");
+                text.className = "chat-dock-text";
+                text.textContent = content;
+                item.append(text);
+                transcript.append(item);
+                transcript.scrollTop = transcript.scrollHeight;
+                return item;
+            }
+
+            function setOpen(open) {
+                dock.dataset.open = open ? "true" : "false";
+                panel.hidden = !open;
+                toggle.setAttribute("aria-expanded", open ? "true" : "false");
+                toggle.setAttribute("aria-label", open ? "Đóng trợ lý HOSE" : "Mở trợ lý HOSE");
+                if (open) {
+                    if (!greeted) {
+                        appendMessage(
+                            "assistant",
+                            "Chào bạn! Mình trả lời dựa trên dữ liệu offline. Hỏi về một mã, so sánh, xếp hạng Điểm UP hoặc model nhé."
+                        );
+                        greeted = true;
+                    }
+                    input.focus();
+                }
+            }
+
+            function setBusy(value) {
+                busy = value;
+                input.disabled = value;
+                send.disabled = value;
+                form.setAttribute("aria-busy", String(value));
+            }
+
+            function apiErrorMessage(data) {
+                const message = data && data.error && typeof data.error.message === "string"
+                    ? data.error.message.trim()
+                    : "";
+                return message ? message.slice(0, 1000) : "Không thể gọi trợ lý lúc này.";
+            }
+
+            toggle.addEventListener("click", () => setOpen(dock.dataset.open !== "true"));
+            closeBtn.addEventListener("click", () => { setOpen(false); toggle.focus(); });
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape" && dock.dataset.open === "true") {
+                    setOpen(false);
+                    toggle.focus();
+                }
+            });
+
+            // Enter gửi, Shift+Enter xuống dòng.
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    form.requestSubmit();
+                }
+            });
+
+            // Nav "Trợ lý" mở dock thay vì rời trang (vẫn giữ href làm fallback).
+            document.querySelectorAll('[data-nav="chat"]').forEach((link) => {
+                link.addEventListener("click", (event) => {
+                    event.preventDefault();
+                    setOpen(true);
+                });
+            });
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                if (busy) return;
+                const message = input.value.trim();
+                if (!message) return;
+                const requestHistory = history.slice(-6);
+                appendMessage("user", message);
+                input.value = "";
+                setBusy(true);
+                const pending = appendMessage("assistant", "Đang trả lời…");
+                pending.classList.add("is-pending");
+                const controller = new AbortController();
+                const timeout = window.setTimeout(() => controller.abort(), 35000);
+                try {
+                    const response = await fetch("/api/chat", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({message, history: requestHistory}),
+                        signal: controller.signal
+                    });
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch {
+                        throw new Error("invalid_response");
+                    }
+                    if (!response.ok) {
+                        const apiError = new Error("api_error");
+                        apiError.publicMessage = apiErrorMessage(data);
+                        throw apiError;
+                    }
+                    pending.querySelector(".chat-dock-text").textContent = data.answer;
+                    pending.classList.remove("is-pending");
+                    history.push(
+                        {role: "user", content: message},
+                        {role: "assistant", content: data.answer.slice(0, 1000)}
+                    );
+                } catch (error) {
+                    const messageText = error.name === "AbortError"
+                        ? "Trợ lý đã quá thời gian chờ. Vui lòng thử lại."
+                        : typeof error.publicMessage === "string"
+                            ? error.publicMessage
+                            : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
+                    pending.querySelector(".chat-dock-text").textContent = messageText;
+                    pending.classList.remove("is-pending");
+                } finally {
+                    window.clearTimeout(timeout);
+                    setBusy(false);
+                    input.focus();
+                }
+            });
+        })();
+    </script>
+    {% endif %}
+
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Kiến trúc hệ thống — HOSE Stock Prediction Diagram</title>
+  <title>Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Kiến trúc hệ thống — HOSE Stock Prediction</h1>
+        <h1>Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime</h1>
       </div>
-      <p class="subtitle">Flask server-rendered · Python jobs · file artifacts — SQLite đã loại bỏ</p>
+      <p class="subtitle">Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1520 900" role="img" aria-label="Kiến trúc hệ thống — HOSE Stock Prediction — Flask server-rendered · Python jobs · file artifacts — SQLite đã loại bỏ (architecture diagram)">
+      <svg viewBox="0 0 1620 1180" role="img" aria-label="Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime — Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact (architecture diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -525,151 +525,189 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect x="260" y="50" width="985" height="578" rx="12" class="c-region" stroke-width="1"/>
-        <text x="268" y="68" class="t-cloud" font-size="9" font-weight="600">Repo local · Flask single-process + Python jobs + generated artifacts</text>
+        <rect x="30" y="40" width="1395" height="108" rx="12" class="c-region" stroke-width="1"/>
+        <text x="38" y="58" class="t-cloud" font-size="9" font-weight="600">External · dịch vụ bên ngoài</text>
+
+        <rect x="30" y="220" width="1245" height="108" rx="12" class="c-region" stroke-width="1"/>
+        <text x="38" y="238" class="t-cloud" font-size="9" font-weight="600">Offline ML · fetch + official pipeline + tuning (bên ghi artifact)</text>
+
+        <rect x="330" y="530" width="885" height="108" rx="12" class="c-region" stroke-width="1"/>
+        <text x="338" y="548" class="t-cloud" font-size="9" font-weight="600">Published Release · điểm nối read-only</text>
+
+        <rect x="30" y="740" width="1245" height="288" rx="12" class="c-region" stroke-width="1"/>
+        <text x="38" y="758" class="t-cloud" font-size="9" font-weight="600">Runtime · Flask single-process (prediction + chatbot RAG)</text>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path d="M 185 112 L 290 114" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 370 80 L 267.87095928079924 61.431083505599865 Q 260 60 252 60 L 218 60 Q 210 60 210 68 L 210 261 Q 210 269 202 269 L 185 269" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 30 269 L 13 269 Q 5 269 5 261 L 5 13 Q 5 5 13 5 L 860 5 Q 868 5 867.9466678518123 12.999822228147929 L 867.5 80" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 185 432 L 229.5 432 Q 237.5 432 237.5 440 L 237.5 496 Q 237.5 504 245.5 504 L 290 504" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 185 592 L 222 592 Q 230 592 237.8716301262059 593.427388929552 L 597.1283698737941 658.572611070448 Q 605 660 605 652 L 605 614 Q 605 612 605 610 L 605 608" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 370 470 L 267.87095928079924 451.4310835055999 Q 260 450 260 442 L 260 122 Q 260 114 268 114 L 290 114" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 370 470 L 370 248 Q 370 240 378 240 L 597 240 Q 605 240 605 232 L 605 148" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path d="M 450 504 L 472 504 Q 480 504 480 496 L 480 342 Q 480 334 488 334 L 520 334" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 370 538 L 370 566 Q 370 574 378 574 L 520 574 L 520 574" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 690 114 L 780 114" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 955 114 L 1030 114" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 605 368 L 947.0569852921046 409.0468382350526 Q 955 410 963 410 L 1114 410 Q 1122 410 1122.0152671477713 402.00001456787584 L 1122.5 148" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 690 334 L 1030 334" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path d="M 605 148 L 605 197 Q 605 205 613 205 L 992 205 Q 1000 205 1000 213 L 1000 326 Q 1000 334 1008 334 L 1030 334" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path d="M 605 608 L 722.0366111372758 619.2355146691784 Q 730 620 730 628 L 730 772 Q 730 780 738 780 L 1452 780 Q 1460 780 1460 772 L 1460 122 Q 1460 114 1452 114 L 1215 114" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 690 574 L 1030 574" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 867.5 148 L 867.0120481791078 472.0000090724189 Q 867 480 875 480 L 992 480 Q 1000 480 1000 488 L 1000 566 Q 1000 574 1008 574 L 1030 574" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 152.5 128 L 152 128 L 152 250 L 152.5 250" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 245 279 L 305 279" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 505 279 L 555 279" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 740 279 L 800 279" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path d="M 1150 308 L 1150 342 Q 1150 350 1142 350 L 655 350 Q 647 350 647.0952313472241 342.0005668331746 L 647.5 308" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path d="M 647.5 308 L 647.0327866098959 422.0000671853939 Q 647 430 639 430 L 455 430 Q 447 430 447.0307690031887 437.99994082905886 L 447.5 560" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 245 799 L 305 799" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 495 799 L 555 799" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 152.5 828 L 152.05969983016823 887.0002227574589 Q 152 895 160 895 L 272 895 Q 280 895 280 903 L 280 971 Q 280 979 288 979 L 305 979" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 495 979 L 555 979" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 745 979 L 800 979" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 995 979 L 1055 979" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path d="M 650 950 L 650 942.5 Q 650 935 657.5 935 L 1292 935 Q 1300 935 1300 927 L 1300 133 Q 1300 128 1295 128 L 1290 128" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 897.5 950 L 897.0888834024285 912.9995062185595 Q 897 905 889 905 L 658 905 Q 650 905 650 897 L 650 828" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 650 770 L 650 708 Q 650 700 642 700 L 455 700 Q 447 700 447.0487795809948 692.0001487168524 L 447.5 618" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 897.5 950 L 897.019047565058 747.9999773243594 Q 897 740 905 740 L 1089 740 Q 1097 740 1097.032786609896 732.0000671853938 L 1097.5 618" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 1150 950 L 1150 728 Q 1150 720 1142 720 L 888 720 Q 880 720 880 712 L 880 618" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Components -->
-        <rect x="30" y="80" width="155" height="64" rx="6" class="c-mask"/>
-        <rect x="30" y="80" width="155" height="64" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="107.5" y="110" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">vnstock KBS</text>
-        <text x="107.5" y="126" class="t-muted" font-size="9" text-anchor="middle">Quote.history · 1D</text>
-        <text x="107.5" y="136" class="t-external" font-size="7" text-anchor="middle">external</text>
+        <rect x="60" y="70" width="185" height="58" rx="6" class="c-mask"/>
+        <rect x="60" y="70" width="185" height="58" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="152.5" y="97" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">vnstock</text>
+        <text x="152.5" y="113" class="t-muted" font-size="9" text-anchor="middle">OHLCV 1D KBS</text>
+        <text x="152.5" y="120" class="t-external" font-size="7" text-anchor="middle">nguồn dữ liệu</text>
 
-        <rect x="30" y="235" width="155" height="68" rx="6" class="c-mask"/>
-        <rect x="30" y="235" width="155" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="107.5" y="267" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Shared Raw CSV</text>
-        <text x="107.5" y="283" class="t-muted" font-size="9" text-anchor="middle">hose_stock_raw.csv</text>
-        <text x="107.5" y="295" class="t-database" font-size="7" text-anchor="middle">ngoài repo</text>
+        <rect x="1185" y="70" width="210" height="58" rx="6" class="c-mask"/>
+        <rect x="1185" y="70" width="210" height="58" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="1290" y="97" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">External LLM</text>
+        <text x="1290" y="113" class="t-muted" font-size="9" text-anchor="middle">OpenAI-compatible provider</text>
+        <text x="1290" y="120" class="t-external" font-size="7" text-anchor="middle">tool calling</text>
 
-        <rect x="30" y="400" width="155" height="64" rx="6" class="c-mask"/>
-        <rect x="30" y="400" width="155" height="64" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="107.5" y="430" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Người dùng</text>
-        <text x="107.5" y="446" class="t-muted" font-size="9" text-anchor="middle">browser · HTML forms</text>
+        <rect x="60" y="250" width="185" height="58" rx="6" class="c-mask"/>
+        <rect x="60" y="250" width="185" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="152.5" y="277" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">refresh_data.py</text>
+        <text x="152.5" y="293" class="t-muted" font-size="9" text-anchor="middle">Popen nền</text>
+        <text x="152.5" y="300" class="t-backend" font-size="7" text-anchor="middle">fetch job</text>
 
-        <rect x="30" y="560" width="155" height="64" rx="6" class="c-mask"/>
-        <rect x="30" y="560" width="155" height="64" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="107.5" y="590" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CLI</text>
-        <text x="107.5" y="606" class="t-muted" font-size="9" text-anchor="middle">predict_stock.py</text>
+        <rect x="305" y="250" width="200" height="58" rx="6" class="c-mask"/>
+        <rect x="305" y="250" width="200" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="405" y="277" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Data / ML services</text>
+        <text x="405" y="293" class="t-muted" font-size="9" text-anchor="middle">clean · features · labels · split</text>
+        <text x="405" y="300" class="t-backend" font-size="7" text-anchor="middle">processed CSV</text>
 
-        <rect x="290" y="80" width="160" height="68" rx="6" class="c-mask"/>
-        <rect x="290" y="80" width="160" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="370" y="112" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Refresh job</text>
-        <text x="370" y="128" class="t-muted" font-size="9" text-anchor="middle">refresh_data.py</text>
-        <text x="370" y="140" class="t-backend" font-size="7" text-anchor="middle">Popen nền</text>
+        <rect x="555" y="250" width="185" height="58" rx="6" class="c-mask"/>
+        <rect x="555" y="250" width="185" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="647.5" y="277" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">run_pipeline.py</text>
+        <text x="647.5" y="293" class="t-muted" font-size="9" text-anchor="middle">official pipeline</text>
+        <text x="647.5" y="300" class="t-backend" font-size="7" text-anchor="middle">subprocess</text>
 
-        <rect x="290" y="470" width="160" height="68" rx="6" class="c-mask"/>
-        <rect x="290" y="470" width="160" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="370" y="502" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Flask + Jinja</text>
-        <text x="370" y="518" class="t-muted" font-size="9" text-anchor="middle">app.py · :5000</text>
-        <text x="370" y="530" class="t-frontend" font-size="7" text-anchor="middle">server-rendered</text>
+        <rect x="800" y="250" width="200" height="58" rx="6" class="c-mask"/>
+        <rect x="800" y="250" width="200" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="900" y="277" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Experiment state</text>
+        <text x="900" y="293" class="t-muted" font-size="9" text-anchor="middle">history · config · registry · lock</text>
+        <text x="900" y="300" class="t-security" font-size="7" text-anchor="middle">fingerprint</text>
 
-        <rect x="520" y="80" width="170" height="68" rx="6" class="c-mask"/>
-        <rect x="520" y="80" width="170" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="605" y="112" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Official pipeline</text>
-        <text x="605" y="128" class="t-muted" font-size="9" text-anchor="middle">run_pipeline.py</text>
-        <text x="605" y="140" class="t-backend" font-size="7" text-anchor="middle">subprocess sync</text>
+        <rect x="1055" y="250" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="1055" y="250" width="190" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="1150" y="277" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tuning Lab</text>
+        <text x="1150" y="293" class="t-muted" font-size="9" text-anchor="middle">/tuning · evaluate · run-pipeline</text>
+        <text x="1150" y="300" class="t-backend" font-size="7" text-anchor="middle">orchestrator</text>
 
-        <rect x="520" y="300" width="170" height="68" rx="6" class="c-mask"/>
-        <rect x="520" y="300" width="170" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="605" y="332" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tuning Lab CV</text>
-        <text x="605" y="348" class="t-muted" font-size="9" text-anchor="middle">1 daemon thread</text>
-        <text x="605" y="360" class="t-backend" font-size="7" text-anchor="middle">TRAIN only</text>
+        <rect x="360" y="560" width="175" height="58" rx="6" class="c-mask"/>
+        <rect x="360" y="560" width="175" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="447.5" y="587" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">final_model.pkl</text>
+        <text x="447.5" y="603" class="t-muted" font-size="9" text-anchor="middle">trained artifact</text>
 
-        <rect x="520" y="540" width="170" height="68" rx="6" class="c-mask"/>
-        <rect x="520" y="540" width="170" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="605" y="572" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Prediction service</text>
-        <text x="605" y="588" class="t-muted" font-size="9" text-anchor="middle">predict_symbols()</text>
-        <text x="605" y="600" class="t-backend" font-size="7" text-anchor="middle">1–2 mã</text>
+        <rect x="575" y="560" width="175" height="58" rx="6" class="c-mask"/>
+        <rect x="575" y="560" width="175" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="662.5" y="587" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">model_metadata.json</text>
+        <text x="662.5" y="603" class="t-muted" font-size="9" text-anchor="middle">horizon · threshold · features</text>
 
-        <rect x="780" y="80" width="175" height="68" rx="6" class="c-mask"/>
-        <rect x="780" y="80" width="175" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="867.5" y="112" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Data + ML services</text>
-        <text x="867.5" y="128" class="t-muted" font-size="9" text-anchor="middle">clean · feature · tune · eval</text>
-        <text x="867.5" y="140" class="t-backend" font-size="7" text-anchor="middle">20 features</text>
+        <rect x="790" y="560" width="180" height="58" rx="6" class="c-mask"/>
+        <rect x="790" y="560" width="180" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="880" y="587" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">pipeline_summary.json</text>
+        <text x="880" y="603" class="t-muted" font-size="9" text-anchor="middle">release identity</text>
 
-        <rect x="1030" y="80" width="185" height="68" rx="6" class="c-mask"/>
-        <rect x="1030" y="80" width="185" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="1122.5" y="112" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Processed CSV</text>
-        <text x="1122.5" y="128" class="t-muted" font-size="9" text-anchor="middle">clean · features · ml_dataset</text>
-        <text x="1122.5" y="140" class="t-database" font-size="7" text-anchor="middle">file source</text>
+        <rect x="1010" y="560" width="175" height="58" rx="6" class="c-mask"/>
+        <rect x="1010" y="560" width="175" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="1097.5" y="587" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">reports/</text>
+        <text x="1097.5" y="603" class="t-muted" font-size="9" text-anchor="middle">evaluation · confusion · importance</text>
 
-        <rect x="1030" y="300" width="185" height="68" rx="6" class="c-mask"/>
-        <rect x="1030" y="300" width="185" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="1122.5" y="332" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Experiment state</text>
-        <text x="1122.5" y="348" class="t-muted" font-size="9" text-anchor="middle">history · config · registry · lock</text>
-        <text x="1122.5" y="360" class="t-security" font-size="7" text-anchor="middle">2 fingerprint</text>
+        <rect x="60" y="770" width="185" height="58" rx="6" class="c-mask"/>
+        <rect x="60" y="770" width="185" height="58" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="152.5" y="797" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Người dùng</text>
+        <text x="152.5" y="813" class="t-muted" font-size="9" text-anchor="middle">User Browser · CLI</text>
 
-        <rect x="1030" y="540" width="185" height="68" rx="6" class="c-mask"/>
-        <rect x="1030" y="540" width="185" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="1122.5" y="572" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Release artifacts</text>
-        <text x="1122.5" y="588" class="t-muted" font-size="9" text-anchor="middle">final_model.pkl · metadata · reports</text>
-        <text x="1122.5" y="600" class="t-database" font-size="7" text-anchor="middle">Final Model đọc từ artifact</text>
+        <rect x="305" y="770" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="305" y="770" width="190" height="58" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="400" y="797" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Flask + Jinja</text>
+        <text x="400" y="813" class="t-muted" font-size="9" text-anchor="middle">app.py · :5000</text>
+        <text x="400" y="820" class="t-frontend" font-size="7" text-anchor="middle">HTML server-rendered</text>
+
+        <rect x="555" y="770" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="555" y="770" width="190" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="650" y="797" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">prediction_service</text>
+        <text x="650" y="813" class="t-muted" font-size="9" text-anchor="middle">predict_symbols()</text>
+        <text x="650" y="820" class="t-backend" font-size="7" text-anchor="middle">load artifact · không retrain</text>
+
+        <rect x="305" y="950" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="305" y="950" width="190" height="58" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="400" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">/chat · /api/chat</text>
+        <text x="400" y="993" class="t-muted" font-size="9" text-anchor="middle">app.py JSON REST</text>
+        <text x="400" y="1000" class="t-frontend" font-size="7" text-anchor="middle">JSON endpoint</text>
+
+        <rect x="555" y="950" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="555" y="950" width="190" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="650" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">chatbot_service</text>
+        <text x="650" y="993" class="t-muted" font-size="9" text-anchor="middle">Chat Completions loop</text>
+        <text x="650" y="1000" class="t-backend" font-size="7" text-anchor="middle">≤3 vòng · ≤5 tool · 30s</text>
+
+        <rect x="800" y="950" width="195" height="58" rx="6" class="c-mask"/>
+        <rect x="800" y="950" width="195" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="897.5" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">chatbot_tools</text>
+        <text x="897.5" y="993" class="t-muted" font-size="9" text-anchor="middle">6 read-only tools</text>
+        <text x="897.5" y="1000" class="t-backend" font-size="7" text-anchor="middle">grounded</text>
+
+        <rect x="1055" y="950" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="1055" y="950" width="190" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="1150" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Release Gate</text>
+        <text x="1150" y="993" class="t-muted" font-size="9" text-anchor="middle">get_release_state()</text>
+        <text x="1150" y="1000" class="t-security" font-size="7" text-anchor="middle">status + warning</text>
 
         <!-- Connection labels -->
-        <rect x="213.3" y="92" width="48.4" height="14" rx="3" class="c-mask"/>
-        <text x="237.5" y="102" class="t-backend" font-size="8" text-anchor="middle">OHLCV 1D</text>
-        <rect x="171.2" y="190" width="67.6" height="14" rx="3" class="c-mask"/>
-        <text x="205" y="200" class="t-backend" font-size="8" text-anchor="middle">merge atomic</text>
-        <rect x="666.2" y="8" width="67.6" height="14" rx="3" class="c-mask"/>
-        <text x="700" y="18" class="t-backend" font-size="8" text-anchor="middle">raw snapshot</text>
-        <rect x="196.5" y="448" width="82" height="14" rx="3" class="c-mask"/>
-        <text x="237.5" y="458" class="t-backend" font-size="8" text-anchor="middle">GET / POST HTML</text>
-        <rect x="368.6" y="638" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="400" y="648" class="t-messagebus" font-size="8" text-anchor="middle">CLI predict</text>
-        <rect x="211.4" y="290" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-        <text x="238" y="300" class="t-messagebus" font-size="8" text-anchor="middle">Popen nền</text>
-        <rect x="456" y="218" width="58" height="14" rx="3" class="c-mask"/>
-        <text x="485" y="228" class="t-security" font-size="8" text-anchor="middle">run + wait</text>
-        <rect x="433.8" y="410" width="48.4" height="14" rx="3" class="c-mask"/>
-        <text x="458" y="420" class="t-muted" font-size="8" text-anchor="middle">start CV</text>
-
-
-        <rect x="966.6" y="92" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="998" y="102" class="t-backend" font-size="8" text-anchor="middle">CSV outputs</text>
-        <rect x="1011.4" y="388" width="77.2" height="14" rx="3" class="c-mask"/>
-        <text x="1050" y="398" class="t-muted" font-size="8" text-anchor="middle">đọc ml_dataset</text>
-        <rect x="802.2" y="314" width="115.6" height="14" rx="3" class="c-mask"/>
-        <text x="860" y="324" class="t-security" font-size="8" text-anchor="middle">history + selected run</text>
-        <rect x="746.6" y="186" width="86.8" height="14" rx="3" class="c-mask"/>
-        <text x="790" y="196" class="t-security" font-size="8" text-anchor="middle">registry + locks</text>
-        <rect x="1063.8" y="758" width="72.4" height="14" rx="3" class="c-mask"/>
-        <text x="1100" y="768" class="t-muted" font-size="8" text-anchor="middle">đọc clean.csv</text>
-        <rect x="771" y="550" width="178" height="14" rx="3" class="c-mask"/>
-        <text x="860" y="560" class="t-backend" font-size="8" text-anchor="middle">load PKL + metadata (không retrain)</text>
-        <rect x="817.4" y="290" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
-        <text x="880" y="300" class="t-backend" font-size="8" text-anchor="middle">reports + atomic release</text>
+        <rect x="153.8" y="180" width="48.4" height="14" rx="3" class="c-mask"/>
+        <text x="178" y="190" class="t-backend" font-size="8" text-anchor="middle">OHLCV 1D</text>
+        <rect x="243.6" y="222" width="62.8" height="14" rx="3" class="c-mask"/>
+        <text x="275" y="232" class="t-backend" font-size="8" text-anchor="middle">raw · clean</text>
+        <rect x="501" y="222" width="58" height="14" rx="3" class="c-mask"/>
+        <text x="530" y="232" class="t-backend" font-size="8" text-anchor="middle">ml_dataset</text>
+        <rect x="729" y="222" width="82" height="14" rx="3" class="c-mask"/>
+        <text x="770" y="232" class="t-security" font-size="8" text-anchor="middle">registry + lock</text>
+        <rect x="815" y="330" width="130" height="14" rx="3" class="c-mask"/>
+        <text x="880" y="340" class="t-security" font-size="8" text-anchor="middle">run-pipeline · subprocess</text>
+        <rect x="430.2" y="460" width="259.6" height="14" rx="3" class="c-mask"/>
+        <text x="560" y="470" class="t-backend" font-size="8" text-anchor="middle">atomic publish: model · metadata · summary · reports</text>
+        <rect x="154.60000000000002" y="742" width="230.79999999999998" height="14" rx="3" class="c-mask"/>
+        <text x="270" y="752" class="t-backend" font-size="8" text-anchor="middle">/predict · /compare · /screener · /chat (HTML)</text>
+        <rect x="479.2" y="742" width="91.6" height="14" rx="3" class="c-mask"/>
+        <text x="525" y="752" class="t-backend" font-size="8" text-anchor="middle">predict_symbols()</text>
+        <rect x="144.6" y="868" width="110.8" height="14" rx="3" class="c-mask"/>
+        <text x="200" y="878" class="t-backend" font-size="8" text-anchor="middle">POST /api/chat (JSON)</text>
+        <rect x="505.6" y="922" width="38.8" height="14" rx="3" class="c-mask"/>
+        <text x="525" y="932" class="t-backend" font-size="8" text-anchor="middle">chat()</text>
+        <rect x="738.2" y="922" width="67.6" height="14" rx="3" class="c-mask"/>
+        <text x="772" y="932" class="t-muted" font-size="8" text-anchor="middle">execute_tool</text>
+        <rect x="979.2" y="922" width="91.6" height="14" rx="3" class="c-mask"/>
+        <text x="1025" y="932" class="t-security" font-size="8" text-anchor="middle">get_release_state</text>
+        <rect x="1250.6" y="510" width="158.79999999999998" height="14" rx="3" class="c-mask"/>
+        <text x="1330" y="520" class="t-backend" font-size="8" text-anchor="middle">Chat Completions · tool calling</text>
+        <rect x="729.8" y="878" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
+        <text x="790" y="888" class="t-muted" font-size="8" text-anchor="middle">reuse predict / ranking</text>
+        <rect x="471" y="680" width="178" height="14" rx="3" class="c-mask"/>
+        <text x="560" y="690" class="t-backend" font-size="8" text-anchor="middle">load PKL + metadata · không retrain</text>
+        <rect x="939.8" y="718" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
+        <text x="1000" y="728" class="t-muted" font-size="8" text-anchor="middle">đọc reports · read-only</text>
+        <rect x="945" y="698" width="130" height="14" rx="3" class="c-mask"/>
+        <text x="1010" y="708" class="t-backend" font-size="8" text-anchor="middle">read identity · read-only</text>
 
         <!-- Legend -->
-        <text x="40" y="871" class="t-primary" font-size="9" font-weight="600">Legend</text>
-        <rect x="40" y="876" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
-        <text x="60" y="884" class="t-muted" font-size="8">External</text>
-        <rect x="138" y="876" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="158" y="884" class="t-muted" font-size="8">Database</text>
-        <rect x="236" y="876" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="256" y="884" class="t-muted" font-size="8">Backend</text>
-        <rect x="329" y="876" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="349" y="884" class="t-muted" font-size="8">Frontend</text>
-        <rect x="427" y="876" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="447" y="884" class="t-muted" font-size="8">Security</text>
+        <text x="40" y="1151" class="t-primary" font-size="9" font-weight="600">Legend</text>
+        <rect x="40" y="1156" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
+        <text x="60" y="1164" class="t-muted" font-size="8">External</text>
+        <rect x="138" y="1156" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="158" y="1164" class="t-muted" font-size="8">Backend</text>
+        <rect x="231" y="1156" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="251" y="1164" class="t-muted" font-size="8">Security</text>
+        <rect x="329" y="1156" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="349" y="1164" class="t-muted" font-size="8">Database</text>
+        <rect x="427" y="1156" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="447" y="1164" class="t-muted" font-size="8">Frontend</text>
       </svg>
     </div>
 
@@ -678,38 +716,36 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Runtime thật</h3>
+          <h3>Bốn boundary, một điểm nối</h3>
         </div>
         <ul>
-          <li>&bull; Flask monolith local tại 127.0.0.1:5000; HTML forms + Jinja, không có JSON REST API</li>
-          <li>&bull; Trang /evaluation đọc report CSV/JSON/PNG đã sinh; không gọi model để tính lại</li>
-          <li>&bull; Tuning Lab là một daemon thread trong process, chỉ chạy 4-fold CV trên TRAIN</li>
-          <li>&bull; Official pipeline chặn request bằng subprocess.run; refresh chạy nền bằng Popen + PID lock + logfile</li>
+          <li>&bull; External: vnstock cấp OHLCV, External LLM chỉ nhận tool calling từ chatbot_service — không nối trực tiếp với artifact</li>
+          <li>&bull; Offline ML (refresh_data.py + run_pipeline.py + Tuning Lab) là bên duy nhất GHI artifact vào Published Release</li>
+          <li>&bull; Runtime Prediction và Chatbot chỉ ĐỌC release đã publish</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot emerald"></div>
-          <h3>Nguồn dữ liệu và serving</h3>
+          <h3>Runtime prediction</h3>
         </div>
         <ul>
-          <li>&bull; Raw CSV nằm trong shared_dataset ngoài repo; refresh fetch cửa sổ riêng từng symbol rồi ghi atomic</li>
-          <li>&bull; Prediction đọc clean CSV + final_model.pkl + model_metadata.json trực tiếp, không retrain</li>
-          <li>&bull; Final Model phục vụ được đọc từ artifact; prediction horizon và threshold lấy động từ metadata</li>
-          <li>&bull; Web gồm prediction, compare, evaluation, tuning và refresh status</li>
+          <li>&bull; prediction_service load final_model.pkl + model_metadata.json, đọc clean data — Prediction không retrain</li>
+          <li>&bull; Horizon và threshold đọc động từ metadata, fallback artifact rồi settings</li>
+          <li>&bull; Flask không tự nạp model; mọi inference đi qua prediction_service</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot rose"></div>
-          <h3>Đã loại khỏi runtime</h3>
+          <div class="card-dot violet"></div>
+          <h3>Runtime chatbot RAG</h3>
         </div>
         <ul>
-          <li>&bull; Không còn SQLite: thư mục database/ đã xóa, không có mirror DB trên đường inference</li>
-          <li>&bull; Không còn Dummy model hay intermediate tuned artifacts</li>
-          <li>&bull; Không còn roadmap / document gate trong pipeline runtime</li>
+          <li>&bull; Có local JSON API /api/chat; chatbot_service loop tool calling tối đa 3 vòng LLM, 5 tool call, deadline 30 giây</li>
+          <li>&bull; 6 read-only tools qua Release Gate; Chatbot không train, Chatbot không chạy run_pipeline.py</li>
+          <li>&bull; External LLM chỉ chọn tool và diễn giải; server giữ validation, grounding, release gate và budget</li>
         </ul>
       </div>
 
@@ -719,9 +755,9 @@
           <h3>Giới hạn triển khai</h3>
         </div>
         <ul>
-          <li>&bull; Không có auth, Docker, reverse proxy hay production WSGI trong repo</li>
-          <li>&bull; Tuning/pipeline lock chỉ an toàn cho single-process</li>
-          <li>&bull; Raw path đang hard-code theo máy hiện tại</li>
+          <li>&bull; Không SQLite, không Vector DB, không LangChain, không database chat; history chỉ ở tab trình duyệt</li>
+          <li>&bull; Không auth, Docker, reverse proxy hay production WSGI; app chỉ bind localhost</li>
+          <li>&bull; Lock pipeline/tuning chỉ an toàn single-process; raw path hard-code theo máy hiện tại</li>
         </ul>
       </div>
     </div>

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Sequence — Chatbot RAG grounded, read-only trên artifact đã publish",
+    "subtitle": "Browser /chat → /api/chat → chatbot_service → LLM tool calling → chatbot_tools → Release Gate → artifact/prediction_service → grounding → answer",
+    "output": "docs/diagrams/luuDo/06-sequence-chatbot-rag.html",
+    "viewBox": [980, 860]
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "Browser", "sublabel": "trang /chat" },
+    { "id": "flask", "type": "frontend", "label": "Flask", "sublabel": "app.py · /api/chat" },
+    { "id": "service", "type": "backend", "label": "Chatbot", "sublabel": "chatbot_service" },
+    { "id": "llm", "type": "external", "label": "LLM", "sublabel": "external · tool calling" },
+    { "id": "tools", "type": "backend", "label": "Tools", "sublabel": "chatbot_tools · 6 tool" },
+    { "id": "gate", "type": "security", "label": "Gate", "sublabel": "release gate" },
+    { "id": "data", "type": "database", "label": "Artifact", "sublabel": "prediction_service + report" }
+  ],
+  "segments": [
+    { "from": 158, "to": 240, "label": "01 / REQUEST + LOCAL ROUTER" },
+    { "from": 250, "to": 334, "label": "02 / LLM CHỌN TOOL (≤ 3 vòng)" },
+    { "from": 344, "to": 556, "label": "03 / TOOL GROUNDED READ-ONLY (≤ 5 call)" },
+    { "from": 566, "to": 726, "label": "04 / GROUNDING + ANSWER" }
+  ],
+  "messages": [
+    { "from": "user", "to": "flask", "y": 186, "label": "POST /api/chat", "variant": "emphasis", "note": "message ≤ 1000 ký tự · history ≤ 3 cặp gần nhất, chỉ trong memory tab" },
+    { "from": "flask", "to": "service", "y": 220, "label": "chat(message, history)", "variant": "emphasis", "note": "social/chào-cảm ơn/hỏi khả năng và tư vấn mua-bán → trả lời local, KHÔNG gọi LLM" },
+
+    { "from": "service", "to": "llm", "y": 270, "label": "system prompt + history + 6 tool", "variant": "emphasis", "note": "tool_choice=auto · deadline tổng 30 giây · max_retries=0" },
+    { "from": "llm", "to": "service", "y": 304, "label": "tool_calls", "variant": "return", "note": "no-tool: chỉ nhận safe clarification, còn lại thay bằng scope message" },
+
+    { "from": "service", "to": "tools", "y": 350, "label": "execute_tool(name, args)", "variant": "default", "note": "allowlist 6 tool · validate lại JSON args · tool call ≤ 5" },
+    { "from": "tools", "to": "gate", "y": 390, "label": "get_release_state()", "variant": "security", "note": "đọc identity: final_model.pkl · model_metadata.json · pipeline_summary.json" },
+    { "from": "gate", "to": "tools", "y": 424, "label": "status + warnings", "variant": "return", "note": "current / legacy / inconsistent / missing; inconsistent+missing chặn signal, ranking, metrics, feature" },
+    { "from": "tools", "to": "data", "y": 464, "label": "predict_symbols / all · đọc report", "variant": "default", "note": "chỉ get_stock_signals & get_ranking chạm prediction_service; read-only, không train" },
+    { "from": "data", "to": "tools", "y": 498, "label": "rows + report", "variant": "return", "note": "recheck chữ ký file sau inference; release đổi giữa chừng → release_changed" },
+    { "from": "tools", "to": "service", "y": 538, "label": "envelope: data · source · release · warnings", "variant": "return", "note": "get_project_info trả contract tĩnh, không qua release gate" },
+
+    { "from": "service", "to": "llm", "y": 586, "label": "tool result (tool_call_id)", "variant": "default", "note": "lặp tới final plain text hoặc chạm giới hạn vòng/tool/deadline" },
+    { "from": "llm", "to": "service", "y": 620, "label": "final plain text", "variant": "return" },
+
+    { "from": "service", "to": "flask", "y": 668, "label": "grounding validation", "variant": "security", "note": "chặn số ngoài tool result, Điểm UP gán sai mã, % viết bằng chữ, cụm mua/bán/BUY/SELL" },
+    { "from": "flask", "to": "user", "y": 712, "label": "answer + sources + warnings + release_status", "variant": "return", "note": "render bằng textContent; disclaimer offline luôn hiển thị" }
+  ],
+  "activations": [
+    { "participant": "flask", "from": 182, "to": 716, "type": "frontend" },
+    { "participant": "service", "from": 216, "to": 672, "type": "backend" },
+    { "participant": "llm", "from": 266, "to": 308, "type": "external" },
+    { "participant": "tools", "from": 346, "to": 542, "type": "backend" },
+    { "participant": "gate", "from": 386, "to": 428, "type": "security" },
+    { "participant": "data", "from": 460, "to": 502, "type": "database" },
+    { "participant": "llm", "from": 582, "to": 624, "type": "external" }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Sáu tool read-only",
+      "items": [
+        "get_stock_signals: tín hiệu 1-2 mã; get_ranking: top/bottom Điểm UP (≤ 10)",
+        "get_model_info: model/target/threshold/metrics; get_dataset_info: snapshot dataset",
+        "get_feature_info: feature order + global importance; get_project_info: contract tĩnh theo topic"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Release gate + provenance",
+      "items": [
+        "current: trả bình thường; legacy: cho signal/ranking kèm warning policy/baseline/scope",
+        "inconsistent/missing: chặn signal, ranking, metrics, feature importance",
+        "Mỗi tool result mang source, warnings và release_status; service từ chối nếu release đổi giữa các tool call"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Read-only, không train",
+      "items": [
+        "Chatbot không import hay gọi run_pipeline.py, không refresh, không sửa dữ liệu hay artifact",
+        "Giới hạn cứng: ≤ 3 vòng LLM, ≤ 5 tool call, deadline server 30 giây",
+        "Không Vector DB, không LangChain, không database chat; history chỉ trong memory tab trình duyệt"
+      ]
+    }
+  ]
+}

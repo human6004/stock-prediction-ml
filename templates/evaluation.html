@@ -1,147 +1,121 @@
-<!doctype html>
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Đánh giá model - HOSE ML</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
-</head>
-<body>
-    {% macro metric_table(items, empty_text) %}
-    <div class="table-wrap">
+{% extends "base.html" %}
+{% block title %}Đánh giá model - HOSE ML{% endblock %}
+
+{% block page_header %}
+<p class="eyebrow">Đánh giá</p>
+<h1>Đánh giá model theo protocol hiện hành</h1>
+<p class="subtitle">
+    Tuning dùng CV trên TRAIN. Loại model được chọn trên VALIDATION.
+    TEST chỉ đánh giá Final Model đã refit một lần.
+</p>
+{% endblock %}
+
+{% block content %}
+{% macro metric_table(items, empty_text) %}
+<div class="table-wrap" data-ui="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th scope="col">Model</th>
+                <th scope="col">Accuracy</th>
+                <th scope="col">Precision UP</th>
+                <th scope="col">Recall UP</th>
+                <th scope="col">F1 UP</th>
+                <th scope="col">Precision NOT_UP</th>
+                <th scope="col">Recall NOT_UP</th>
+                <th scope="col">F1 NOT_UP</th>
+                <th scope="col">Trạng thái</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in items %}
+            <tr class="{{ 'selected-row' if row.status else '' }}">
+                <th scope="row">{{ row.model_name }}</th>
+                <td>{{ "%.4f"|format(row.accuracy) }}</td>
+                <td>{{ "%.4f"|format(row.precision_up) }}</td>
+                <td>{{ "%.4f"|format(row.recall_up) }}</td>
+                <td>{{ "%.4f"|format(row.f1_up) }}</td>
+                <td>{{ "%.4f"|format(row.precision_not_up) }}</td>
+                <td>{{ "%.4f"|format(row.recall_not_up) }}</td>
+                <td>{{ "%.4f"|format(row.f1_not_up) }}</td>
+                <td>{% if row.status %}<span class="cell-badge cell-badge-on">{{ row.status }}</span>{% else %}<span class="cell-dash">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% if not items %}
+            <tr><td colspan="9" class="empty">{{ empty_text }}</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}
+
+{% if sections.legacy_warning %}
+<section class="alert warn" role="status">{{ sections.legacy_warning }}</section>
+{% endif %}
+{% if baseline_warning %}
+<section class="alert warn" role="status">{{ baseline_warning }}</section>
+{% endif %}
+
+{% if sections.is_current_policy %}
+<section class="workspace evaluation-section">
+    <p class="eyebrow">MODEL COMPARISON</p>
+    <h2>Bảng so sánh model</h2>
+    <div class="table-wrap" data-ui="table-scroll">
         <table>
             <thead>
                 <tr>
                     <th scope="col">Model</th>
                     <th scope="col">Accuracy</th>
-                    <th scope="col">Precision UP</th>
-                    <th scope="col">Recall UP</th>
-                    <th scope="col">F1 UP</th>
-                    <th scope="col">Precision NOT_UP</th>
-                    <th scope="col">Recall NOT_UP</th>
-                    <th scope="col">F1 NOT_UP</th>
-                    <th scope="col">Trạng thái</th>
+                    <th scope="col">Precision_UP</th>
+                    <th scope="col">Recall_UP</th>
+                    <th scope="col">F1_UP</th>
+                    <th scope="col">CV F1_UP</th>
+                    <th scope="col">Threshold</th>
+                    <th scope="col">Chọn</th>
                 </tr>
             </thead>
             <tbody>
-                {% for row in items %}
+                {% for row in sections.validation if row.row_type == "candidate" %}
                 <tr class="{{ 'selected-row' if row.status else '' }}">
                     <th scope="row">{{ row.model_name }}</th>
                     <td>{{ "%.4f"|format(row.accuracy) }}</td>
                     <td>{{ "%.4f"|format(row.precision_up) }}</td>
                     <td>{{ "%.4f"|format(row.recall_up) }}</td>
                     <td>{{ "%.4f"|format(row.f1_up) }}</td>
-                    <td>{{ "%.4f"|format(row.precision_not_up) }}</td>
-                    <td>{{ "%.4f"|format(row.recall_not_up) }}</td>
-                    <td>{{ "%.4f"|format(row.f1_not_up) }}</td>
-                    <td>{% if row.status %}<span class="cell-badge cell-badge-on">{{ row.status }}</span>{% else %}<span class="cell-dash">—</span>{% endif %}</td>
+                    <td>{{ "%.4f"|format(row.cv_f1_up) }}</td>
+                    <td>{{ "%.2f"|format(row.decision_threshold|default(0.5)) }}</td>
+                    <td>
+                        {% if row.status %}
+                        <span class="cell-badge cell-badge-on">Đã chọn</span>
+                        {% else %}
+                        <span class="cell-badge">—</span>
+                        {% endif %}
+                    </td>
                 </tr>
+                {% else %}
+                <tr><td colspan="8" class="empty">Chưa có kết quả so sánh model.</td></tr>
                 {% endfor %}
-                {% if not items %}
-                <tr><td colspan="9" class="empty">{{ empty_text }}</td></tr>
-                {% endif %}
             </tbody>
         </table>
     </div>
-    {% endmacro %}
-
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow">Đánh giá</p>
-                <h1>Đánh giá model theo protocol hiện hành</h1>
-                <p class="subtitle">
-                    Tuning dùng CV trên TRAIN. Loại model được chọn trên VALIDATION.
-                    TEST chỉ đánh giá Final Model đã refit một lần.
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
-                <a class="nav-link" href="{{ url_for('screener') }}">Bảng xếp hạng</a>
-                <a class="nav-link" href="{{ url_for('tuning') }}">Tuning Lab</a>
-            </div>
-        </nav>
-
-        {% if dataset_max_date %}
-        <p class="dataset-banner">
-            Dataset xử lý đến {{ dataset_max_date|date_vi }}. Model đang dùng:
-            <strong>{{ selected_model or "Chưa có" }}</strong>.
-        </p>
-        {% endif %}
-
-        {% if sections.legacy_warning %}
-        <section class="alert warn" role="status">{{ sections.legacy_warning }}</section>
-        {% endif %}
-        {% if baseline_warning %}
-        <section class="alert warn" role="status">{{ baseline_warning }}</section>
-        {% endif %}
-
-        {% if sections.is_current_policy %}
-        <section class="workspace evaluation-section">
-            <p class="eyebrow">MODEL COMPARISON</p>
-            <h2>Bảng so sánh model</h2>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Model</th>
-                            <th>Accuracy</th>
-                            <th>Precision_UP</th>
-                            <th>Recall_UP</th>
-                            <th>F1_UP</th>
-                            <th>CV F1_UP</th>
-                            <th>Threshold</th>
-                            <th>Chọn</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in sections.validation if row.row_type == "candidate" %}
-                        <tr class="{{ 'selected-row' if row.status else '' }}">
-                            <th scope="row">{{ row.model_name }}</th>
-                            <td>{{ "%.4f"|format(row.accuracy) }}</td>
-                            <td>{{ "%.4f"|format(row.precision_up) }}</td>
-                            <td>{{ "%.4f"|format(row.recall_up) }}</td>
-                            <td>{{ "%.4f"|format(row.f1_up) }}</td>
-                            <td>{{ "%.4f"|format(row.cv_f1_up) }}</td>
-                            <td>{{ "%.2f"|format(row.decision_threshold|default(0.5)) }}</td>
-                            <td>
-                                {% if row.status %}
-                                <span class="cell-badge cell-badge-on">Đã chọn</span>
-                                {% else %}
-                                <span class="cell-badge">—</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="8" class="empty">Chưa có kết quả so sánh model.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <p class="eval-note">
-                Metric chính lấy từ VALIDATION; CV F1_UP lấy từ TRAIN. Chọn theo F1_UP, rồi Recall_UP, cuối cùng LR → RF → GB.
-            </p>
-            {% for row in sections.test if row.row_type == "final" %}
-            <p class="eval-note">
-                <strong>Kết quả Final Model trên TEST:</strong>
-                {{ row.model_name }} — Accuracy {{ "%.4f"|format(row.accuracy) }},
-                Precision_UP {{ "%.4f"|format(row.precision_up) }},
-                Recall_UP {{ "%.4f"|format(row.recall_up) }},
-                F1_UP {{ "%.4f"|format(row.f1_up) }}.
-                <a href="{{ url_for('confusion_matrix_image') }}" target="_blank">Xem confusion matrix</a>.
-            </p>
-            {% endfor %}
-        </section>
-        {% else %}
-        <section class="workspace evaluation-section">
-            <h2>Kết quả legacy</h2>
-            {{ metric_table(sections.legacy, "Chưa có report legacy.") }}
-        </section>
-        {% endif %}
-    </main>
-</body>
-</html>
+    <p class="eval-note">
+        Metric chính lấy từ VALIDATION; CV F1_UP lấy từ TRAIN. Chọn theo F1_UP, rồi Recall_UP, cuối cùng LR → RF → GB.
+    </p>
+    {% for row in sections.test if row.row_type == "final" %}
+    <p class="eval-note">
+        <strong>Kết quả Final Model trên TEST:</strong>
+        {{ row.model_name }} — Accuracy {{ "%.4f"|format(row.accuracy) }},
+        Precision_UP {{ "%.4f"|format(row.precision_up) }},
+        Recall_UP {{ "%.4f"|format(row.recall_up) }},
+        F1_UP {{ "%.4f"|format(row.f1_up) }}.
+        <a href="{{ url_for('confusion_matrix_image') }}" target="_blank">Xem confusion matrix</a>.
+    </p>
+    {% endfor %}
+</section>
+{% else %}
+<section class="workspace evaluation-section">
+    <h2>Kết quả legacy</h2>
+    {{ metric_table(sections.legacy, "Chưa có report legacy.") }}
+</section>
+{% endif %}
+{% endblock %}

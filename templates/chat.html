@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{# Trợ lý grounded: giữ nguyên 100% khối <script> và mọi id nghiệp vụ; chỉ đổi
+   khung sang shell dùng chung. Test khóa chặt các id/thứ tự trong script. #}
+
+{% block title %}Trợ lý dữ liệu và mô hình HOSE — HOSE ML{% endblock %}
+
+{% block page_header %}
+<h1>Trợ lý dữ liệu và mô hình HOSE</h1>
+<p class="subtitle">Hỏi bằng tiếng Việt; câu trả lời chỉ dựa trên artifact và report offline đã publish.</p>
+{% endblock %}
+
+{% block dataset_status %}
+<div id="dataset-status" class="dataset-status">
+    <span class="status-chip">Offline</span>
+    <span class="status-item">
+        Dữ liệu offline{% if dataset_max_date %} đến <strong>{{ dataset_max_date|date_vi }}</strong>{% endif %}
+    </span>
+    <span class="status-item">{{ symbol_count }} mã</span>
+    <span class="status-item status-model">Model: {{ selected_model or "chưa có" }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="workspace chat-workspace">
+    <div class="chat-suggestions" aria-label="Câu hỏi gợi ý">
+        <button type="button" class="nav-link" data-prompt="FPT đang thế nào?">FPT đang thế nào?</button>
+        <button type="button" class="nav-link" data-prompt="So sánh FPT với VNM">So sánh FPT với VNM</button>
+        <button type="button" class="nav-link" data-prompt="Model học từ dữ liệu gì?">Model học từ dữ liệu gì?</button>
+    </div>
+
+    <ol id="chat-transcript" class="chat-transcript" aria-label="Nội dung hội thoại" aria-live="polite"></ol>
+
+    <div id="chat-result" class="chat-result">
+        <section id="chat-release" class="chat-meta" hidden></section>
+        <section id="chat-sources" class="chat-meta" hidden></section>
+        <section id="chat-warnings" class="chat-meta chat-meta-warn" hidden></section>
+    </div>
+
+    <form id="chat-form" class="chat-compose" aria-busy="false">
+        <label for="chat-message">Câu hỏi</label>
+        <textarea id="chat-message" rows="3" maxlength="1000" required
+                  placeholder="VD: Còn VNM thì sao?"></textarea>
+        <button id="send-chat" type="submit">Gửi</button>
+        <button id="clear-chat" type="button" class="btn-secondary">Xóa hội thoại</button>
+    </form>
+</section>
+
+<p class="disclaimer">
+    Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư. Giá và tín hiệu đều là dữ liệu offline tại ngày tham chiếu.
+</p>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    (() => {
+        const form = document.getElementById("chat-form");
+        const input = document.getElementById("chat-message");
+        const send = document.getElementById("send-chat");
+        const clear = document.getElementById("clear-chat");
+        const transcript = document.getElementById("chat-transcript");
+        const release = document.getElementById("chat-release");
+        const sources = document.getElementById("chat-sources");
+        const warnings = document.getElementById("chat-warnings");
+        const promptButtons = [...document.querySelectorAll("[data-prompt]")];
+        const releaseLabels = {
+            current: "Hiện hành",
+            legacy: "Bản cũ",
+            inconsistent: "Không đồng nhất",
+            missing: "Chưa sẵn sàng"
+        };
+        const sourceLabels = {
+            stock_signal: "Tín hiệu cổ phiếu",
+            ranking: "Bảng xếp hạng Điểm UP",
+            model_metadata: "Thông tin model",
+            dataset_info: "Thông tin dataset",
+            feature_info: "Thông tin feature",
+            feature_importance: "Thông tin feature",
+            project_contract: "Kiến thức project",
+            artifact: "Artifact đã publish"
+        };
+        const history = [];
+        let busy = false;
+
+        function appendMessage(role, content) {
+            const item = document.createElement("li");
+            item.className = `chat-entry chat-entry-${role}`;
+            item.tabIndex = -1;
+            const label = document.createElement("strong");
+            label.className = "chat-role";
+            label.textContent = role === "user" ? "Bạn" : "Trợ lý";
+            const text = document.createElement("p");
+            text.className = "chat-text";
+            text.textContent = content;
+            item.append(label, text);
+            transcript.append(item);
+            item.scrollIntoView({block: "nearest"});
+            return item;
+        }
+
+        function setMeta(element, label, values, asList = false) {
+            element.replaceChildren();
+            if (!values || values.length === 0) {
+                element.hidden = true;
+                return;
+            }
+            const title = document.createElement("strong");
+            title.textContent = `${label}:`;
+            element.append(title);
+            if (asList) {
+                const list = document.createElement("ul");
+                values.forEach((value) => {
+                    const item = document.createElement("li");
+                    item.textContent = value;
+                    list.append(item);
+                });
+                element.append(list);
+            } else {
+                const text = document.createElement("span");
+                text.textContent = ` ${values.join(" · ")}`;
+                element.append(text);
+            }
+            element.hidden = false;
+        }
+
+        function clearMetadata() {
+            [release, sources, warnings].forEach((element) => {
+                element.replaceChildren();
+                element.hidden = true;
+            });
+        }
+
+        function apiErrorMessage(data) {
+            const message = data && data.error && typeof data.error.message === "string"
+                ? data.error.message.trim()
+                : "";
+            return message ? message.slice(0, 1000) : "Không thể gọi trợ lý lúc này.";
+        }
+
+        function showMetadata(data) {
+            const releaseStatus = data.release_status;
+            setMeta(
+                release,
+                "Phiên bản model",
+                releaseStatus ? [releaseLabels[releaseStatus] || releaseStatus] : []
+            );
+            setMeta(
+                sources,
+                "Nguồn",
+                (data.sources || []).map((source) => {
+                    const symbols = source.symbols ? ` ${source.symbols.join(", ")}` : "";
+                    const asOf = source.as_of ? ` @ ${source.as_of}` : "";
+                    const kind = source.kind || "artifact";
+                    return `${sourceLabels[kind] || kind}${symbols}${asOf}`;
+                })
+            );
+            setMeta(
+                warnings,
+                "Cảnh báo",
+                (data.warnings || []).map((warning) => warning.message || String(warning)),
+                true
+            );
+        }
+
+        function setBusy(value) {
+            busy = value;
+            input.disabled = value;
+            send.disabled = value;
+            clear.disabled = value;
+            promptButtons.forEach((button) => { button.disabled = value; });
+            form.setAttribute("aria-busy", String(value));
+            send.textContent = value ? "Đang xử lý…" : "Gửi";
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            const message = input.value.trim();
+            if (!message) return;
+            clearMetadata();
+            const requestHistory = history.slice(-6);
+            appendMessage("user", message);
+            input.value = "";
+            setBusy(true);
+            const controller = new AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), 35000);
+            try {
+                const response = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({message, history: requestHistory}),
+                    signal: controller.signal
+                });
+                let data;
+                try {
+                    data = await response.json();
+                } catch {
+                    throw new Error("invalid_response");
+                }
+                if (!response.ok) {
+                    const apiError = new Error("api_error");
+                    apiError.publicMessage = apiErrorMessage(data);
+                    throw apiError;
+                }
+                const result = appendMessage("assistant", data.answer);
+                showMetadata(data);
+                history.push(
+                    {role: "user", content: message},
+                    {role: "assistant", content: data.answer.slice(0, 1000)}
+                );
+                result.focus();
+            } catch (error) {
+                const messageText = error.name === "AbortError"
+                    ? "Trợ lý đã quá thời gian chờ. Vui lòng thử lại."
+                    : typeof error.publicMessage === "string"
+                        ? error.publicMessage
+                        : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
+                const result = appendMessage("assistant", messageText);
+                setMeta(warnings, "Lỗi", [messageText], true);
+                result.focus();
+            } finally {
+                window.clearTimeout(timeout);
+                setBusy(false);
+            }
+        });
+
+        clear.addEventListener("click", () => {
+            history.splice(0);
+            transcript.replaceChildren();
+            clearMetadata();
+            input.value = "";
+            input.focus();
+        });
+
+        promptButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                input.value = button.dataset.prompt;
+                input.focus();
+            });
+        });
+    })();
+</script>
+{% endblock %}

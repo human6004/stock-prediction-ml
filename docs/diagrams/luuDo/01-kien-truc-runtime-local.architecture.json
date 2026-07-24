@@ -2,99 +2,100 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Kiến trúc hệ thống — HOSE Stock Prediction",
-    "subtitle": "Flask server-rendered · Python jobs · file artifacts — SQLite đã loại bỏ",
+    "title": "Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime",
+    "subtitle": "Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact",
     "output": "docs/diagrams/luuDo/01-kien-truc-runtime-local.html",
-    "viewBox": [1520, 900]
+    "viewBox": [1620, 1180]
   },
   "components": [
-    { "id": "vnstock", "type": "external", "label": "vnstock KBS", "sublabel": "Quote.history · 1D", "pos": [30, 80], "size": [155, 64], "tag": "external" },
-    { "id": "raw", "type": "database", "label": "Shared Raw CSV", "sublabel": "hose_stock_raw.csv", "pos": [30, 235], "size": [155, 68], "tag": "ngoài repo" },
-    { "id": "browser", "type": "external", "label": "Người dùng", "sublabel": "browser · HTML forms", "pos": [30, 400], "size": [155, 64] },
-    { "id": "terminal", "type": "external", "label": "CLI", "sublabel": "predict_stock.py", "pos": [30, 560], "size": [155, 64] },
+    { "id": "vnstock", "type": "external", "label": "vnstock", "sublabel": "OHLCV 1D KBS", "pos": [60, 70], "size": [185, 58], "tag": "nguồn dữ liệu" },
+    { "id": "extllm", "type": "external", "label": "External LLM", "sublabel": "OpenAI-compatible provider", "pos": [1185, 70], "size": [210, 58], "tag": "tool calling" },
 
-    { "id": "refresh", "type": "backend", "label": "Refresh job", "sublabel": "refresh_data.py", "pos": [290, 80], "size": [160, 68], "tag": "Popen nền" },
-    { "id": "flask", "type": "frontend", "label": "Flask + Jinja", "sublabel": "app.py · :5000", "pos": [290, 470], "size": [160, 68], "tag": "server-rendered" },
+    { "id": "refresh", "type": "backend", "label": "refresh_data.py", "sublabel": "Popen nền", "pos": [60, 250], "size": [185, 58], "tag": "fetch job" },
+    { "id": "dataservices", "type": "backend", "label": "Data / ML services", "sublabel": "clean · features · labels · split", "pos": [305, 250], "size": [200, 58], "tag": "processed CSV" },
+    { "id": "pipeline", "type": "backend", "label": "run_pipeline.py", "sublabel": "official pipeline", "pos": [555, 250], "size": [185, 58], "tag": "subprocess" },
+    { "id": "experiments", "type": "security", "label": "Experiment state", "sublabel": "history · config · registry · lock", "pos": [800, 250], "size": [200, 58], "tag": "fingerprint" },
+    { "id": "tuninglab", "type": "backend", "label": "Tuning Lab", "sublabel": "/tuning · evaluate · run-pipeline", "pos": [1055, 250], "size": [190, 58], "tag": "orchestrator" },
 
-    { "id": "pipeline", "type": "backend", "label": "Official pipeline", "sublabel": "run_pipeline.py", "pos": [520, 80], "size": [170, 68], "tag": "subprocess sync" },
-    { "id": "tuning", "type": "backend", "label": "Tuning Lab CV", "sublabel": "1 daemon thread", "pos": [520, 300], "size": [170, 68], "tag": "TRAIN only" },
-    { "id": "prediction", "type": "backend", "label": "Prediction service", "sublabel": "predict_symbols()", "pos": [520, 540], "size": [170, 68], "tag": "1–2 mã" },
+    { "id": "finalmodel", "type": "database", "label": "final_model.pkl", "sublabel": "trained artifact", "pos": [360, 560], "size": [175, 58] },
+    { "id": "metadata", "type": "database", "label": "model_metadata.json", "sublabel": "horizon · threshold · features", "pos": [575, 560], "size": [175, 58] },
+    { "id": "summary", "type": "database", "label": "pipeline_summary.json", "sublabel": "release identity", "pos": [790, 560], "size": [180, 58] },
+    { "id": "reports", "type": "database", "label": "reports/", "sublabel": "evaluation · confusion · importance", "pos": [1010, 560], "size": [175, 58] },
 
-    { "id": "mlcore", "type": "backend", "label": "Data + ML services", "sublabel": "clean · feature · tune · eval", "pos": [780, 80], "size": [175, 68], "tag": "20 features" },
+    { "id": "browser", "type": "external", "label": "Người dùng", "sublabel": "User Browser · CLI", "pos": [60, 770], "size": [185, 58] },
+    { "id": "flask", "type": "frontend", "label": "Flask + Jinja", "sublabel": "app.py · :5000", "pos": [305, 770], "size": [190, 58], "tag": "HTML server-rendered" },
+    { "id": "prediction", "type": "backend", "label": "prediction_service", "sublabel": "predict_symbols()", "pos": [555, 770], "size": [190, 58], "tag": "load artifact · không retrain" },
 
-    { "id": "processed", "type": "database", "label": "Processed CSV", "sublabel": "clean · features · ml_dataset", "pos": [1030, 80], "size": [185, 68], "tag": "file source" },
-    { "id": "experiments", "type": "security", "label": "Experiment state", "sublabel": "history · config · registry · lock", "pos": [1030, 300], "size": [185, 68], "tag": "2 fingerprint" },
-    { "id": "models", "type": "database", "label": "Release artifacts", "sublabel": "final_model.pkl · metadata · reports", "pos": [1030, 540], "size": [185, 68], "tag": "Final Model đọc từ artifact" }
+    { "id": "chatapi", "type": "frontend", "label": "/chat · /api/chat", "sublabel": "app.py JSON REST", "pos": [305, 950], "size": [190, 58], "tag": "JSON endpoint" },
+    { "id": "chatservice", "type": "backend", "label": "chatbot_service", "sublabel": "Chat Completions loop", "pos": [555, 950], "size": [190, 58], "tag": "≤3 vòng · ≤5 tool · 30s" },
+    { "id": "chattools", "type": "backend", "label": "chatbot_tools", "sublabel": "6 read-only tools", "pos": [800, 950], "size": [195, 58], "tag": "grounded" },
+    { "id": "releasegate", "type": "security", "label": "Release Gate", "sublabel": "get_release_state()", "pos": [1055, 950], "size": [190, 58], "tag": "status + warning" }
   ],
   "boundaries": [
-    {
-      "kind": "region",
-      "label": "Repo local · Flask single-process + Python jobs + generated artifacts",
-      "wraps": [
-        "refresh", "flask", "pipeline", "tuning", "prediction", "mlcore",
-        "processed", "experiments", "models"
-      ]
-    }
+    { "kind": "region", "label": "External · dịch vụ bên ngoài", "wraps": ["vnstock", "extllm"] },
+    { "kind": "region", "label": "Offline ML · fetch + official pipeline + tuning (bên ghi artifact)", "wraps": ["refresh", "dataservices", "pipeline", "experiments", "tuninglab"] },
+    { "kind": "region", "label": "Published Release · điểm nối read-only", "wraps": ["finalmodel", "metadata", "summary", "reports"] },
+    { "kind": "region", "label": "Runtime · Flask single-process (prediction + chatbot RAG)", "wraps": ["browser", "flask", "prediction", "chatapi", "chatservice", "chattools", "releasegate"] }
   ],
   "connections": [
-    { "from": "vnstock", "to": "refresh", "label": "OHLCV 1D", "variant": "emphasis" },
-    { "from": "refresh", "to": "raw", "label": "merge atomic", "variant": "emphasis", "fromSide": "top", "toSide": "right", "route": "orthogonal-v", "via": [[260, 60], [210, 60], [210, 269]], "labelAt": [205, 200] },
-    { "from": "raw", "to": "mlcore", "label": "raw snapshot", "variant": "emphasis", "fromSide": "left", "toSide": "top", "route": "orthogonal-v", "via": [[5, 269], [5, 5], [868, 5]], "labelAt": [700, 18] },
+    { "from": "vnstock", "to": "refresh", "label": "OHLCV 1D", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "via": [[152, 128], [152, 250]], "labelAt": [178, 190] },
+    { "from": "refresh", "to": "dataservices", "label": "raw · clean", "variant": "emphasis", "labelAt": [275, 232] },
+    { "from": "dataservices", "to": "pipeline", "label": "ml_dataset", "variant": "emphasis", "labelAt": [530, 232] },
+    { "from": "pipeline", "to": "experiments", "label": "registry + lock", "variant": "security", "labelAt": [770, 232] },
+    { "from": "tuninglab", "to": "pipeline", "label": "run-pipeline · subprocess", "variant": "security", "fromSide": "bottom", "toSide": "bottom", "route": "orthogonal-v", "via": [[1150, 350], [647, 350]], "labelAt": [880, 340] },
 
-    { "from": "browser", "to": "flask", "label": "GET / POST HTML", "variant": "emphasis" },
-    { "from": "terminal", "to": "prediction", "label": "CLI predict", "variant": "dashed", "fromSide": "right", "toSide": "bottom", "route": "orthogonal-v", "via": [[230, 592], [605, 660], [605, 612]], "labelAt": [400, 648] },
-    { "from": "flask", "to": "refresh", "label": "Popen nền", "variant": "dashed", "fromSide": "top", "toSide": "left", "route": "orthogonal-v", "via": [[260, 450], [260, 114]], "labelAt": [238, 300] },
-    { "from": "flask", "to": "pipeline", "label": "run + wait", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[370, 240], [605, 240]], "labelAt": [485, 228] },
-    { "from": "flask", "to": "tuning", "label": "start CV", "variant": "default", "fromSide": "right", "toSide": "left", "route": "orthogonal-v", "via": [[480, 504], [480, 334]], "labelAt": [458, 420] },
-    { "from": "flask", "to": "prediction", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[370, 574], [520, 574]] },
+    { "from": "pipeline", "to": "finalmodel", "label": "atomic publish: model · metadata · summary · reports", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "via": [[647, 430], [447, 430]], "labelAt": [560, 470] },
 
-    { "from": "pipeline", "to": "mlcore", "variant": "emphasis" },
-    { "from": "mlcore", "to": "processed", "label": "CSV outputs", "variant": "emphasis", "labelAt": [998, 102] },
-    { "from": "tuning", "to": "processed", "label": "đọc ml_dataset", "variant": "default", "fromSide": "bottom", "toSide": "bottom", "route": "orthogonal-v", "via": [[955, 410], [1122, 410]], "labelAt": [1050, 398] },
-    { "from": "tuning", "to": "experiments", "label": "history + selected run", "variant": "security" },
-    { "from": "pipeline", "to": "experiments", "label": "registry + locks", "variant": "security", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[605, 205], [1000, 205], [1000, 334]], "labelAt": [790, 196] },
+    { "from": "browser", "to": "flask", "label": "/predict · /compare · /screener · /chat (HTML)", "variant": "emphasis", "labelAt": [270, 752] },
+    { "from": "flask", "to": "prediction", "label": "predict_symbols()", "variant": "emphasis", "labelAt": [525, 752] },
+    { "from": "browser", "to": "chatapi", "label": "POST /api/chat (JSON)", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[152, 895], [280, 895], [280, 979]], "labelAt": [200, 878] },
+    { "from": "chatapi", "to": "chatservice", "label": "chat()", "variant": "emphasis", "labelAt": [525, 932] },
+    { "from": "chatservice", "to": "chattools", "label": "execute_tool", "variant": "default", "labelAt": [772, 932] },
+    { "from": "chattools", "to": "releasegate", "label": "get_release_state", "variant": "security", "labelAt": [1025, 932] },
 
-    { "from": "prediction", "to": "processed", "label": "đọc clean.csv", "variant": "default", "fromSide": "bottom", "toSide": "right", "route": "orthogonal-v", "via": [[730, 620], [730, 780], [1460, 780], [1460, 114]], "labelAt": [1100, 768] },
-    { "from": "prediction", "to": "models", "label": "load PKL + metadata (không retrain)", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [860, 560] },
-    { "from": "mlcore", "to": "models", "label": "reports + atomic release", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[867, 480], [1000, 480], [1000, 574]], "labelAt": [880, 300] }
+    { "from": "chatservice", "to": "extllm", "label": "Chat Completions · tool calling", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 935], [1300, 935], [1300, 128]], "labelAt": [1330, 520] },
+
+    { "from": "chattools", "to": "prediction", "label": "reuse predict / ranking", "variant": "default", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[897, 905], [650, 905]], "labelAt": [790, 888] },
+
+    { "from": "prediction", "to": "finalmodel", "label": "load PKL + metadata · không retrain", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 700], [447, 700]], "labelAt": [560, 690] },
+    { "from": "chattools", "to": "reports", "label": "đọc reports · read-only", "variant": "default", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[897, 740], [1097, 740]], "labelAt": [1000, 728] },
+    { "from": "releasegate", "to": "summary", "label": "read identity · read-only", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[1150, 720], [880, 720]], "labelAt": [1010, 708] }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Runtime thật",
+      "title": "Bốn boundary, một điểm nối",
       "items": [
-        "Flask monolith local tại 127.0.0.1:5000; HTML forms + Jinja, không có JSON REST API",
-        "Trang /evaluation đọc report CSV/JSON/PNG đã sinh; không gọi model để tính lại",
-        "Tuning Lab là một daemon thread trong process, chỉ chạy 4-fold CV trên TRAIN",
-        "Official pipeline chặn request bằng subprocess.run; refresh chạy nền bằng Popen + PID lock + logfile"
+        "External: vnstock cấp OHLCV, External LLM chỉ nhận tool calling từ chatbot_service — không nối trực tiếp với artifact",
+        "Offline ML (refresh_data.py + run_pipeline.py + Tuning Lab) là bên duy nhất GHI artifact vào Published Release",
+        "Runtime Prediction và Chatbot chỉ ĐỌC release đã publish"
       ]
     },
     {
       "dot": "emerald",
-      "title": "Nguồn dữ liệu và serving",
+      "title": "Runtime prediction",
       "items": [
-        "Raw CSV nằm trong shared_dataset ngoài repo; refresh fetch cửa sổ riêng từng symbol rồi ghi atomic",
-        "Prediction đọc clean CSV + final_model.pkl + model_metadata.json trực tiếp, không retrain",
-        "Final Model phục vụ được đọc từ artifact; prediction horizon và threshold lấy động từ metadata",
-        "Web gồm prediction, compare, evaluation, tuning và refresh status"
+        "prediction_service load final_model.pkl + model_metadata.json, đọc clean data — Prediction không retrain",
+        "Horizon và threshold đọc động từ metadata, fallback artifact rồi settings",
+        "Flask không tự nạp model; mọi inference đi qua prediction_service"
       ]
     },
     {
-      "dot": "rose",
-      "title": "Đã loại khỏi runtime",
+      "dot": "violet",
+      "title": "Runtime chatbot RAG",
       "items": [
-        "Không còn SQLite: thư mục database/ đã xóa, không có mirror DB trên đường inference",
-        "Không còn Dummy model hay intermediate tuned artifacts",
-        "Không còn roadmap / document gate trong pipeline runtime"
+        "Có local JSON API /api/chat; chatbot_service loop tool calling tối đa 3 vòng LLM, 5 tool call, deadline 30 giây",
+        "6 read-only tools qua Release Gate; Chatbot không train, Chatbot không chạy run_pipeline.py",
+        "External LLM chỉ chọn tool và diễn giải; server giữ validation, grounding, release gate và budget"
       ]
     },
     {
       "dot": "amber",
       "title": "Giới hạn triển khai",
       "items": [
-        "Không có auth, Docker, reverse proxy hay production WSGI trong repo",
-        "Tuning/pipeline lock chỉ an toàn cho single-process",
-        "Raw path đang hard-code theo máy hiện tại"
+        "Không SQLite, không Vector DB, không LangChain, không database chat; history chỉ ở tab trình duyệt",
+        "Không auth, Docker, reverse proxy hay production WSGI; app chỉ bind localhost",
+        "Lock pipeline/tuning chỉ an toàn single-process; raw path hard-code theo máy hiện tại"
       ]
     }
   ]

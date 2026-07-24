@@ -1,36 +1,27 @@
-<!doctype html>
-<!-- Tuning Lab: form gửi tham số về Flask; CV thật chạy ở service trên TRAIN. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    {% if tuning_running %}<meta http-equiv="refresh" content="5">{% endif %}
-    <title>Tuning Lab — HOSE ML</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow">Tuning Lab</p>
-                <h1>Tự tìm cấu hình cho từng model</h1>
-                <p class="subtitle">
-                    Tự nhập hyperparameter và chạy CV bao nhiêu lần tùy ý; hệ thống luôn đánh dấu cấu hình tốt nhất.
-                    Khi muốn dừng, chọn một cấu hình cho từng model. CV chỉ dùng TRAIN;
-                    VALIDATION chọn loại model và TEST chỉ đánh giá một lần.
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
-                <a class="nav-link" href="{{ url_for('screener') }}">Bảng xếp hạng</a>
-                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
+{# Tuning Lab: form gửi tham số về Flask; CV thật chạy ở service trên TRAIN.
+   AJAX chỉ thay #main-content (không nuốt shell) — xem block page_scripts. #}
 
+{% block title %}Tuning Lab — HOSE ML{% endblock %}
+
+{% block head_extra %}
+{% if tuning_running %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+
+{% block page_header %}
+<p class="eyebrow">Tuning Lab</p>
+<h1>Tự tìm cấu hình cho từng model</h1>
+<p class="subtitle">
+    Tự nhập hyperparameter và chạy CV bao nhiêu lần tùy ý; hệ thống luôn đánh dấu cấu hình tốt nhất.
+    Khi muốn dừng, chọn một cấu hình cho từng model. CV chỉ dùng TRAIN;
+    VALIDATION chọn loại model và TEST chỉ đánh giá một lần.
+</p>
+{% endblock %}
+
+{% block dataset_status %}{% endblock %}
+
+{% block content %}
+        {% if fingerprint_parts %}
         <p class="dataset-banner">
             Dataset fingerprint hiện tại: <strong>{{ current_fingerprint }}</strong>
             — {{ fingerprint_parts.dataset_rows }} dòng,
@@ -39,6 +30,7 @@
                 CV: 4 fold theo ngày từ 2021, gap 5 phiên, purge label overlap,
                 threshold OOF riêng từng model.
         </p>
+        {% endif %}
 
         {% if error %}
         <section class="alert" role="alert">{{ error }}</section>
@@ -383,14 +375,16 @@
             Điểm trong Tuning Lab là CV trên tập TRAIN, chỉ dùng để chọn cấu hình.
             VALIDATION chọn loại model. TEST chỉ báo cáo Final Model một lần.
         </p>
-    </main>
+{% endblock %}
+
+{% block page_scripts %}
     <script>
         // Điều hướng trong panel lịch sử (tabs, lọc, phân trang, "Dùng cấu hình này")
-        // dùng fetch để thay riêng phần <main>, giữ nguyên vị trí cuộn — không reload cả trang.
+        // dùng fetch để thay riêng phần #main-content, giữ nguyên vị trí cuộn — không reload cả trang.
         // Các form train/pipeline/fetch vẫn điều hướng bình thường (chỉ khóa nút khi submit).
         // Dùng event delegation để phần vừa thay vào vẫn hoạt động.
         (function () {
-            var main = document.querySelector("main.shell");
+            var main = document.getElementById("main-content");
             var canAjax = main && window.fetch && window.history && window.history.pushState;
             var busy = false;
 
@@ -415,15 +409,13 @@
 
             function swap(html, url) {
                 var doc = new DOMParser().parseFromString(html, "text/html");
-                var next = doc.querySelector("main.shell");
+                var next = doc.getElementById("main-content");
                 if (!next) { window.location.assign(url); return; }
                 var s = saveScroll();
                 main.replaceWith(next);
                 main = next;
                 if (doc.title) { document.title = doc.title; }
                 if (url) { window.history.pushState({}, "", url); }
-                // Phần <main> mới không có nút theme (JS chèn) — gắn lại.
-                if (window.mountThemeToggle) { window.mountThemeToggle(); }
                 restoreScroll(s);
             }
 
@@ -488,5 +480,4 @@
             });
         })();
     </script>
-</body>
-</html>
+{% endblock %}

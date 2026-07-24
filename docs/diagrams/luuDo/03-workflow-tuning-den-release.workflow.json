@@ -2,96 +2,126 @@
   "schema_version": 1,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Official pipeline — fingerprint, config gate, VALIDATION gate, TEST một lần, release",
-    "subtitle": "run_pipeline.py: các nhánh config thiếu/stale · snapshot đã đánh giá · thua baseline · TEST thành công · release · release_failed",
+    "title": "Workflow tuning → release — precheck Flask và revalidation trong official pipeline",
+    "subtitle": "run_pipeline.py: lock · dataset_check → split · fingerprint · config gate · fit TRAIN · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed",
     "output": "docs/diagrams/luuDo/03-workflow-tuning-den-release.html"
   },
   "lanes": [
-    { "id": "entry", "label": "Trigger — POST run-pipeline" },
-    { "id": "gate", "label": "Fingerprint + config + snapshot gate" },
-    { "id": "train", "label": "TRAIN fit + VALIDATION selection" },
-    { "id": "test", "label": "TEST một lần + refit" },
-    { "id": "release", "label": "Publish artifact + registry" },
-    { "id": "terminal", "label": "Dừng an toàn / release_failed" }
+    { "id": "flask", "label": "Flask precheck — POST /tuning/run-pipeline (trước khi spawn)" },
+    { "id": "prep", "label": "Official pipeline — lock + tiền xử lý dữ liệu" },
+    { "id": "label", "label": "Nhãn + rolling TRAIN/VALIDATION/TEST split" },
+    { "id": "gate", "label": "Revalidation — fingerprint + snapshot + config gate" },
+    { "id": "write", "label": "Ghi processed outputs + recheck fingerprint" },
+    { "id": "train", "label": "Fit TRAIN + chọn candidate trên VALIDATION" },
+    { "id": "test", "label": "VALIDATION baseline gate → refit TR+VAL → TEST một lần" },
+    { "id": "release", "label": "Reports + metadata + atomic release + published" },
+    { "id": "terminal", "label": "Dừng an toàn / release_failed (release cũ vẫn phục vụ)" }
   ],
   "nodes": [
-    { "id": "trigger", "lane": "entry", "col": 0, "type": "frontend", "label": "Official run", "sublabel": "run_pipeline.py", "width": 96 },
-    { "id": "preflight", "lane": "entry", "col": 2, "type": "security", "label": "Preflight", "sublabel": "lock + đủ 3 config", "tag": "acquire lock", "width": 104 },
-    { "id": "startBuild", "lane": "entry", "col": 5, "type": "backend", "label": "Rebuild RAM", "sublabel": "clean→feat→label→split", "width": 104 },
+    { "id": "trigger", "lane": "flask", "col": 0, "type": "frontend", "label": "Run pipeline", "sublabel": "POST run-pipeline", "width": 92 },
+    { "id": "precheck", "lane": "flask", "col": 2, "type": "security", "label": "Precheck Flask", "sublabel": "3 guard trước spawn", "tag": "chưa chạm TEST", "width": 118 },
+    { "id": "spawn", "lane": "flask", "col": 5, "type": "backend", "label": "Spawn pipeline", "sublabel": "run_pipeline.py sync", "tag": "chờ xong", "width": 108 },
 
-    { "id": "fingerprints", "lane": "gate", "col": 0, "type": "backend", "label": "Fingerprints", "sublabel": "TRAIN + experiment", "tag": "2 scope", "width": 92 },
-    { "id": "snapshotGate", "lane": "gate", "col": 2, "type": "security", "label": "Snapshot?", "sublabel": "has_evaluated_snapshot", "width": 100 },
-    { "id": "configGate", "lane": "gate", "col": 3, "type": "security", "label": "Config đủ?", "sublabel": "is_config_complete", "width": 100 },
-    { "id": "recheck", "lane": "gate", "col": 5, "type": "database", "label": "Ghi CSV", "sublabel": "recheck fingerprint", "width": 104 },
+    { "id": "lock", "lane": "prep", "col": 0, "type": "security", "label": "Acquire lock", "sublabel": "pipeline.lock", "tag": "single-process", "width": 92 },
+    { "id": "datasetCheck", "lane": "prep", "col": 1, "type": "database", "label": "Dataset check", "sublabel": "dataset_check", "width": 96 },
+    { "id": "clean", "lane": "prep", "col": 3, "type": "backend", "label": "Clean data", "sublabel": "clean_data", "width": 96 },
+    { "id": "features", "lane": "prep", "col": 5, "type": "backend", "label": "Build features", "sublabel": "build_features", "width": 104 },
 
-    { "id": "fitTrain", "lane": "train", "col": 0, "type": "backend", "label": "Fit TRAIN", "sublabel": "LR/RF/GB · reuse CV", "tag": "3 model", "width": 92 },
-    { "id": "scoreVal", "lane": "train", "col": 2, "type": "backend", "label": "Score VAL", "sublabel": "3 candidate + 2 baseline", "width": 100 },
-    { "id": "selectGate", "lane": "train", "col": 3, "type": "security", "label": "Vượt baseline?", "sublabel": "F1_UP > baseline tốt nhất", "width": 100 },
-    { "id": "regStarted", "lane": "train", "col": 5, "type": "database", "label": "registry", "sublabel": "started", "width": 104 },
+    { "id": "labels", "lane": "label", "col": 0, "type": "backend", "label": "Create labels", "sublabel": "create_labels", "width": 92 },
+    { "id": "split", "lane": "label", "col": 2, "type": "backend", "label": "Rolling split", "sublabel": "protocol_time_split", "tag": "TR/VAL/TEST", "width": 110 },
+    { "id": "verifySplit", "lane": "label", "col": 5, "type": "security", "label": "Verify split", "sublabel": "verify_protocol_splits", "width": 108 },
 
-    { "id": "refitTest", "lane": "test", "col": 2, "type": "security", "label": "Refit + TEST", "sublabel": "TRAIN+VAL · 1 lần", "tag": "duy nhất chạm TEST", "width": 110 },
-    { "id": "regEval", "lane": "test", "col": 5, "type": "database", "label": "registry", "sublabel": "evaluated", "width": 104 },
+    { "id": "fingerprints", "lane": "gate", "col": 0, "type": "security", "label": "Compute FP", "sublabel": "dataset+experiment", "tag": "2 fingerprint", "width": 92 },
+    { "id": "snapshotGate", "lane": "gate", "col": 2, "type": "security", "label": "Snapshot?", "sublabel": "snapshot đã eval?", "width": 96 },
+    { "id": "configGate", "lane": "gate", "col": 3, "type": "security", "label": "Config đủ?", "sublabel": "is_config_complete", "width": 96 },
 
-    { "id": "reports", "lane": "release", "col": 0, "type": "database", "label": "Write reports", "sublabel": "CSV / JSON / PNG", "width": 96 },
-    { "id": "atomicRelease", "lane": "release", "col": 2, "type": "database", "label": "Atomic release", "sublabel": "PKL + metadata", "tag": "rollback nếu lỗi", "width": 104 },
-    { "id": "regPub", "lane": "release", "col": 5, "type": "backend", "label": "registry", "sublabel": "published", "tag": "release OK", "width": 104 },
+    { "id": "writeOutputs", "lane": "write", "col": 0, "type": "database", "label": "Ghi outputs", "sublabel": "processed CSV", "tag": "processed", "width": 92 },
+    { "id": "recheck", "lane": "write", "col": 5, "type": "security", "label": "Recheck FP", "sublabel": "so khớp content_hash", "tag": "guard snapshot", "width": 108 },
 
-    { "id": "stopSnapshot", "lane": "terminal", "col": 0, "type": "external", "label": "Dừng", "sublabel": "snapshot đã đánh giá", "tag": "không chạy lại TEST", "width": 96 },
-    { "id": "stopConfig", "lane": "terminal", "col": 2, "type": "external", "label": "Dừng", "sublabel": "config thiếu / stale", "tag": "tune lại", "width": 104 },
-    { "id": "stopBaseline", "lane": "terminal", "col": 3, "type": "external", "label": "Dừng", "sublabel": "winner thua baseline", "tag": "trước TEST", "width": 104 },
-    { "id": "releaseFailed", "lane": "terminal", "col": 5, "type": "external", "label": "release_failed", "sublabel": "lỗi sau started", "tag": "release cũ còn", "width": 104 }
+    { "id": "fitTrain", "lane": "train", "col": 0, "type": "backend", "label": "Fit TRAIN", "sublabel": "tune_models", "tag": "reuse CV", "width": 92 },
+    { "id": "scoreVal", "lane": "train", "col": 1, "type": "backend", "label": "Score VAL", "sublabel": "eval candidate", "width": 96 },
+    { "id": "baselines", "lane": "train", "col": 3, "type": "backend", "label": "Baselines", "sublabel": "evaluate_baselines", "width": 104 },
+    { "id": "selectVal", "lane": "train", "col": 5, "type": "security", "label": "Select model", "sublabel": "select_final_model", "tag": "trên VALIDATION", "width": 108 },
+
+    { "id": "baselineGate", "lane": "test", "col": 0, "type": "security", "label": "Vượt baseline?", "sublabel": "F1_UP > baseline", "width": 92 },
+    { "id": "refit", "lane": "test", "col": 2, "type": "backend", "label": "Refit TR+VAL", "sublabel": "refit_and_evaluate", "width": 110 },
+    { "id": "testOnce", "lane": "test", "col": 5, "type": "security", "label": "TEST 1 lần", "sublabel": "chấm TEST duy nhất", "tag": "chạm TEST", "width": 108 },
+
+    { "id": "reports", "lane": "release", "col": 0, "type": "database", "label": "Write reports", "sublabel": "write_reports", "width": 92 },
+    { "id": "metadata", "lane": "release", "col": 1, "type": "backend", "label": "Metadata", "sublabel": "build meta", "width": 96 },
+    { "id": "atomicRelease", "lane": "release", "col": 3, "type": "database", "label": "Atomic release", "sublabel": "final_model.pkl + meta", "tag": "cũ giữ nếu lỗi", "width": 110 },
+    { "id": "published", "lane": "release", "col": 5, "type": "backend", "label": "Published", "sublabel": "status=published", "tag": "release OK", "width": 108 },
+
+    { "id": "stopPrecheck", "lane": "terminal", "col": 0, "type": "external", "label": "Trả HTML", "sublabel": "400/409 · không spawn", "width": 92 },
+    { "id": "stopRevalidate", "lane": "terminal", "col": 2, "type": "external", "label": "Dừng reval", "sublabel": "snapshot eval / stale", "tag": "chưa chạm TEST", "width": 118 },
+    { "id": "stopBaseline", "lane": "terminal", "col": 3, "type": "external", "label": "Dừng", "sublabel": "winner ≤ baseline", "tag": "trước TEST", "width": 104 },
+    { "id": "releaseFailed", "lane": "terminal", "col": 5, "type": "external", "label": "release_failed", "sublabel": "lỗi sau started", "tag": "release cũ còn", "width": 108 }
   ],
   "edges": [
-    { "from": "trigger", "to": "preflight", "variant": "emphasis" },
-    { "from": "preflight", "to": "startBuild", "variant": "emphasis" },
-    { "from": "startBuild", "to": "fingerprints", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "trigger", "to": "precheck", "variant": "emphasis" },
+    { "from": "precheck", "to": "spawn", "label": "pass", "variant": "emphasis" },
+    { "from": "precheck", "to": "stopPrecheck", "label": "fail", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.85, "labelAt": [300, 166] },
 
+    { "from": "spawn", "to": "lock", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "lock", "to": "datasetCheck", "variant": "emphasis" },
+    { "from": "datasetCheck", "to": "clean", "variant": "emphasis" },
+    { "from": "clean", "to": "features", "variant": "emphasis" },
+
+    { "from": "features", "to": "labels", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "labels", "to": "split", "variant": "emphasis" },
+    { "from": "split", "to": "verifySplit", "variant": "emphasis" },
+
+    { "from": "verifySplit", "to": "fingerprints", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
     { "from": "fingerprints", "to": "snapshotGate", "variant": "emphasis" },
     { "from": "snapshotGate", "to": "configGate", "variant": "emphasis" },
-    { "from": "snapshotGate", "to": "stopSnapshot", "label": "đã đánh giá", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.35 },
-    { "from": "configGate", "to": "recheck", "label": "đủ 3 config", "variant": "emphasis" },
-    { "from": "configGate", "to": "stopConfig", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "recheck", "to": "fitTrain", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "snapshotGate", "to": "stopRevalidate", "label": "đã eval", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.8, "labelAt": [200, 470] },
+    { "from": "configGate", "to": "stopRevalidate", "label": "thiếu/stale", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.6, "labelAt": [360, 545] },
 
+    { "from": "configGate", "to": "writeOutputs", "label": "đủ 3 config", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelAt": [200, 538] },
+    { "from": "writeOutputs", "to": "recheck", "variant": "emphasis" },
+
+    { "from": "recheck", "to": "fitTrain", "label": "FP khớp", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
     { "from": "fitTrain", "to": "scoreVal", "variant": "emphasis" },
-    { "from": "scoreVal", "to": "selectGate", "variant": "emphasis" },
-    { "from": "selectGate", "to": "regStarted", "label": "vượt baseline", "variant": "emphasis" },
-    { "from": "selectGate", "to": "stopBaseline", "label": "thua baseline", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 },
-    { "from": "regStarted", "to": "refitTest", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "scoreVal", "to": "baselines", "variant": "emphasis" },
+    { "from": "baselines", "to": "selectVal", "variant": "emphasis" },
 
-    { "from": "refitTest", "to": "regEval", "variant": "emphasis" },
-    { "from": "regEval", "to": "reports", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "selectVal", "to": "baselineGate", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "baselineGate", "to": "refit", "label": "vượt → started", "variant": "emphasis" },
+    { "from": "baselineGate", "to": "stopBaseline", "label": "thua baseline", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.8, "labelAt": [220, 786] },
+    { "from": "refit", "to": "testOnce", "variant": "emphasis" },
 
-    { "from": "reports", "to": "atomicRelease", "variant": "emphasis" },
-    { "from": "atomicRelease", "to": "regPub", "label": "publish", "variant": "emphasis" },
-    { "from": "atomicRelease", "to": "releaseFailed", "label": "lỗi → rollback", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5 }
+    { "from": "testOnce", "to": "reports", "label": "evaluated", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "reports", "to": "metadata", "variant": "emphasis" },
+    { "from": "metadata", "to": "atomicRelease", "variant": "emphasis" },
+    { "from": "atomicRelease", "to": "published", "label": "publish", "variant": "emphasis" },
+    { "from": "atomicRelease", "to": "releaseFailed", "label": "publish lỗi", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "bias": 0.5, "labelAt": [520, 1034] }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Vào pipeline",
+      "title": "Precheck tại Flask (nhẹ, trước spawn)",
       "items": [
-        "Bắt đầu bằng acquire lock và kiểm tra đủ 3 manual config; sau đó rebuild dataset trong RAM",
-        "Tính TRAIN fingerprint và experiment fingerprint từ dataset hiện tại",
-        "Ghi CSV rồi recheck fingerprint để bảo đảm dữ liệu ghi ra khớp bản trong RAM"
+        "tuning_run_pipeline kiểm tra is_config_complete, has_evaluated_snapshot và is_pipeline_running trên fingerprint hiện tại",
+        "Fail thì render lại tuning.html kèm lỗi (HTTP 400/409), không tạo subprocess",
+        "Pass thì subprocess.run scripts/run_pipeline.py đồng bộ; request chờ pipeline xong rồi redirect evaluation"
       ]
     },
     {
       "dot": "rose",
-      "title": "Các nhánh dừng",
+      "title": "Revalidation bên trong official pipeline",
       "items": [
-        "Snapshot đã đánh giá (has_evaluated_snapshot) → dừng, không chạy lại TEST cho cùng experiment fingerprint",
-        "Config thiếu hoặc stale (fingerprint đổi) → dừng, yêu cầu tune lại 3 model",
-        "Winner không vượt baseline tốt nhất trên VALIDATION → dừng trước khi chạm TEST"
+        "main() acquire_pipeline_lock; _run_pipeline chạy dataset_check → clean → features → labels → protocol_time_split → verify",
+        "Tự tính lại dataset + experiment fingerprint, guard has_evaluated_snapshot và is_config_complete — không tin precheck Flask",
+        "Ghi processed outputs rồi recheck content_hash + guard snapshot lần nữa; snapshot đã eval / config thiếu-stale → dừng trước TEST"
       ]
     },
     {
       "dot": "emerald",
-      "title": "TEST và release",
+      "title": "TEST, publish và các nhánh dừng an toàn",
       "items": [
-        "Chỉ khi vượt baseline mới ghi registry started rồi refit TRAIN+VALIDATION và chấm TEST đúng một lần",
-        "registry chuyển started → evaluated → published; artifact publish atomic",
-        "Lỗi sau khi đã started (gồm lỗi promotion) ghi release_failed và rollback; final_model.pkl cũ vẫn phục vụ"
+        "select_final_model raise nếu winner F1_UP ≤ baseline VALIDATION tốt nhất → dừng trước khi chạm TEST",
+        "Chỉ khi vượt baseline mới ghi registry started, refit TRAIN+VALIDATION và chấm TEST đúng một lần → evaluated → published",
+        "Lỗi bất kỳ sau started ghi release_failed; atomic_model_release đảm bảo final_model.pkl cũ vẫn phục vụ"
       ]
     }
   ]

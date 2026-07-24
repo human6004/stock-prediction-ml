@@ -469,6 +469,13 @@ def build_model_metadata(
 ) -> dict:
     train_validation = pd.concat([train, validation], ignore_index=True)
     train_through_date = str(train_validation["label_end_date"].max())
+    training_symbols = sorted(
+        {
+            str(symbol).strip().upper()
+            for symbol in train_validation["symbol"].dropna()
+            if str(symbol).strip()
+        }
+    )
     # Mốc thực tế đã dùng để cắt split, suy từ chính dữ liệu (rolling).
     resolved_dates = resolve_protocol_dates(
         pd.concat([train, validation, test], ignore_index=True)
@@ -501,6 +508,8 @@ def build_model_metadata(
         "baseline_passed": bool(selected_artifact.get("baseline_passed")),
         "baseline_warning": selected_artifact.get("baseline_warning"),
         "train_through_date": train_through_date,
+        "training_symbols": training_symbols,
+        "training_symbol_count": len(training_symbols),
         "validation_selection_metrics": selection_report.get(
             "validation_selection_metrics", {}
         ),

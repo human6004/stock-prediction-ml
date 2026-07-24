@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Sequence — Refresh → CV → chọn config → official pipeline → prediction Diagram</title>
+  <title>Sequence — Runtime prediction đọc artifact đã publish Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Sequence — Refresh → CV → chọn config → official pipeline → prediction</h1>
+        <h1>Sequence — Runtime prediction đọc artifact đã publish</h1>
       </div>
-      <p class="subtitle">User, Flask UI, refresh scripts, Tuning Lab, official pipeline, evaluation registry và model artifact</p>
+      <p class="subtitle">Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · không retrain, Flask không tự load model</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 920 1020" role="img" aria-label="Sequence — Refresh → CV → chọn config → official pipeline → prediction — User, Flask UI, refresh scripts, Tuning Lab, official pipeline, evaluation registry và model artifact (sequence diagram)">
+      <svg viewBox="0 0 960 780" role="img" aria-label="Sequence — Runtime prediction đọc artifact đã publish — Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · không retrain, Flask không tự load model (sequence diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -525,186 +525,125 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Time Segments -->
-        <rect x="48" y="158" width="824" height="110" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="176" class="t-dim" font-size="9" font-weight="600">01 / REFRESH → FINGERPRINT MỚI</text>
+        <rect x="48" y="150" width="864" height="86" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="168" class="t-dim" font-size="9" font-weight="600">01 / REQUEST</text>
 
-        <rect x="48" y="278" width="824" height="200" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="296" class="t-dim" font-size="9" font-weight="600">02 / CV TRAIN + CHỌN 3 CONFIG</text>
+        <rect x="48" y="246" width="864" height="120" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="264" class="t-dim" font-size="9" font-weight="600">02 / LOAD ARTIFACT (không retrain)</text>
 
-        <rect x="48" y="488" width="824" height="304" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="506" class="t-dim" font-size="9" font-weight="600">03 / OFFICIAL: VALIDATION GATE → TEST → PUBLISH</text>
+        <rect x="48" y="376" width="864" height="184" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="394" class="t-dim" font-size="9" font-weight="600">03 / FEATURE ROW + INFERENCE</text>
 
-        <rect x="48" y="802" width="824" height="138" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="820" class="t-dim" font-size="9" font-weight="600">04 / PREDICTION</text>
+        <rect x="48" y="570" width="864" height="130" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="588" class="t-dim" font-size="9" font-weight="600">04 / KẾT QUẢ</text>
 
         <!-- Lifelines -->
-        <path d="M 62 142 L 62 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 170 142 L 170 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 278 142 L 278 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 386 142 L 386 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 494 142 L 494 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 602 142 L 602 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 710 142 L 710 955" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 62 142 L 62 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 170 142 L 170 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 278 142 L 278 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 386 142 L 386 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 494 142 L 494 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 602 142 L 602 715" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
 
         <!-- Messages -->
         <path d="M 69 182 L 163 182" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="71" y="162" width="90" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="172" class="t-backend" font-size="9" text-anchor="middle">POST fetch-data</text>
+        <rect x="6" y="162" width="220" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="172" class="t-backend" font-size="9" text-anchor="middle">GET/POST /predict · /compare · /screener</text>
+        <text x="81" y="200" class="t-dim" font-size="7">Flask chỉ định tuyến; không tự load model hay đọc pkl</text>
 
-        <path d="M 177 216 L 271 216" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="166" y="196" width="116" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="206" class="t-backend" font-size="9" text-anchor="middle">chạy refresh_data.py</text>
-        <text x="189" y="234" class="t-dim" font-size="7">[1/3] fetch per-symbol · [2/3] clean · [3/3] build + label + split</text>
+        <path d="M 177 216 L 271 216" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="116.6" y="196" width="214.8" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="206" class="t-backend" font-size="9" text-anchor="middle">predict_symbol(s) / predict_all_symbols</text>
 
-        <path d="M 271 250 L 177 250" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="168.6" y="230" width="110.8" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="240" class="t-muted" font-size="9" text-anchor="middle">RAW + processed mới</text>
-        <text x="189" y="268" class="t-dim" font-size="7">dataset mới → TRAIN fingerprint mới, config cũ stale</text>
+        <path d="M 285 268 L 595 268" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="379.4" y="248" width="121.2" height="16" rx="3" class="c-mask"/>
+        <text x="440" y="258" class="t-backend" font-size="9" text-anchor="middle">load_model_artifact()</text>
+        <text x="297" y="286" class="t-dim" font-size="7">joblib.load final_model.pkl, cache theo model signature</text>
 
-        <path d="M 69 294 L 163 294" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="68.4" y="274" width="95.2" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="284" class="t-backend" font-size="9" text-anchor="middle">start CV / model</text>
+        <path d="M 595 302 L 285 302" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="379.4" y="282" width="121.2" height="16" rx="3" class="c-mask"/>
+        <text x="440" y="292" class="t-muted" font-size="9" text-anchor="middle">estimator + threshold</text>
 
-        <path d="M 177 328 L 379 328" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="235.6" y="308" width="84.8" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="318" class="t-backend" font-size="9" text-anchor="middle">run_cv (TRAIN)</text>
-        <text x="189" y="346" class="t-dim" font-size="7">4 recent purged folds, gap 5 phiên, chỉ TRAIN</text>
+        <path d="M 285 336 L 379 336" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="287" y="316" width="90" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="326" class="t-security" font-size="9" text-anchor="middle">load_metadata()</text>
+        <text x="297" y="354" class="t-dim" font-size="7">horizon + up_threshold + decision_threshold; lệch identity → fallback rút từ artifact</text>
 
-        <path d="M 379 362 L 177 362" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="240.8" y="342" width="74.4" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="352" class="t-muted" font-size="9" text-anchor="middle">history rows</text>
+        <path d="M 379 370 L 285 370" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="253.2" y="350" width="157.6" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="360" class="t-muted" font-size="9" text-anchor="middle">horizon · threshold · policy</text>
 
-        <path d="M 69 396 L 163 396" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="55.4" y="376" width="121.2" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="386" class="t-backend" font-size="9" text-anchor="middle">chọn 1 run × LR/RF/GB</text>
+        <path d="M 285 422 L 487 422" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="346.2" y="402" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="412" class="t-backend" font-size="9" text-anchor="middle">đọc clean.csv</text>
+        <text x="297" y="440" class="t-dim" font-size="7">lấy latest feature row / symbol trong scope; cache theo dataset signature</text>
 
-        <path d="M 177 430 L 379 430" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <rect x="222.6" y="410" width="110.8" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="420" class="t-security" font-size="9" text-anchor="middle">save_selected_model</text>
-        <text x="189" y="448" class="t-dim" font-size="7">3 config lưu manual_config.json, gắn TRAIN fingerprint</text>
+        <path d="M 487 476 L 285 476" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="226.6" y="456" width="318.8" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="466" class="t-muted" font-size="9" text-anchor="middle">OHLCV + 20 features → predict_proba → so decision_threshold</text>
+        <text x="297" y="494" class="t-dim" font-size="7">so sánh probability_up với decision_threshold để gán UP/NOT_UP; đánh dấu is_stale</text>
 
-        <path d="M 379 464 L 177 464" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="225.2" y="444" width="105.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="278" y="454" class="t-muted" font-size="9" text-anchor="middle">manual_config đủ 3</text>
+        <path d="M 271 596 L 177 596" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="88" y="576" width="272" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="586" class="t-muted" font-size="9" text-anchor="middle">rows: prediction · probability_up · reference_date</text>
 
-        <path d="M 69 508 L 163 508" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="65.8" y="488" width="100.4" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="498" class="t-backend" font-size="9" text-anchor="middle">POST run-pipeline</text>
-
-        <path d="M 177 542 L 487 542" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="258.4" y="522" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="532" class="t-backend" font-size="9" text-anchor="middle">subprocess run_pipeline.py</text>
-        <text x="189" y="560" class="t-dim" font-size="7">request chờ pipeline chạy xong</text>
-
-        <path d="M 501 576 L 595 576" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <rect x="482.2" y="556" width="131.60000000000002" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="566" class="t-security" font-size="9" text-anchor="middle">has_evaluated_snapshot?</text>
-
-        <path d="M 595 610 L 501 610" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="508.2" y="590" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="600" class="t-muted" font-size="9" text-anchor="middle">chưa đánh giá</text>
-        <text x="513" y="628" class="t-dim" font-size="7">đã đánh giá → dừng, không chạy lại TEST</text>
-
-        <path d="M 501 644 L 595 644" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="523.8" y="624" width="48.4" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="634" class="t-backend" font-size="9" text-anchor="middle">started</text>
-        <text x="513" y="662" class="t-dim" font-size="7">fit 3 model TRAIN → VALIDATION chọn winner; thua baseline tốt nhất thì dừng trước TEST</text>
-
-        <path d="M 501 678 L 595 678" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="518.6" y="658" width="58.800000000000004" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="668" class="t-backend" font-size="9" text-anchor="middle">evaluated</text>
-        <text x="513" y="696" class="t-dim" font-size="7">refit TRAIN+VALIDATION, chấm TEST đúng 1 lần</text>
-
-        <path d="M 501 712 L 703 712" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="531" y="692" width="142" height="16" rx="3" class="c-mask"/>
-        <text x="602" y="702" class="t-backend" font-size="9" text-anchor="middle">atomic release PKL + meta</text>
-        <text x="513" y="730" class="t-dim" font-size="7">lỗi promotion → rollback + release_failed</text>
-
-        <path d="M 501 746 L 595 746" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="518.6" y="726" width="58.800000000000004" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="736" class="t-backend" font-size="9" text-anchor="middle">published</text>
-
-        <path d="M 487 780 L 177 780" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="284.4" y="760" width="95.2" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="770" class="t-muted" font-size="9" text-anchor="middle">pipeline summary</text>
-
-        <path d="M 69 824 L 163 824" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="76.19999999999999" y="804" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="814" class="t-backend" font-size="9" text-anchor="middle">POST /predict</text>
-
-        <path d="M 177 858 L 703 858" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="363.8" y="838" width="152.4" height="16" rx="3" class="c-mask"/>
-        <text x="440" y="848" class="t-backend" font-size="9" text-anchor="middle">load final_model.pkl + meta</text>
-        <text x="189" y="876" class="t-dim" font-size="7">không retrain; horizon + threshold đọc từ artifact</text>
-
-        <path d="M 703 892 L 177 892" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="369" y="872" width="142" height="16" rx="3" class="c-mask"/>
-        <text x="440" y="882" class="t-muted" font-size="9" text-anchor="middle">model + order + threshold</text>
-
-        <path d="M 163 926 L 69 926" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="81.4" y="906" width="69.2" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="916" class="t-muted" font-size="9" text-anchor="middle">UP / NOT_UP</text>
+        <path d="M 163 648 L 69 648" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="21.599999999999994" y="628" width="188.8" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="638" class="t-muted" font-size="9" text-anchor="middle">render HTML: UP / NOT_UP + Điểm UP</text>
 
         <!-- Activations -->
-        <rect x="165" y="178" width="10" height="752" rx="3" class="c-mask"/>
-        <rect x="165" y="178" width="10" height="752" rx="3" class="c-frontend" stroke-width="1"/>
-        <rect x="273" y="212" width="10" height="42" rx="3" class="c-mask"/>
-        <rect x="273" y="212" width="10" height="42" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="381" y="324" width="10" height="144" rx="3" class="c-mask"/>
-        <rect x="381" y="324" width="10" height="144" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="489" y="538" width="10" height="246" rx="3" class="c-mask"/>
-        <rect x="489" y="538" width="10" height="246" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="597" y="572" width="10" height="178" rx="3" class="c-mask"/>
-        <rect x="597" y="572" width="10" height="178" rx="3" class="c-security" stroke-width="1"/>
-        <rect x="705" y="708" width="10" height="188" rx="3" class="c-mask"/>
-        <rect x="705" y="708" width="10" height="188" rx="3" class="c-database" stroke-width="1"/>
+        <rect x="165" y="178" width="10" height="474" rx="3" class="c-mask"/>
+        <rect x="165" y="178" width="10" height="474" rx="3" class="c-frontend" stroke-width="1"/>
+        <rect x="273" y="212" width="10" height="388" rx="3" class="c-mask"/>
+        <rect x="273" y="212" width="10" height="388" rx="3" class="c-backend" stroke-width="1"/>
+        <rect x="597" y="264" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="597" y="264" width="10" height="42" rx="3" class="c-database" stroke-width="1"/>
+        <rect x="381" y="332" width="10" height="32" rx="3" class="c-mask"/>
+        <rect x="381" y="332" width="10" height="32" rx="3" class="c-security" stroke-width="1"/>
+        <rect x="489" y="400" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="489" y="400" width="10" height="42" rx="3" class="c-database" stroke-width="1"/>
 
         <!-- Participants -->
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User</text>
-        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">browser</text>
+        <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Browser / CLI</text>
+        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">form · predict_stock.py</text>
 
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="170" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Flask UI</text>
-        <text x="170" y="111" class="t-muted" font-size="7" text-anchor="middle">app.py</text>
+        <text x="170" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Flask</text>
+        <text x="170" y="111" class="t-muted" font-size="7" text-anchor="middle">app.py routes</text>
 
         <rect x="235" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="235" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="278" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Refresh</text>
-        <text x="278" y="111" class="t-muted" font-size="7" text-anchor="middle">refresh_data.py</text>
+        <text x="278" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Predict svc</text>
+        <text x="278" y="111" class="t-muted" font-size="7" text-anchor="middle">prediction_service</text>
 
         <rect x="343" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="343" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tuning Lab</text>
-        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">CV TRAIN</text>
+        <rect x="343" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Metadata</text>
+        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">model_metadata.json</text>
 
         <rect x="451" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="451" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pipeline</text>
-        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">run_pipeline.py</text>
+        <rect x="451" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Clean data</text>
+        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">clean.csv</text>
 
         <rect x="559" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="559" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Registry</text>
-        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">evaluation</text>
-
-        <rect x="667" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="667" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Artifact</text>
-        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">PKL + meta</text>
+        <rect x="559" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Model PKL</text>
+        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">final_model.pkl</text>
 
         <!-- Legend -->
-        <text x="150" y="946" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <path d="M 150 966 L 184 966" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <text x="193" y="969" class="t-muted" font-size="8">request</text>
-        <path d="M 270 966 L 304 966" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <text x="313" y="969" class="t-muted" font-size="8">return</text>
-        <path d="M 385 966 L 419 966" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <text x="428" y="969" class="t-muted" font-size="8">security</text>
-        <path d="M 530 966 L 564 966" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <text x="573" y="969" class="t-muted" font-size="8">async trace</text>
+        <text x="150" y="706" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <path d="M 150 726 L 184 726" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <text x="193" y="729" class="t-muted" font-size="8">request</text>
+        <path d="M 270 726 L 304 726" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <text x="313" y="729" class="t-muted" font-size="8">return</text>
+        <path d="M 385 726 L 419 726" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <text x="428" y="729" class="t-muted" font-size="8">security</text>
+        <path d="M 530 726 L 564 726" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <text x="573" y="729" class="t-muted" font-size="8">async trace</text>
       </svg>
     </div>
 
@@ -713,36 +652,36 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Refresh mở fingerprint mới</h3>
+          <h3>Flask không tự load model</h3>
         </div>
         <ul>
-          <li>&bull; refresh_data.py fetch OHLCV theo cửa sổ riêng từng symbol rồi clean, build feature và split</li>
-          <li>&bull; Dataset mới sinh TRAIN fingerprint mới; manual_config cũ trở nên stale và phải CV + chọn lại</li>
-          <li>&bull; Không còn SQLite; refresh chỉ ghi RAW/processed/report</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>CV và chọn 3 config</h3>
-        </div>
-        <ul>
-          <li>&bull; Mỗi model chạy CV chỉ trên TRAIN: 4 recent purged folds, gap 5 phiên</li>
-          <li>&bull; User chọn đúng một CV run cho từng model LR/RF/GB</li>
-          <li>&bull; Ba lựa chọn lưu manual_config.json và gắn với TRAIN fingerprint hiện tại</li>
+          <li>&bull; Mọi route dự báo (/predict, /compare, /screener) chỉ gọi prediction_service, không đọc pkl trực tiếp</li>
+          <li>&bull; prediction_service là nơi duy nhất joblib.load final_model.pkl và đọc metadata + clean.csv</li>
+          <li>&bull; predict_all_symbols cache theo dataset signature + model signature để không load lại mỗi request</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot emerald"></div>
-          <h3>Official run và prediction</h3>
+          <h3>Đọc artifact, không retrain</h3>
         </div>
         <ul>
-          <li>&bull; Pipeline fit 3 model TRAIN, chọn bằng VALIDATION so với baseline Always-UP/Always-NOT-UP</li>
-          <li>&bull; Chỉ winner hợp lệ mới refit TRAIN+VALIDATION và chạm TEST đúng một lần; registry: started → evaluated → published</li>
-          <li>&bull; Prediction đọc final_model.pkl + model_metadata.json, không retrain; horizon đọc động từ artifact</li>
+          <li>&bull; Horizon và threshold lấy từ metadata, fallback vào artifact rồi settings — không train tại runtime</li>
+          <li>&bull; load_metadata so identity (model_name/policy_id/content_fingerprint); lệch thì dùng metadata rút từ artifact</li>
+          <li>&bull; Điểm UP là probability_up; UP khi vượt decision_threshold, NOT_UP không đồng nghĩa giá giảm</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot slate"></div>
+          <h3>Refresh và training ở sơ đồ khác</h3>
+        </div>
+        <ul>
+          <li>&bull; Cách sinh clean.csv và ml_dataset xem sơ đồ 02 (data flow ML offline)</li>
+          <li>&bull; Cách publish final_model.pkl và metadata xem sơ đồ 03 (workflow tuning → release)</li>
+          <li>&bull; Sequence này chỉ mô tả đường đọc artifact đã publish để trả tín hiệu</li>
         </ul>
       </div>
     </div>

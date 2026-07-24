@@ -1,35 +1,24 @@
-<!doctype html>
-<!-- Trang theo dõi job nền; khi đang chạy, trình duyệt tải lại mỗi 5 giây. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    {% if running %}
-    <meta http-equiv="refresh" content="5">
-    {% endif %}
-    <title>Tiến độ fetch — HOSE ML</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow fetch-eyebrow-top">Nhánh 1 · Data refresh</p>
-                <h1>Tiến độ làm mới dữ liệu</h1>
-                <p class="subtitle">
-                    Fetch OHLCV → preprocess → build features.
-                    {% if running %}Trang tự làm mới mỗi 5 giây.{% else %}Job đã dừng hoặc chưa khởi chạy.{% endif %}
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('tuning') }}">← Tuning Lab</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
+{# Trang theo dõi job nền; khi đang chạy, trình duyệt tải lại mỗi 5 giây. #}
 
+{% block title %}Tiến độ fetch — HOSE ML{% endblock %}
+
+{% block head_extra %}
+{% if running %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+
+{% block page_header %}
+<p class="eyebrow fetch-eyebrow-top">Nhánh 1 · Data refresh</p>
+<h1>Tiến độ làm mới dữ liệu</h1>
+<p class="subtitle">
+    Fetch OHLCV → preprocess → build features.
+    {% if running %}Trang tự làm mới mỗi 5 giây.{% else %}Job đã dừng hoặc chưa khởi chạy.{% endif %}
+</p>
+{% endblock %}
+
+{% block dataset_status %}{% endblock %}
+
+{% block content %}
         <section class="fetch-hero {% if fetch_progress.status == 'completed' %}fetch-hero-done{% elif fetch_progress.status == 'failed' %}fetch-hero-failed{% elif running %}fetch-hero-running{% endif %}">
             <div class="fetch-hero-main" role="status">
                 {% if running %}
@@ -156,7 +145,9 @@
             <a class="btn-fetch btn-fetch-link" href="{{ url_for('tuning') }}">Train lại trên dataset mới</a>
             {% endif %}
         </div>
-    </main>
+{% endblock %}
+
+{% block page_scripts %}
     <script>
         // Trang tự refresh mỗi 5s khi đang chạy; cuộn log xuống cuối để luôn thấy dòng mới nhất.
         (function () {
@@ -164,5 +155,4 @@
             if (pre) { pre.scrollTop = pre.scrollHeight; }
         })();
     </script>
-</body>
-</html>
+{% endblock %}

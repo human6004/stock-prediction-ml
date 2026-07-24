@@ -5,3 +5,5 @@ joblib
 Flask
 matplotlib
 vnstock
+openai
+python-dotenv

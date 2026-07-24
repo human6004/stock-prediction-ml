@@ -1,2 +1,33 @@
 {
+  "files.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.trace-chatbot": true,
+    "**/.trace-coverage": true,
+    "**/.git": true,
+    "data/processed": true,
+    "experiments/archive": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.trace-chatbot": true,
+    "**/.trace-coverage": true,
+    "data/processed": true,
+    "experiments/archive": true,
+    "**/*.csv": true,
+    "**/*.pkl": true,
+    "**/*.db": true
+  },
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.trace-chatbot/**": true,
+    "**/.trace-coverage/**": true,
+    "**/data/processed/**": true,
+    "**/experiments/archive/**": true
+  }
 }

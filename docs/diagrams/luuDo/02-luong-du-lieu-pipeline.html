@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Data flow — Raw OHLCV đến TRAIN / VALIDATION / TEST và publish Diagram</title>
+  <title>Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Data flow — Raw OHLCV đến TRAIN / VALIDATION / TEST và publish</h1>
+        <h1>Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish</h1>
       </div>
-      <p class="subtitle">cleaned_all · training universe · 20 features · exact market t+5 · rolling split · TEST một lần · prediction</p>
+      <p class="subtitle">clean → training universe → 20 feature → exact t+5 → rolling split · CV chỉ trong TRAIN · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1100 780" role="img" aria-label="Data flow — Raw OHLCV đến TRAIN / VALIDATION / TEST và publish — cleaned_all · training universe · 20 features · exact market t+5 · rolling split · TEST một lần · prediction (data-flow diagram)">
+      <svg viewBox="0 0 1200 900" role="img" aria-label="Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish — clean → training universe → 20 feature → exact t+5 → rolling split · CV chỉ trong TRAIN · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact (data-flow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -525,140 +525,192 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Data Stages -->
-        <rect x="16" y="46" width="168" height="660" rx="10" class="c-lane" stroke-width="1"/>
+        <rect x="16" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
         <text x="100" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">01 / Nguồn</text>
 
-        <rect x="231" y="46" width="168" height="660" rx="10" class="c-lane" stroke-width="1"/>
+        <rect x="231" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
         <text x="315" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">02 / Làm sạch</text>
 
-        <rect x="446" y="46" width="168" height="660" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="530" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">03 / Biến đổi</text>
+        <rect x="446" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="530" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">03 / Feature / Label</text>
 
-        <rect x="661" y="46" width="168" height="660" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / Rolling split</text>
+        <rect x="661" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / Rolling split (RAM)</text>
 
-        <rect x="876" y="46" width="168" height="660" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="960" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">05 / Chọn + publish</text>
+        <rect x="876" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="960" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">05 / CV · chọn · refit · TEST · publish</text>
 
         <!-- Flow paths -->
-        <path d="M 100 356 L 175 356 L 175 157 L 250 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 100 414 L 175 414 L 175 499 L 250 499" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 380 157 L 465 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 380 499 L 465 499" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 595 157 L 680 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 595 499 L 670 499 L 670 186 L 745 186" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 745 186 L 745 356" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 745 414 L 745 584" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 810 613 L 885 613 L 885 300 L 960 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 960 300 L 960 470" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 315 186 L 28 186 L 28 700 L 960 700 L 960 528" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 164 385 L 206.5 385 L 206.5 157 L 249 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 164 385 L 206.5 385 L 206.5 499 L 249 499" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 381 157 L 464 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 530 186 L 530 356" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 315 186 L 387.5 186 L 387.5 385 L 460 385" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 600 385 L 642.5 385 L 642.5 157 L 685 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 600 385 L 681 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 600 385 L 642.5 385 L 642.5 613 L 685 613" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 805 157 L 885 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 960 186 L 960 242" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 809 385 L 845.5 385 L 845.5 271 L 882 271" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 960 300 L 960 356" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 809 385 L 885 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 960 414 L 960 470" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 805 613 L 847.5 613 L 847.5 499 L 890 499" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 960 528 L 960 584" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 960 642 L 960 710" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 315 528 L 315 815 L 960 815 L 960 768" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Nodes -->
-        <rect x="35" y="356" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="35" y="356" width="130" height="58" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="100" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Raw OHLCV CSV</text>
-        <text x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">shared_dataset</text>
+        <rect x="36" y="356" width="128" height="58" rx="6" class="c-mask"/>
+        <rect x="36" y="356" width="128" height="58" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="100" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Raw OHLCV</text>
+        <text x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">shared_dataset CSV</text>
         <text x="100" y="403" class="t-external" font-size="7" text-anchor="middle">ngoài repo</text>
 
-        <rect x="250" y="128" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="250" y="128" width="130" height="58" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="315" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">cleaned_all</text>
-        <text x="315" y="165" class="t-muted" font-size="7" text-anchor="middle">mọi mã hợp lệ</text>
-        <text x="315" y="175" class="t-database" font-size="7" text-anchor="middle">clean.csv · predict</text>
+        <rect x="249" y="128" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="249" y="128" width="132" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="315" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Training universe</text>
+        <text x="315" y="165" class="t-muted" font-size="7" text-anchor="middle">symbol ≥ 250 phiên</text>
+        <text x="315" y="175" class="t-security" font-size="7" text-anchor="middle">chỉ train</text>
 
-        <rect x="250" y="470" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="250" y="470" width="130" height="58" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="315" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Training universe</text>
-        <text x="315" y="507" class="t-muted" font-size="7" text-anchor="middle">symbol ≥ 250 phiên</text>
-        <text x="315" y="517" class="t-security" font-size="7" text-anchor="middle">chỉ train</text>
+        <rect x="249" y="470" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="249" y="470" width="132" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="315" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">cleaned_all</text>
+        <text x="315" y="507" class="t-muted" font-size="7" text-anchor="middle">mọi mã hợp lệ</text>
+        <text x="315" y="517" class="t-database" font-size="7" text-anchor="middle">prediction runtime</text>
 
-        <rect x="465" y="128" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="465" y="128" width="130" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <rect x="464" y="128" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="464" y="128" width="132" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="530" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">20 features</text>
-        <text x="530" y="165" class="t-muted" font-size="7" text-anchor="middle">rolling / symbol</text>
+        <text x="530" y="165" class="t-muted" font-size="7" text-anchor="middle">rolling theo symbol</text>
         <text x="530" y="175" class="t-backend" font-size="7" text-anchor="middle">FEATURE_COLUMNS</text>
 
-        <rect x="465" y="470" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="465" y="470" width="130" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="530" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Nhãn exact t+5</text>
-        <text x="530" y="507" class="t-muted" font-size="7" text-anchor="middle">phiên chung</text>
-        <text x="530" y="517" class="t-backend" font-size="7" text-anchor="middle">&gt; 1% → UP</text>
+        <rect x="460" y="356" width="140" height="58" rx="6" class="c-mask"/>
+        <rect x="460" y="356" width="140" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="530" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Nhãn exact t+5</text>
+        <text x="530" y="393" class="t-muted" font-size="7" text-anchor="middle">ml_dataset</text>
+        <text x="530" y="403" class="t-backend" font-size="7" text-anchor="middle">&gt; 1% → UP</text>
 
-        <rect x="680" y="128" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="680" y="128" width="130" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <rect x="685" y="128" width="120" height="58" rx="6" class="c-mask"/>
+        <rect x="685" y="128" width="120" height="58" rx="6" class="c-database" stroke-width="1.5"/>
         <text x="745" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TRAIN</text>
         <text x="745" y="165" class="t-muted" font-size="7" text-anchor="middle">rolling boundary</text>
-        <text x="745" y="175" class="t-database" font-size="7" text-anchor="middle">4-fold CV · fit</text>
+        <text x="745" y="175" class="t-database" font-size="7" text-anchor="middle">CV nội bộ</text>
 
-        <rect x="680" y="356" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="680" y="356" width="130" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <rect x="681" y="356" width="128" height="58" rx="6" class="c-mask"/>
+        <rect x="681" y="356" width="128" height="58" rx="6" class="c-database" stroke-width="1.5"/>
         <text x="745" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">VALIDATION</text>
         <text x="745" y="393" class="t-muted" font-size="7" text-anchor="middle">rolling boundary</text>
-        <text x="745" y="403" class="t-database" font-size="7" text-anchor="middle">chọn + gate</text>
+        <text x="745" y="403" class="t-database" font-size="7" text-anchor="middle">chọn + baseline</text>
 
-        <rect x="680" y="584" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="680" y="584" width="130" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+        <rect x="685" y="584" width="120" height="58" rx="6" class="c-mask"/>
+        <rect x="685" y="584" width="120" height="58" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="745" y="605" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TEST</text>
         <text x="745" y="621" class="t-muted" font-size="7" text-anchor="middle">rolling snapshot</text>
-        <text x="745" y="631" class="t-security" font-size="7" text-anchor="middle">1 lần</text>
+        <text x="745" y="631" class="t-security" font-size="7" text-anchor="middle">chạm 1 lần</text>
 
-        <rect x="895" y="242" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="895" y="242" width="130" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="960" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Final Model</text>
-        <text x="960" y="279" class="t-muted" font-size="7" text-anchor="middle">PKL + metadata</text>
-        <text x="960" y="289" class="t-backend" font-size="7" text-anchor="middle">atomic publish</text>
+        <rect x="885" y="128" width="150" height="58" rx="6" class="c-mask"/>
+        <rect x="885" y="128" width="150" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="960" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">CV trong TRAIN</text>
+        <text x="960" y="165" class="t-muted" font-size="7" text-anchor="middle">4-fold purged (gap 5)</text>
+        <text x="960" y="175" class="t-backend" font-size="7" text-anchor="middle">fit candidate</text>
 
-        <rect x="895" y="470" width="130" height="58" rx="6" class="c-mask"/>
-        <rect x="895" y="470" width="130" height="58" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="960" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Prediction</text>
-        <text x="960" y="507" class="t-muted" font-size="7" text-anchor="middle">latest feature row</text>
-        <text x="960" y="517" class="t-cloud" font-size="7" text-anchor="middle">đọc artifact</text>
+        <rect x="882" y="242" width="156" height="58" rx="6" class="c-mask"/>
+        <rect x="882" y="242" width="156" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="960" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Chọn trên VALIDATION</text>
+        <text x="960" y="279" class="t-muted" font-size="7" text-anchor="middle">F1_UP + baseline</text>
+        <text x="960" y="289" class="t-backend" font-size="7" text-anchor="middle">winner</text>
+
+        <rect x="885" y="356" width="150" height="58" rx="6" class="c-mask"/>
+        <rect x="885" y="356" width="150" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="960" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Refit TR + VAL</text>
+        <text x="960" y="393" class="t-muted" font-size="7" text-anchor="middle">gộp TRAIN+VAL</text>
+        <text x="960" y="403" class="t-backend" font-size="7" text-anchor="middle">trước TEST</text>
+
+        <rect x="890" y="470" width="140" height="58" rx="6" class="c-mask"/>
+        <rect x="890" y="470" width="140" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="960" y="491" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TEST 1 lần</text>
+        <text x="960" y="507" class="t-muted" font-size="7" text-anchor="middle">chấm đúng 1 lần</text>
+        <text x="960" y="517" class="t-security" font-size="7" text-anchor="middle">không chọn model</text>
+
+        <rect x="894" y="584" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="894" y="584" width="132" height="58" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="960" y="605" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Final Model</text>
+        <text x="960" y="621" class="t-muted" font-size="7" text-anchor="middle">PKL + metadata</text>
+        <text x="960" y="631" class="t-cloud" font-size="7" text-anchor="middle">atomic publish</text>
+
+        <rect x="894" y="710" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="894" y="710" width="132" height="58" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="960" y="731" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Prediction read</text>
+        <text x="960" y="747" class="t-muted" font-size="7" text-anchor="middle">đọc artifact</text>
+        <text x="960" y="757" class="t-frontend" font-size="7" text-anchor="middle">runtime</text>
 
         <!-- Flow labels -->
-        <rect x="174.05" y="239" width="65.9" height="27" rx="4" class="c-mask"/>
-        <text x="207" y="250" class="t-backend" font-size="8" text-anchor="middle">OHLCV sạch</text>
-        <text x="207" y="261" class="t-dim" font-size="7" text-anchor="middle">drop NA/dup</text>
-        <rect x="174.05" y="494" width="65.9" height="27" rx="4" class="c-mask"/>
-        <text x="207" y="505" class="t-muted" font-size="8" text-anchor="middle">mã đủ ĐK</text>
-        <text x="207" y="516" class="t-dim" font-size="7" text-anchor="middle">≥ 250 phiên</text>
-        <rect x="386.6" y="146" width="70.80000000000001" height="27" rx="4" class="c-mask"/>
-        <text x="422" y="157" class="t-backend" font-size="8" text-anchor="middle">feature rows</text>
-        <text x="422" y="168" class="t-dim" font-size="7" text-anchor="middle">window ≤ 50</text>
-        <rect x="389.05" y="488" width="65.9" height="27" rx="4" class="c-mask"/>
-        <text x="422" y="499" class="t-backend" font-size="8" text-anchor="middle">lịch t+5</text>
-        <text x="422" y="510" class="t-dim" font-size="7" text-anchor="middle">phiên chung</text>
-        <rect x="606.5" y="146" width="61" height="27" rx="4" class="c-mask"/>
-        <text x="637" y="157" class="t-backend" font-size="8" text-anchor="middle">ml_dataset</text>
-        <text x="637" y="168" class="t-dim" font-size="7" text-anchor="middle">RAM split</text>
-        <rect x="604.05" y="427" width="65.9" height="27" rx="4" class="c-mask"/>
-        <text x="637" y="438" class="t-muted" font-size="8" text-anchor="middle">UP / NOT_UP</text>
-        <text x="637" y="449" class="t-dim" font-size="7" text-anchor="middle">thiếu → bỏ</text>
-        <rect x="671.95" y="260" width="56.1" height="27" rx="4" class="c-mask"/>
-        <text x="700" y="271" class="t-backend" font-size="8" text-anchor="middle">4-fold CV</text>
-        <text x="700" y="282" class="t-dim" font-size="7" text-anchor="middle">gap 5</text>
-        <rect x="707.15" y="488" width="75.7" height="27" rx="4" class="c-mask"/>
-        <text x="745" y="499" class="t-security" font-size="8" text-anchor="middle">baseline gate</text>
-        <text x="745" y="510" class="t-dim" font-size="7" text-anchor="middle">&gt; baseline</text>
-        <rect x="816.6" y="427" width="70.80000000000001" height="27" rx="4" class="c-mask"/>
-        <text x="852" y="438" class="t-backend" font-size="8" text-anchor="middle">refit TR+VAL</text>
-        <text x="852" y="449" class="t-dim" font-size="7" text-anchor="middle">1 lần</text>
-        <rect x="917.25" y="374" width="85.5" height="27" rx="4" class="c-mask"/>
-        <text x="960" y="385" class="t-backend" font-size="8" text-anchor="middle">final_model.pkl</text>
-        <text x="960" y="396" class="t-dim" font-size="7" text-anchor="middle">artifact</text>
-        <rect x="459.7" y="697" width="80.60000000000001" height="27" rx="4" class="c-mask"/>
-        <text x="500" y="708" class="t-messagebus" font-size="8" text-anchor="middle">clean.csv</text>
-        <text x="500" y="719" class="t-dim" font-size="7" text-anchor="middle">prediction đọc</text>
+        <rect x="152.35" y="239" width="95.30000000000001" height="27" rx="4" class="c-mask"/>
+        <text x="200" y="250" class="t-backend" font-size="8" text-anchor="middle">mã ≥ 250 phiên</text>
+        <text x="200" y="261" class="t-dim" font-size="7" text-anchor="middle">training universe</text>
+        <rect x="187.75" y="429" width="36.5" height="27" rx="4" class="c-mask"/>
+        <text x="206" y="440" class="t-muted" font-size="8" text-anchor="middle">OHLCV</text>
+        <text x="206" y="451" class="t-dim" font-size="7" text-anchor="middle">clean</text>
+        <rect x="397.4" y="139" width="51.2" height="27" rx="4" class="c-mask"/>
+        <text x="423" y="150" class="t-backend" font-size="8" text-anchor="middle">features</text>
+        <text x="423" y="161" class="t-dim" font-size="7" text-anchor="middle">rolling</text>
+        <rect x="494.6" y="261" width="70.80000000000001" height="27" rx="4" class="c-mask"/>
+        <text x="530" y="272" class="t-backend" font-size="8" text-anchor="middle">feature rows</text>
+        <text x="530" y="283" class="t-dim" font-size="7" text-anchor="middle">merge 1-1</text>
+        <rect x="336.6" y="289" width="70.80000000000001" height="27" rx="4" class="c-mask"/>
+        <text x="372" y="300" class="t-muted" font-size="8" text-anchor="middle">lịch t+5</text>
+        <text x="372" y="311" class="t-dim" font-size="7" text-anchor="middle">market chung</text>
+        <rect x="604.15" y="239" width="75.7" height="27" rx="4" class="c-mask"/>
+        <text x="642" y="250" class="t-backend" font-size="8" text-anchor="middle">ml_dataset</text>
+        <text x="642" y="261" class="t-dim" font-size="7" text-anchor="middle">rolling split</text>
+        <rect x="611.95" y="367" width="56.1" height="27" rx="4" class="c-mask"/>
+        <text x="640" y="378" class="t-backend" font-size="8" text-anchor="middle">phân vùng</text>
+        <text x="640" y="389" class="t-dim" font-size="7" text-anchor="middle">RAM</text>
+        <rect x="611.5" y="494" width="61" height="27" rx="4" class="c-mask"/>
+        <text x="642" y="505" class="t-muted" font-size="8" text-anchor="middle">snapshot</text>
+        <text x="642" y="516" class="t-dim" font-size="7" text-anchor="middle">purge biên</text>
+        <rect x="814.5" y="139" width="61" height="27" rx="4" class="c-mask"/>
+        <text x="845" y="150" class="t-backend" font-size="8" text-anchor="middle">TRAIN rows</text>
+        <text x="845" y="161" class="t-dim" font-size="7" text-anchor="middle">CV nội bộ</text>
+        <rect x="931.95" y="203" width="56.1" height="27" rx="4" class="c-mask"/>
+        <text x="960" y="214" class="t-backend" font-size="8" text-anchor="middle">candidate</text>
+        <text x="960" y="225" class="t-dim" font-size="7" text-anchor="middle">LR/RF/GB</text>
+        <rect x="819.5" y="314" width="61" height="27" rx="4" class="c-mask"/>
+        <text x="850" y="325" class="t-security" font-size="8" text-anchor="middle">chọn</text>
+        <text x="850" y="336" class="t-dim" font-size="7" text-anchor="middle">VALIDATION</text>
+        <rect x="922.15" y="317" width="75.7" height="27" rx="4" class="c-mask"/>
+        <text x="960" y="328" class="t-backend" font-size="8" text-anchor="middle">winner</text>
+        <text x="960" y="339" class="t-dim" font-size="7" text-anchor="middle">baseline pass</text>
+        <rect x="826.3" y="367" width="41.400000000000006" height="27" rx="4" class="c-mask"/>
+        <text x="847" y="378" class="t-backend" font-size="8" text-anchor="middle">TR+VAL</text>
+        <text x="847" y="389" class="t-dim" font-size="7" text-anchor="middle">gộp</text>
+        <rect x="922.15" y="431" width="75.7" height="27" rx="4" class="c-mask"/>
+        <text x="960" y="442" class="t-backend" font-size="8" text-anchor="middle">refit</text>
+        <text x="960" y="453" class="t-dim" font-size="7" text-anchor="middle">1 fingerprint</text>
+        <rect x="824.4" y="554" width="51.2" height="27" rx="4" class="c-mask"/>
+        <text x="850" y="565" class="t-security" font-size="8" text-anchor="middle">TEST 1×</text>
+        <text x="850" y="576" class="t-dim" font-size="7" text-anchor="middle">snapshot</text>
+        <rect x="922.15" y="545" width="75.7" height="27" rx="4" class="c-mask"/>
+        <text x="960" y="556" class="t-backend" font-size="8" text-anchor="middle">đạt gate</text>
+        <text x="960" y="567" class="t-dim" font-size="7" text-anchor="middle">baseline pass</text>
+        <rect x="914.8" y="665" width="90.4" height="27" rx="4" class="c-mask"/>
+        <text x="960" y="676" class="t-backend" font-size="8" text-anchor="middle">publish artifact</text>
+        <text x="960" y="687" class="t-dim" font-size="7" text-anchor="middle">atomic</text>
+        <rect x="569.5" y="797" width="61" height="27" rx="4" class="c-mask"/>
+        <text x="600" y="808" class="t-messagebus" font-size="8" text-anchor="middle">clean data</text>
+        <text x="600" y="819" class="t-dim" font-size="7" text-anchor="middle">read-only</text>
 
         <!-- Legend -->
-        <text x="214" y="724" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <path d="M 214 744 L 248 744" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <text x="257" y="747" class="t-muted" font-size="8">primary data</text>
-        <path d="M 340 744 L 374 744" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <text x="383" y="747" class="t-muted" font-size="8">policy / PII</text>
-        <path d="M 480 744 L 514 744" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <text x="523" y="747" class="t-muted" font-size="8">async batch</text>
-        <rect x="625" y="736" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="646" y="744" class="t-muted" font-size="8">data store</text>
+        <text x="214" y="844" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <path d="M 214 864 L 248 864" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <text x="257" y="867" class="t-muted" font-size="8">primary data</text>
+        <path d="M 340 864 L 374 864" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <text x="383" y="867" class="t-muted" font-size="8">policy / PII</text>
+        <path d="M 480 864 L 514 864" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <text x="523" y="867" class="t-muted" font-size="8">async batch</text>
+        <rect x="625" y="856" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="646" y="864" class="t-muted" font-size="8">data store</text>
       </svg>
     </div>
 
@@ -670,9 +722,9 @@
           <h3>Hai nhánh sau clean_data()</h3>
         </div>
         <ul>
-          <li>&bull; cleaned_all giữ mọi symbol OHLCV hợp lệ, ghi hose_stock_clean.csv, phục vụ prediction</li>
-          <li>&bull; Training universe chỉ giữ symbol có ≥ 250 phiên; MIN_AVERAGE_VOLUME hiện bằng 0 nên chỉ đếm số phiên</li>
-          <li>&bull; Không tạo file split riêng; TRAIN/VALIDATION/TEST cắt trong RAM theo rolling boundary từ dataset hiện tại</li>
+          <li>&bull; cleaned_all giữ mọi symbol OHLCV hợp lệ (hose_stock_clean.csv), chỉ prediction runtime đọc</li>
+          <li>&bull; Training universe = cleaned_for_training, chỉ symbol có ≥ 250 phiên; MIN_AVERAGE_VOLUME = 0 nên chỉ đếm số phiên</li>
+          <li>&bull; 20 feature và nhãn exact t+5 đều tính TỪ training universe, không phải cleaned_all; TRAIN/VALIDATION/TEST cắt trong RAM theo rolling boundary</li>
         </ul>
       </div>
 
@@ -682,7 +734,7 @@
           <h3>Target exact market t+5</h3>
         </div>
         <ul>
-          <li>&bull; Lịch đích lấy từ danh sách trading_date chung của toàn dataset (phiên thị trường chung)</li>
+          <li>&bull; Lịch đích lấy từ trading_date chung của toàn dataset (phiên thị trường chung)</li>
           <li>&bull; Symbol phải có close đúng phiên t+5; thiếu thì row bị bỏ, không nhảy sang phiên riêng kế tiếp</li>
           <li>&bull; UP chỉ khi future_return_5d &gt; 1%; đúng 1% vẫn là NOT_UP</li>
         </ul>
@@ -691,12 +743,12 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Chọn model và TEST</h3>
+          <h3>CV, chọn, refit và TEST gate</h3>
         </div>
         <ul>
-          <li>&bull; CV 4 fold purged chỉ chạy trên TRAIN; VALIDATION chọn model và so với baseline Always-UP / Always-NOT-UP</li>
-          <li>&bull; Winner không vượt baseline tốt nhất trên VALIDATION thì pipeline dừng trước TEST</li>
-          <li>&bull; TEST là của rolling snapshot, chấm đúng một lần cho mỗi experiment fingerprint; dataset mới tạo fingerprint mới</li>
+          <li>&bull; CV 4 fold purged (gap 5) chỉ chạy trên TRAIN để fit candidate LR/RF/GB — CV không phải là TRAIN → VALIDATION</li>
+          <li>&bull; VALIDATION chọn winner và so baseline Always-UP/Always-NOT-UP; thua baseline thì dừng trước TEST</li>
+          <li>&bull; Winner hợp lệ refit TRAIN+VALIDATION TRƯỚC, rồi mới chấm TEST đúng một lần cho mỗi fingerprint; TEST không chọn model, sau đó publish và prediction đọc artifact</li>
         </ul>
       </div>
     </div>

@@ -1,123 +1,106 @@
-<!doctype html>
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>So sánh hai mã cổ phiếu HOSE</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow">HOSE ML</p>
-                <h1>So sánh hai mã cổ phiếu</h1>
-                <p class="subtitle">Đối chiếu tín hiệu từ cùng model và dữ liệu offline.</p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('index') }}">Dự báo một mã</a>
-                <a class="nav-link" href="{{ url_for('screener') }}">Bảng xếp hạng</a>
-                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
 
-        {% if dataset_max_date %}
-        <p class="dataset-banner">
-            Dữ liệu offline (đã xử lý) đến ngày: <strong>{{ dataset_max_date|date_vi }}</strong>
-            — {{ symbol_count }} mã. Không cập nhật realtime.
-        </p>
+{% block title %}So sánh hai mã cổ phiếu HOSE{% endblock %}
+
+{% block page_header %}
+<h1>So sánh hai mã cổ phiếu</h1>
+<p class="subtitle">Đối chiếu tín hiệu từ cùng model và dữ liệu offline.</p>
+{% endblock %}
+
+{% block content %}
+<nav class="signal-tabs" aria-label="Chế độ tín hiệu">
+    <a class="signal-tab" href="{{ url_for('index') }}">
+        <span class="signal-tab-title">Dự báo một mã</span>
+        <span class="signal-tab-sub">Kết luận UP/NOT_UP kèm biểu đồ</span>
+    </a>
+    <a class="signal-tab is-active" href="{{ url_for('compare') }}" aria-current="true">
+        <span class="signal-tab-title">So sánh hai mã</span>
+        <span class="signal-tab-sub">Đối chiếu tín hiệu song song</span>
+    </a>
+</nav>
+
+<form class="compare-form" method="post" action="{{ url_for('compare') }}">
+    <div class="compare-form-grid">
+        <label for="symbol-a">
+            Mã thứ nhất
+            <input id="symbol-a" name="symbol_a" type="text" list="compare-symbol-list"
+                   placeholder="VD: FPT" maxlength="12" required value="{{ symbol_a }}">
+        </label>
+        <label for="symbol-b">
+            Mã thứ hai
+            <input id="symbol-b" name="symbol_b" type="text" list="compare-symbol-list"
+                   placeholder="VD: VNM" maxlength="12" required value="{{ symbol_b }}">
+        </label>
+    </div>
+    <datalist id="compare-symbol-list">
+        {% for sym in symbols %}<option value="{{ sym }}"></option>{% endfor %}
+    </datalist>
+    <div class="compare-actions">
+        <button type="submit">So sánh</button>
+        {% if selected_model %}
+        <span class="model-chip">Model đang dùng: {{ selected_model or "Chưa có báo cáo" }}</span>
         {% endif %}
+    </div>
+</form>
 
-        <section class="workspace">
-            <form class="compare-form" method="post" action="{{ url_for('compare') }}">
-                <div class="compare-form-grid">
-                    <label for="symbol-a">
-                        Mã thứ nhất
-                        <input id="symbol-a" name="symbol_a" type="text" list="compare-symbol-list"
-                               placeholder="VD: FPT" maxlength="12" required value="{{ symbol_a }}">
-                    </label>
-                    <label for="symbol-b">
-                        Mã thứ hai
-                        <input id="symbol-b" name="symbol_b" type="text" list="compare-symbol-list"
-                               placeholder="VD: VNM" maxlength="12" required value="{{ symbol_b }}">
-                    </label>
-                </div>
-                <datalist id="compare-symbol-list">
-                    {% for sym in symbols %}<option value="{{ sym }}"></option>{% endfor %}
-                </datalist>
-                <div class="compare-actions">
-                    <button type="submit">So sánh</button>
-                    {% if selected_model %}
-                    <span class="model-chip">Model đang dùng: {{ selected_model or "Chưa có báo cáo" }}</span>
-                    {% endif %}
-                </div>
-            </form>
+{% if error %}
+<section class="alert" role="alert">{{ error }}</section>
+{% endif %}
 
-            {% if error %}
-            <section class="alert" role="alert">{{ error }}</section>
-            {% endif %}
+{% if results %}
+{% set a = results[0] %}
+{% set b = results[1] %}
+<section class="compare-results" aria-labelledby="compare-title">
+    <h2 id="compare-title" class="forecast-title">{{ a.symbol }} và {{ b.symbol }}</h2>
 
-            {% if results %}
-            {% set a = results[0] %}
-            {% set b = results[1] %}
-            <section class="compare-results" aria-labelledby="compare-title">
-                <h2 id="compare-title" class="forecast-title">{{ a.symbol }} và {{ b.symbol }}</h2>
+    {% if a.reference_date != b.reference_date %}
+    <section class="alert warn" role="status">
+        Ngày tham chiếu khác nhau; chưa thể so sánh trực tiếp.
+    </section>
+    {% endif %}
+    {% if a.is_stale or b.is_stale or a.forecast_window_elapsed or b.forecast_window_elapsed %}
+    <section class="alert warn" role="status">
+        Dữ liệu đã cũ; hãy làm mới trước khi dùng kết quả.
+        {% if a.is_stale %}<span class="alert-detail">{{ a.symbol }} có ngày tham chiếu cũ hơn ngày dữ liệu lớn nhất.</span>{% endif %}
+        {% if b.is_stale %}<span class="alert-detail">{{ b.symbol }} có ngày tham chiếu cũ hơn ngày dữ liệu lớn nhất.</span>{% endif %}
+        {% if a.forecast_window_elapsed %}<span class="alert-detail">Khoảng dự báo của {{ a.symbol }} đã trôi qua.</span>{% endif %}
+        {% if b.forecast_window_elapsed %}<span class="alert-detail">Khoảng dự báo của {{ b.symbol }} đã trôi qua.</span>{% endif %}
+    </section>
+    {% endif %}
+    {% if a.baseline_warning or b.baseline_warning %}
+    <section class="alert warn" role="status">
+        {{ a.baseline_warning or b.baseline_warning }}
+    </section>
+    {% endif %}
 
-                {% if a.reference_date != b.reference_date %}
-                <section class="alert warn" role="status">
-                    Ngày tham chiếu khác nhau; chưa thể so sánh trực tiếp.
-                </section>
-                {% endif %}
-                {% if a.is_stale or b.is_stale or a.forecast_window_elapsed or b.forecast_window_elapsed %}
-                <section class="alert warn" role="status">
-                    Dữ liệu đã cũ; hãy làm mới trước khi dùng kết quả.
-                    {% if a.is_stale %}<span class="alert-detail">{{ a.symbol }} có ngày tham chiếu cũ hơn ngày dữ liệu lớn nhất.</span>{% endif %}
-                    {% if b.is_stale %}<span class="alert-detail">{{ b.symbol }} có ngày tham chiếu cũ hơn ngày dữ liệu lớn nhất.</span>{% endif %}
-                    {% if a.forecast_window_elapsed %}<span class="alert-detail">Khoảng dự báo của {{ a.symbol }} đã trôi qua.</span>{% endif %}
-                    {% if b.forecast_window_elapsed %}<span class="alert-detail">Khoảng dự báo của {{ b.symbol }} đã trôi qua.</span>{% endif %}
-                </section>
-                {% endif %}
-                {% if a.baseline_warning or b.baseline_warning %}
-                <section class="alert warn" role="status">
-                    {{ a.baseline_warning or b.baseline_warning }}
-                </section>
-                {% endif %}
+    <div class="table-wrap compare-table-wrap" data-ui="table-scroll">
+        <table class="compare-table" data-ui="data-table">
+            <thead>
+                <tr><th scope="col">Chỉ số</th><th scope="col">{{ a.symbol }}</th><th scope="col">{{ b.symbol }}</th></tr>
+            </thead>
+            <tbody>
+                <tr><th scope="row">Ngày tham chiếu</th><td>{{ a.reference_date|date_vi }}</td><td>{{ b.reference_date|date_vi }}</td></tr>
+                <tr><th scope="row">Giá đóng cửa</th><td>{{ "%.2f"|format(a.close_at_reference) }}</td><td>{{ "%.2f"|format(b.close_at_reference) }}</td></tr>
+                <tr>
+                <th scope="row">Điểm UP</th>
+                    <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up else '' }}">
+                        {{ "%.1f%%"|format(a.probability_up * 100) if a.probability_up is not none else "Không hỗ trợ" }}
+                        {% if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                    </td>
+                    <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up else '' }}">
+                        {{ "%.1f%%"|format(b.probability_up * 100) if b.probability_up is not none else "Không hỗ trợ" }}
+                        {% if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                    </td>
+                </tr>
+                <tr><th scope="row">Kết quả</th><td>{{ a.prediction_label_vi }}</td><td>{{ b.prediction_label_vi }}</td></tr>
+                <tr><th scope="row">Return 20 phiên</th><td>{{ "%.2f%%"|format(a.return_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.return_20d * 100) }}</td></tr>
+                <tr><th scope="row">Volatility 20 phiên</th><td>{{ "%.2f%%"|format(a.volatility_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.volatility_20d * 100) }}</td></tr>
+                <tr><th scope="row">Volume / AVG20</th><td>{{ "%.2f"|format(a.volume_ratio_20) }}x</td><td>{{ "%.2f"|format(b.volume_ratio_20) }}x</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
 
-                <div class="table-wrap compare-table-wrap">
-                    <table class="compare-table">
-                        <thead>
-                            <tr><th scope="col">Chỉ số</th><th scope="col">{{ a.symbol }}</th><th scope="col">{{ b.symbol }}</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><th scope="row">Ngày tham chiếu</th><td>{{ a.reference_date|date_vi }}</td><td>{{ b.reference_date|date_vi }}</td></tr>
-                            <tr><th scope="row">Giá đóng cửa</th><td>{{ "%.2f"|format(a.close_at_reference) }}</td><td>{{ "%.2f"|format(b.close_at_reference) }}</td></tr>
-                            <tr>
-                            <th scope="row">Điểm UP</th>
-                                <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up else '' }}">
-                                    {{ "%.1f%%"|format(a.probability_up * 100) if a.probability_up is not none else "Không hỗ trợ" }}
-                                    {% if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
-                                </td>
-                                <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up else '' }}">
-                                    {{ "%.1f%%"|format(b.probability_up * 100) if b.probability_up is not none else "Không hỗ trợ" }}
-                                    {% if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
-                                </td>
-                            </tr>
-                            <tr><th scope="row">Kết quả</th><td>{{ a.prediction_label_vi }}</td><td>{{ b.prediction_label_vi }}</td></tr>
-                            <tr><th scope="row">Return 20 phiên</th><td>{{ "%.2f%%"|format(a.return_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.return_20d * 100) }}</td></tr>
-                            <tr><th scope="row">Volatility 20 phiên</th><td>{{ "%.2f%%"|format(a.volatility_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.volatility_20d * 100) }}</td></tr>
-                            <tr><th scope="row">Volume / AVG20</th><td>{{ "%.2f"|format(a.volume_ratio_20) }}x</td><td>{{ "%.2f"|format(b.volume_ratio_20) }}x</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-            {% endif %}
-        </section>
-
-        <p class="disclaimer">Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.</p>
-    </main>
-</body>
-</html>
+<p class="disclaimer">Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.</p>
+{% endblock %}

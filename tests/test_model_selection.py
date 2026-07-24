@@ -171,6 +171,9 @@ class MetadataAndAtomicWriteTests(unittest.TestCase):
         train = frame(["2025-01-01", "2025-01-02"], [0, 1])
         validation = frame(["2025-01-03"], [1])
         test = frame(["2025-01-04"], [0])
+        train.loc[1, "symbol"] = "VNM"
+        validation.loc[:, "symbol"] = "ACB"
+        test.loc[:, "symbol"] = "HPG"
         artifact = {
             "model_name": "Logistic Regression",
             "model_id": 2,
@@ -209,6 +212,8 @@ class MetadataAndAtomicWriteTests(unittest.TestCase):
         self.assertEqual(metadata["train_through_date"], "2025-01-03")
         self.assertEqual(metadata["validation_selection_metrics"]["f1_up"], 0.5)
         self.assertEqual(metadata["final_test_metrics"]["f1_up"], 0.45)
+        self.assertEqual(metadata["training_symbols"], ["ACB", "FPT", "VNM"])
+        self.assertEqual(metadata["training_symbol_count"], 3)
 
     def test_atomic_dump_leaves_no_partial_target(self):
         with tempfile.TemporaryDirectory() as tmp:

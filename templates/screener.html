@@ -1,127 +1,161 @@
-<!doctype html>
-<!-- Bảng xếp hạng tín hiệu toàn sàn: Flask truyền up_rows/not_up_rows đã sort. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bảng xếp hạng tín hiệu HOSE</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow">HOSE ML</p>
-                <h1>Bảng xếp hạng tín hiệu</h1>
-                <p class="subtitle">
-                    Dự báo mã có tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên kế tiếp,
-                    xếp theo điểm UP của model. Chọn mã để xem chi tiết.
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('index') }}">Dự báo một mã</a>
-                <a class="nav-link" href="{{ url_for('compare') }}">So sánh hai mã</a>
-                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
+{# Bảng xếp hạng tín hiệu toàn sàn: một bảng full-width, sort điểm UP giảm dần.
+   Filter (Tất cả/UP/NOT_UP) + tìm mã chạy local trên dữ liệu đã render — không
+   gọi lại backend. JS tắt thì toàn bảng vẫn đọc được. #}
+{% block title %}Bảng xếp hạng tín hiệu — HOSE ML{% endblock %}
 
-        {% if dataset_max_date %}
-        <p class="dataset-banner">
-            Dữ liệu offline (đã xử lý) đến ngày: <strong>{{ dataset_max_date|date_vi }}</strong>
-            — {{ symbol_count }} mã. Model đang dùng: <strong>{{ selected_model or "chưa có" }}</strong>. Không cập nhật realtime.
-        </p>
-        {% endif %}
+{% block page_header %}
+<h1>Bảng xếp hạng tín hiệu</h1>
+<p class="subtitle">
+    Dự báo mã có tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên kế tiếp,
+    xếp theo điểm UP của model. Chọn mã để xem chi tiết.
+</p>
+{% endblock %}
 
-        <section class="workspace">
-            {% if error %}
-            <section class="alert" role="alert">{{ error }}</section>
-            {% endif %}
+{% block content %}
+{% if error %}
+<section class="alert" role="alert">{{ error }}</section>
+{% endif %}
 
-            {% if baseline_warning %}
-            <section class="alert warn" role="status">{{ baseline_warning }}</section>
-            {% endif %}
+{% if baseline_warning %}
+<section class="alert warn" role="status">{{ baseline_warning }}</section>
+{% endif %}
 
-            {% if up_rows is defined and not error %}
-            <p class="screener-summary">
-                Tổng <strong>{{ total_count }}</strong> mã có đủ dữ liệu:
-                <span class="pill pill-up">{{ up_count }} tăng (UP)</span>
-                <span class="pill pill-down">{{ not_up_count }} không đủ điều kiện</span>
-            </p>
+{% if all_rows is defined and not error %}
+<div class="screener-toolbar">
+    <p class="screener-summary" role="status">
+        Tổng <strong>{{ total_count }}</strong> mã có đủ dữ liệu:
+        <span class="count-up">{{ up_count }} UP</span> ·
+        <span class="count-down">{{ not_up_count }} NOT_UP</span>
+    </p>
+    <div class="screener-controls">
+        <div class="filter-group" role="group" aria-label="Lọc theo trạng thái">
+            <button type="button" class="filter-btn is-active" data-filter="all" aria-pressed="true">Tất cả</button>
+            <button type="button" class="filter-btn" data-filter="UP" aria-pressed="false">UP</button>
+            <button type="button" class="filter-btn" data-filter="NOT_UP" aria-pressed="false">NOT_UP</button>
+        </div>
+        <label class="screener-search">
+            <span class="visually-hidden">Tìm theo mã cổ phiếu</span>
+            <input type="search" id="screener-search" placeholder="Tìm mã…"
+                   autocomplete="off" maxlength="12" aria-label="Tìm theo mã cổ phiếu">
+        </label>
+    </div>
+</div>
 
-            <div class="screener-grid">
-                {% set columns = [
-                    ("up", "Tăng (UP)", up_rows, up_count),
-                    ("down", "Không đủ điều kiện", not_up_rows, not_up_count)
-                ] %}
-                {% for kind, title, col_rows, col_count in columns %}
-                <section class="screener-col screener-col-{{ kind }}" aria-labelledby="col-{{ kind }}">
-                    <header class="screener-col-head">
-                        <span class="screener-col-mark" aria-hidden="true">{{ "▲" if kind == "up" else "▬" }}</span>
-                        <h2 id="col-{{ kind }}">{{ title }}</h2>
-                        <span class="screener-col-count">{{ col_count }} mã</span>
-                    </header>
-
-                    {% if col_rows %}
-                    <div class="table-wrap">
-                        <table class="screener-table">
-                            <colgroup>
-                                <col class="col-symbol">
-                                <col class="col-score">
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Mã</th>
-                                    <th scope="col">Điểm UP</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in col_rows %}
-                                <tr>
-                                    <th scope="row" class="screener-symbol">
-                                        <span class="screener-symbol-row">
-                                            <a href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
-                                            {% if row.is_stale %}<span class="stale-badge" title="Ngày tham chiếu cũ hơn phiên mới nhất của dataset">cũ</span>{% endif %}
-                                        </span>
-                                        <span class="screener-ref-price">{{ "%.2f"|format(row.close_at_reference) }}</span>
-                                    </th>
-                                    <td class="screener-score">
-                                        {% if row.probability_up is not none %}
-                                        <div class="prob-bar" role="meter"
-                                             aria-valuenow="{{ (row.probability_up * 100)|round(1) }}"
-                                             aria-valuemin="0" aria-valuemax="100"
-                                             aria-label="Điểm UP của {{ row.symbol }}">
-                                            <div class="prob-fill" style="width: {{ (row.probability_up * 100)|round(1) }}%;"></div>
-                                        </div>
-                                        <span class="prob-value">{{ "%.1f%%"|format(row.probability_up * 100) }}</span>
-                                        {% else %}
-                                        <span class="prob-value muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="screener-empty">Không có mã nào.</p>
+{% if all_rows %}
+<div class="table-wrap" data-ui="table-scroll">
+    <table class="data-table screener-table" data-ui="data-table">
+        <caption class="visually-hidden">
+            Bảng xếp hạng {{ total_count }} mã theo điểm UP của model, sắp giảm dần.
+        </caption>
+        <colgroup>
+            <col class="col-symbol">
+            <col class="col-status">
+            <col class="col-score">
+            <col class="col-price">
+            <col class="col-date">
+        </colgroup>
+        <thead>
+            <tr>
+                <th scope="col">Mã</th>
+                <th scope="col">Trạng thái</th>
+                <th scope="col" class="num">Điểm UP</th>
+                <th scope="col" class="num">Giá tham chiếu</th>
+                <th scope="col" class="num">Ngày dữ liệu</th>
+            </tr>
+        </thead>
+        <tbody id="screener-rows">
+            {% for row in all_rows %}
+            <tr data-symbol="{{ row.symbol }}"
+                data-status="{{ 'UP' if row.prediction == 'UP' else 'NOT_UP' }}">
+                <th scope="row" class="cell-symbol">
+                    <a href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                    {% if row.is_stale %}
+                    <span class="stale-badge">cũ · {{ row.reference_date|date_vi }}</span>
                     {% endif %}
-                </section>
-                {% endfor %}
-            </div>
-            {% elif not error %}
-            <section class="alert" role="alert">
-                Chưa có dữ liệu để xếp hạng. Hãy chạy pipeline trước.
-            </section>
-            {% endif %}
-        </section>
+                </th>
+                <td>
+                    {% if row.prediction == 'UP' %}
+                    <span class="tag tag-up">UP</span>
+                    {% else %}
+                    <span class="tag tag-down">NOT_UP</span>
+                    {% endif %}
+                </td>
+                <td class="num cell-score">
+                    {% if row.probability_up is not none %}
+                    <span class="prob-value">{{ "%.1f%%"|format(row.probability_up * 100) }}</span>
+                    <span class="prob-bar" role="meter"
+                          aria-valuenow="{{ (row.probability_up * 100)|round(1) }}"
+                          aria-valuemin="0" aria-valuemax="100"
+                          aria-label="Điểm UP của {{ row.symbol }}">
+                        <span class="prob-fill" style="width: {{ (row.probability_up * 100)|round(1) }}%;"></span>
+                    </span>
+                    {% else %}
+                    <span class="prob-value muted">N/A</span>
+                    {% endif %}
+                </td>
+                <td class="num">{{ "%.2f"|format(row.close_at_reference) }}</td>
+                <td class="num">{{ row.reference_date|date_vi }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p class="screener-empty" id="screener-no-match" hidden role="status">
+    Không có mã nào khớp bộ lọc.
+</p>
+{% else %}
+<section class="alert" role="alert">
+    Chưa có mã nào để xếp hạng. Hãy chạy pipeline trước.
+</section>
+{% endif %}
+{% elif not error %}
+<section class="alert" role="alert">
+    Chưa có dữ liệu để xếp hạng. Hãy chạy pipeline trước.
+</section>
+{% endif %}
 
-        <p class="disclaimer">
-            Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
-        </p>
-    </main>
-</body>
-</html>
+<p class="disclaimer">
+    Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
+</p>
+{% endblock %}
+
+{% block page_scripts %}
+{% if all_rows %}
+<script>
+    (() => {
+        const rows = Array.from(document.querySelectorAll("#screener-rows tr"));
+        const search = document.getElementById("screener-search");
+        const noMatch = document.getElementById("screener-no-match");
+        const filterButtons = Array.from(document.querySelectorAll(".filter-btn"));
+        let activeFilter = "all";
+
+        function apply() {
+            const term = (search.value || "").trim().toUpperCase();
+            let visible = 0;
+            rows.forEach((tr) => {
+                const statusOk = activeFilter === "all" || tr.dataset.status === activeFilter;
+                const symbolOk = !term || tr.dataset.symbol.indexOf(term) !== -1;
+                const show = statusOk && symbolOk;
+                tr.hidden = !show;
+                if (show) { visible += 1; }
+            });
+            noMatch.hidden = visible !== 0;
+        }
+
+        filterButtons.forEach((btn) => {
+            btn.addEventListener("click", () => {
+                activeFilter = btn.dataset.filter;
+                filterButtons.forEach((b) => {
+                    const on = b === btn;
+                    b.classList.toggle("is-active", on);
+                    b.setAttribute("aria-pressed", on ? "true" : "false");
+                });
+                apply();
+            });
+        });
+        search.addEventListener("input", apply);
+    })();
+</script>
+{% endif %}
+{% endblock %}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Workflow tuning → release — precheck Flask và revalidation trong official pipeline Diagram</title>
+  <title>Sequence — Chatbot RAG grounded, read-only trên artifact đã publish Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Workflow tuning → release — precheck Flask và revalidation trong official pipeline</h1>
+        <h1>Sequence — Chatbot RAG grounded, read-only trên artifact đã publish</h1>
       </div>
-      <p class="subtitle">run_pipeline.py: lock · dataset_check → split · fingerprint · config gate · fit TRAIN · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed</p>
+      <p class="subtitle">Browser /chat → /api/chat → chatbot_service → LLM tool calling → chatbot_tools → Release Gate → artifact/prediction_service → grounding → answer</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 1272" role="img" aria-label="Workflow tuning → release — precheck Flask và revalidation trong official pipeline — run_pipeline.py: lock · dataset_check → split · fingerprint · config gate · fit TRAIN · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed (workflow diagram)">
+      <svg viewBox="0 0 980 860" role="img" aria-label="Sequence — Chatbot RAG grounded, read-only trên artifact đã publish — Browser /chat → /api/chat → chatbot_service → LLM tool calling → chatbot_tools → Release Gate → artifact/prediction_service → grounding → answer (sequence diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -524,287 +524,160 @@
         <!-- Background Grid -->
         <rect width="100%" height="100%" fill="url(#grid)" />
 
-        <!-- Swimlanes -->
-        <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Flask precheck — POST /tuning/run-pipeline (trước khi spawn)</text>
+        <!-- Time Segments -->
+        <rect x="48" y="158" width="884" height="82" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="176" class="t-dim" font-size="9" font-weight="600">01 / REQUEST + LOCAL ROUTER</text>
 
-        <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Official pipeline — lock + tiền xử lý dữ liệu</text>
+        <rect x="48" y="250" width="884" height="84" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="268" class="t-dim" font-size="9" font-weight="600">02 / LLM CHỌN TOOL (≤ 3 vòng)</text>
 
-        <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Nhãn + rolling TRAIN/VALIDATION/TEST split</text>
+        <rect x="48" y="344" width="884" height="212" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="362" class="t-dim" font-size="9" font-weight="600">03 / TOOL GROUNDED READ-ONLY (≤ 5 call)</text>
 
-        <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / Revalidation — fingerprint + snapshot + config gate</text>
+        <rect x="48" y="566" width="884" height="160" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="584" class="t-dim" font-size="9" font-weight="600">04 / GROUNDING + ANSWER</text>
 
-        <rect x="40" y="548" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="570" class="t-dim" font-size="10" font-weight="600">05 / Ghi processed outputs + recheck fingerprint</text>
+        <!-- Lifelines -->
+        <path d="M 62 142 L 62 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 170 142 L 170 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 278 142 L 278 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 386 142 L 386 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 494 142 L 494 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 602 142 L 602 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 710 142 L 710 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
 
-        <rect x="40" y="672" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="694" class="t-dim" font-size="10" font-weight="600">06 / Fit TRAIN + chọn candidate trên VALIDATION</text>
+        <!-- Messages -->
+        <path d="M 69 186 L 163 186" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="73.6" y="166" width="84.8" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="176" class="t-backend" font-size="9" text-anchor="middle">POST /api/chat</text>
+        <text x="81" y="204" class="t-dim" font-size="7">message ≤ 1000 ký tự · history ≤ 3 cặp gần nhất, chỉ trong memory tab</text>
 
-        <rect x="40" y="796" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="818" class="t-dim" font-size="10" font-weight="600">07 / VALIDATION baseline gate → refit TR+VAL → TEST một lần</text>
+        <path d="M 177 220 L 271 220" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="160.8" y="200" width="126.4" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="210" class="t-backend" font-size="9" text-anchor="middle">chat(message, history)</text>
+        <text x="189" y="238" class="t-dim" font-size="7">social/chào-cảm ơn/hỏi khả năng và tư vấn mua-bán → trả lời local, KHÔNG gọi LLM</text>
 
-        <rect x="40" y="920" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="942" class="t-dim" font-size="10" font-weight="600">08 / Reports + metadata + atomic release + published</text>
+        <path d="M 285 270 L 379 270" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="242.8" y="250" width="178.4" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="260" class="t-backend" font-size="9" text-anchor="middle">system prompt + history + 6 tool</text>
+        <text x="297" y="288" class="t-dim" font-size="7">tool_choice=auto · deadline tổng 30 giây · max_retries=0</text>
 
-        <rect x="40" y="1044" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="1066" class="t-dim" font-size="10" font-weight="600">09 / Dừng an toàn / release_failed (release cũ vẫn phục vụ)</text>
+        <path d="M 379 304 L 285 304" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="300" y="284" width="64" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="294" class="t-muted" font-size="9" text-anchor="middle">tool_calls</text>
+        <text x="297" y="322" class="t-dim" font-size="7">no-tool: chỉ nhận safe clarification, còn lại thay bằng scope message</text>
 
-        <!-- Edge paths -->
-        <path d="M 134 119 L 241 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 359 119 L 571 119" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 300 153 L 300 910.8 L 88 910.8 L 88 1085" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 625 153 L 625 166 L 88 166 L 88 209" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 243 L 172 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 268 243 L 382 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 478 243 L 573 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 269 L 625 290 L 88 290 L 88 341" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 367 L 245 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 355 367 L 571 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 393 L 625 414 L 88 414 L 88 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 491 L 252 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 348 491 L 382 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 300 517 L 300 940.8 L 300 940.8 L 300 1077" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 430 517 L 430 837.5999999999999 L 300 837.5999999999999 L 300 1077" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 430 517 L 430 538 L 88 538 L 88 581" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 615 L 571 615" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 649 L 625 662 L 88 662 L 88 705" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 739 L 172 739" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 268 739 L 378 739" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 482 739 L 571 739" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 773 L 625 786 L 88 786 L 88 837" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 863 L 245 863" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 88 889 L 88 1015.2 L 430 1015.2 L 430 1077" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path d="M 355 863 L 571 863" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 625 897 L 625 910 L 88 910 L 88 961" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 987 L 172 987" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 268 987 L 375 987" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 485 987 L 571 987" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 430 1021 L 430 1034 L 625 1034 L 625 1077" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 285 350 L 487 350" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="317.6" y="330" width="136.8" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="340" class="t-backend" font-size="9" text-anchor="middle">execute_tool(name, args)</text>
+        <text x="297" y="368" class="t-dim" font-size="7">allowlist 6 tool · validate lại JSON args · tool call ≤ 5</text>
 
-        <!-- Nodes -->
-        <rect x="42" y="93" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="93" width="92" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Run pipeline</text>
-        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">POST run-pipeline</text>
+        <path d="M 501 390 L 595 390" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="492.6" y="370" width="110.8" height="16" rx="3" class="c-mask"/>
+        <text x="548" y="380" class="t-security" font-size="9" text-anchor="middle">get_release_state()</text>
+        <text x="513" y="408" class="t-dim" font-size="7">đọc identity: final_model.pkl · model_metadata.json · pipeline_summary.json</text>
 
-        <rect x="241" y="85" width="118" height="68" rx="6" class="c-mask"/>
-        <rect x="241" y="85" width="118" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="300" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Precheck Flask</text>
-        <text x="300" y="123" class="t-muted" font-size="8" text-anchor="middle">3 guard trước spawn</text>
-        <text x="300" y="141" class="t-security" font-size="7" text-anchor="middle">chưa chạm TEST</text>
+        <path d="M 595 424 L 501 424" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="497.8" y="404" width="100.4" height="16" rx="3" class="c-mask"/>
+        <text x="548" y="414" class="t-muted" font-size="9" text-anchor="middle">status + warnings</text>
+        <text x="513" y="442" class="t-dim" font-size="7">current / legacy / inconsistent / missing; inconsistent+missing chặn signal, ranking, metrics, feature</text>
 
-        <rect x="571" y="85" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="85" width="108" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Spawn pipeline</text>
-        <text x="625" y="123" class="t-muted" font-size="8" text-anchor="middle">run_pipeline.py sync</text>
-        <text x="625" y="141" class="t-backend" font-size="7" text-anchor="middle">chờ xong</text>
+        <path d="M 501 464 L 703 464" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="507.6" y="444" width="188.8" height="16" rx="3" class="c-mask"/>
+        <text x="602" y="454" class="t-backend" font-size="9" text-anchor="middle">predict_symbols / all · đọc report</text>
+        <text x="513" y="482" class="t-dim" font-size="7">chỉ get_stock_signals &amp; get_ranking chạm prediction_service; read-only, không train</text>
 
-        <rect x="42" y="209" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="209" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="88" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Acquire lock</text>
-        <text x="88" y="247" class="t-muted" font-size="8" text-anchor="middle">pipeline.lock</text>
-        <text x="88" y="265" class="t-security" font-size="7" text-anchor="middle">single-process</text>
+        <path d="M 703 498 L 501 498" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="562.2" y="478" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
+        <text x="602" y="488" class="t-muted" font-size="9" text-anchor="middle">rows + report</text>
+        <text x="513" y="516" class="t-dim" font-size="7">recheck chữ ký file sau inference; release đổi giữa chừng → release_changed</text>
 
-        <rect x="172" y="217" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="172" y="217" width="96" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="220" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dataset check</text>
-        <text x="220" y="255" class="t-muted" font-size="8" text-anchor="middle">dataset_check</text>
+        <path d="M 487 538 L 285 538" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="265.6" y="518" width="240.8" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="528" class="t-muted" font-size="9" text-anchor="middle">envelope: data · source · release · warnings</text>
+        <text x="297" y="556" class="t-dim" font-size="7">get_project_info trả contract tĩnh, không qua release gate</text>
 
-        <rect x="382" y="217" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="382" y="217" width="96" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="430" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Clean data</text>
-        <text x="430" y="255" class="t-muted" font-size="8" text-anchor="middle">clean_data</text>
+        <path d="M 285 586 L 379 586" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="258.4" y="566" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="576" class="t-backend" font-size="9" text-anchor="middle">tool result (tool_call_id)</text>
+        <text x="297" y="604" class="t-dim" font-size="7">lặp tới final plain text hoặc chạm giới hạn vòng/tool/deadline</text>
 
-        <rect x="573" y="217" width="104" height="52" rx="6" class="c-mask"/>
-        <rect x="573" y="217" width="104" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Build features</text>
-        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">build_features</text>
+        <path d="M 379 620 L 285 620" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="284.4" y="600" width="95.2" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="610" class="t-muted" font-size="9" text-anchor="middle">final plain text</text>
 
-        <rect x="42" y="341" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="341" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Create labels</text>
-        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">create_labels</text>
+        <path d="M 271 668 L 177 668" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="166" y="648" width="116" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="658" class="t-security" font-size="9" text-anchor="middle">grounding validation</text>
+        <text x="189" y="686" class="t-dim" font-size="7">chặn số ngoài tool result, Điểm UP gán sai mã, % viết bằng chữ, cụm mua/bán/BUY/SELL</text>
 
-        <rect x="245" y="333" width="110" height="68" rx="6" class="c-mask"/>
-        <rect x="245" y="333" width="110" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rolling split</text>
-        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">protocol_time_split</text>
-        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">TR/VAL/TEST</text>
+        <path d="M 163 712 L 69 712" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="-4.400000000000006" y="692" width="240.8" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="702" class="t-muted" font-size="9" text-anchor="middle">answer + sources + warnings + release_status</text>
+        <text x="81" y="730" class="t-dim" font-size="7">render bằng textContent; disclaimer offline luôn hiển thị</text>
 
-        <rect x="571" y="341" width="108" height="52" rx="6" class="c-mask"/>
-        <rect x="571" y="341" width="108" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="625" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Verify split</text>
-        <text x="625" y="379" class="t-muted" font-size="8" text-anchor="middle">verify_protocol_splits</text>
+        <!-- Activations -->
+        <rect x="165" y="182" width="10" height="534" rx="3" class="c-mask"/>
+        <rect x="165" y="182" width="10" height="534" rx="3" class="c-frontend" stroke-width="1"/>
+        <rect x="273" y="216" width="10" height="456" rx="3" class="c-mask"/>
+        <rect x="273" y="216" width="10" height="456" rx="3" class="c-backend" stroke-width="1"/>
+        <rect x="381" y="266" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="381" y="266" width="10" height="42" rx="3" class="c-external" stroke-width="1"/>
+        <rect x="489" y="346" width="10" height="196" rx="3" class="c-mask"/>
+        <rect x="489" y="346" width="10" height="196" rx="3" class="c-backend" stroke-width="1"/>
+        <rect x="597" y="386" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="597" y="386" width="10" height="42" rx="3" class="c-security" stroke-width="1"/>
+        <rect x="705" y="460" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="705" y="460" width="10" height="42" rx="3" class="c-database" stroke-width="1"/>
+        <rect x="381" y="582" width="10" height="42" rx="3" class="c-mask"/>
+        <rect x="381" y="582" width="10" height="42" rx="3" class="c-external" stroke-width="1"/>
 
-        <rect x="42" y="457" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="457" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="88" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Compute FP</text>
-        <text x="88" y="495" class="t-muted" font-size="8" text-anchor="middle">dataset+experiment</text>
-        <text x="88" y="513" class="t-security" font-size="7" text-anchor="middle">2 fingerprint</text>
+        <!-- Participants -->
+        <rect x="19" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="19" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Browser</text>
+        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">trang /chat</text>
 
-        <rect x="252" y="465" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="252" y="465" width="96" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="300" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Snapshot?</text>
-        <text x="300" y="503" class="t-muted" font-size="8" text-anchor="middle">snapshot đã eval?</text>
+        <rect x="127" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="127" y="72" width="86" height="54" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="170" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Flask</text>
+        <text x="170" y="111" class="t-muted" font-size="7" text-anchor="middle">app.py · /api/chat</text>
 
-        <rect x="382" y="465" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="382" y="465" width="96" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="430" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Config đủ?</text>
-        <text x="430" y="503" class="t-muted" font-size="8" text-anchor="middle">is_config_complete</text>
+        <rect x="235" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="235" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="278" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Chatbot</text>
+        <text x="278" y="111" class="t-muted" font-size="7" text-anchor="middle">chatbot_service</text>
 
-        <rect x="42" y="581" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="581" width="92" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="88" y="602" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Ghi outputs</text>
-        <text x="88" y="619" class="t-muted" font-size="8" text-anchor="middle">processed CSV</text>
-        <text x="88" y="637" class="t-database" font-size="7" text-anchor="middle">processed</text>
+        <rect x="343" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="343" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM</text>
+        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">external · tool calling</text>
 
-        <rect x="571" y="581" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="581" width="108" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="625" y="602" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Recheck FP</text>
-        <text x="625" y="619" class="t-muted" font-size="8" text-anchor="middle">so khớp content_hash</text>
-        <text x="625" y="637" class="t-security" font-size="7" text-anchor="middle">guard snapshot</text>
+        <rect x="451" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="451" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tools</text>
+        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">chatbot_tools · 6 tool</text>
 
-        <rect x="42" y="705" width="92" height="68" rx="6" class="c-mask"/>
-        <rect x="42" y="705" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="726" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit TRAIN</text>
-        <text x="88" y="743" class="t-muted" font-size="8" text-anchor="middle">tune_models</text>
-        <text x="88" y="761" class="t-backend" font-size="7" text-anchor="middle">reuse CV</text>
+        <rect x="559" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="559" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gate</text>
+        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">release gate</text>
 
-        <rect x="172" y="713" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="172" y="713" width="96" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="220" y="734" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Score VAL</text>
-        <text x="220" y="751" class="t-muted" font-size="8" text-anchor="middle">eval candidate</text>
-
-        <rect x="378" y="713" width="104" height="52" rx="6" class="c-mask"/>
-        <rect x="378" y="713" width="104" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="430" y="734" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Baselines</text>
-        <text x="430" y="751" class="t-muted" font-size="8" text-anchor="middle">evaluate_baselines</text>
-
-        <rect x="571" y="705" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="705" width="108" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="625" y="726" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Select model</text>
-        <text x="625" y="743" class="t-muted" font-size="8" text-anchor="middle">select_final_model</text>
-        <text x="625" y="761" class="t-security" font-size="7" text-anchor="middle">trên VALIDATION</text>
-
-        <rect x="42" y="837" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="837" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="88" y="858" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Vượt baseline?</text>
-        <text x="88" y="875" class="t-muted" font-size="8" text-anchor="middle">F1_UP &gt; baseline</text>
-
-        <rect x="245" y="837" width="110" height="52" rx="6" class="c-mask"/>
-        <rect x="245" y="837" width="110" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="858" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Refit TR+VAL</text>
-        <text x="300" y="875" class="t-muted" font-size="8" text-anchor="middle">refit_and_evaluate</text>
-
-        <rect x="571" y="829" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="829" width="108" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="625" y="850" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TEST 1 lần</text>
-        <text x="625" y="867" class="t-muted" font-size="8" text-anchor="middle">chấm TEST duy nhất</text>
-        <text x="625" y="885" class="t-security" font-size="7" text-anchor="middle">chạm TEST</text>
-
-        <rect x="42" y="961" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="961" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="88" y="982" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Write reports</text>
-        <text x="88" y="999" class="t-muted" font-size="8" text-anchor="middle">write_reports</text>
-
-        <rect x="172" y="961" width="96" height="52" rx="6" class="c-mask"/>
-        <rect x="172" y="961" width="96" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="220" y="982" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Metadata</text>
-        <text x="220" y="999" class="t-muted" font-size="8" text-anchor="middle">build meta</text>
-
-        <rect x="375" y="953" width="110" height="68" rx="6" class="c-mask"/>
-        <rect x="375" y="953" width="110" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="430" y="974" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Atomic release</text>
-        <text x="430" y="991" class="t-muted" font-size="8" text-anchor="middle">final_model.pkl + meta</text>
-        <text x="430" y="1009" class="t-database" font-size="7" text-anchor="middle">cũ giữ nếu lỗi</text>
-
-        <rect x="571" y="953" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="953" width="108" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="974" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Published</text>
-        <text x="625" y="991" class="t-muted" font-size="8" text-anchor="middle">status=published</text>
-        <text x="625" y="1009" class="t-backend" font-size="7" text-anchor="middle">release OK</text>
-
-        <rect x="42" y="1085" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="1085" width="92" height="52" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="88" y="1106" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Trả HTML</text>
-        <text x="88" y="1123" class="t-muted" font-size="8" text-anchor="middle">400/409 · không spawn</text>
-
-        <rect x="241" y="1077" width="118" height="68" rx="6" class="c-mask"/>
-        <rect x="241" y="1077" width="118" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="300" y="1098" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dừng reval</text>
-        <text x="300" y="1115" class="t-muted" font-size="8" text-anchor="middle">snapshot eval / stale</text>
-        <text x="300" y="1133" class="t-external" font-size="7" text-anchor="middle">chưa chạm TEST</text>
-
-        <rect x="378" y="1077" width="104" height="68" rx="6" class="c-mask"/>
-        <rect x="378" y="1077" width="104" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="430" y="1098" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dừng</text>
-        <text x="430" y="1115" class="t-muted" font-size="8" text-anchor="middle">winner ≤ baseline</text>
-        <text x="430" y="1133" class="t-external" font-size="7" text-anchor="middle">trước TEST</text>
-
-        <rect x="571" y="1077" width="108" height="68" rx="6" class="c-mask"/>
-        <rect x="571" y="1077" width="108" height="68" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="625" y="1098" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">release_failed</text>
-        <text x="625" y="1115" class="t-muted" font-size="8" text-anchor="middle">lỗi sau started</text>
-        <text x="625" y="1133" class="t-external" font-size="7" text-anchor="middle">release cũ còn</text>
-
-        <!-- Edge labels -->
-
-        <rect x="450" y="99" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="465" y="109" class="t-backend" font-size="8" text-anchor="middle">pass</text>
-        <rect x="285" y="156" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="300" y="166" class="t-security" font-size="8" text-anchor="middle">fail</text>
-
-
-
-
-
-
-
-
-
-
-        <rect x="178.2" y="460" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="200" y="470" class="t-security" font-size="8" text-anchor="middle">đã eval</text>
-        <rect x="328.6" y="535" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="360" y="545" class="t-security" font-size="8" text-anchor="middle">thiếu/stale</text>
-        <rect x="168.6" y="528" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="200" y="538" class="t-backend" font-size="8" text-anchor="middle">đủ 3 config</text>
-
-        <rect x="334.7" y="642" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="356.5" y="652" class="t-backend" font-size="8" text-anchor="middle">FP khớp</text>
-
-
-
-
-        <rect x="150.9" y="843" width="77.2" height="14" rx="3" class="c-mask"/>
-        <text x="189.5" y="853" class="t-backend" font-size="8" text-anchor="middle">vượt → started</text>
-        <rect x="183.8" y="776" width="72.4" height="14" rx="3" class="c-mask"/>
-        <text x="220" y="786" class="t-security" font-size="8" text-anchor="middle">thua baseline</text>
-
-        <rect x="329.9" y="890" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-        <text x="356.5" y="900" class="t-backend" font-size="8" text-anchor="middle">evaluated</text>
-
-
-        <rect x="506.2" y="967" width="43.6" height="14" rx="3" class="c-mask"/>
-        <text x="528" y="977" class="t-backend" font-size="8" text-anchor="middle">publish</text>
-        <rect x="488.6" y="1024" width="62.8" height="14" rx="3" class="c-mask"/>
-        <text x="520" y="1034" class="t-security" font-size="8" text-anchor="middle">publish lỗi</text>
+        <rect x="667" y="72" width="86" height="54" rx="6" class="c-mask"/>
+        <rect x="667" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Artifact</text>
+        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">prediction_service + report</text>
 
         <!-- Legend -->
-        <text x="175" y="1172" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <rect x="175" y="1184" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="195" y="1192" class="t-muted" font-size="7">User UI</text>
-        <rect x="260" y="1184" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="280" y="1192" class="t-muted" font-size="7">Agent logic</text>
-        <rect x="370" y="1184" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="390" y="1192" class="t-muted" font-size="7">Policy</text>
-        <rect x="455" y="1184" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="475" y="1192" class="t-muted" font-size="7">Tool action</text>
-        <rect x="565" y="1184" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="585" y="1192" class="t-muted" font-size="7">Context / trace</text>
+        <text x="150" y="786" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <path d="M 150 806 L 184 806" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <text x="193" y="809" class="t-muted" font-size="8">request</text>
+        <path d="M 270 806 L 304 806" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <text x="313" y="809" class="t-muted" font-size="8">return</text>
+        <path d="M 385 806 L 419 806" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <text x="428" y="809" class="t-muted" font-size="8">security</text>
+        <path d="M 530 806 L 564 806" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <text x="573" y="809" class="t-muted" font-size="8">async trace</text>
       </svg>
     </div>
 
@@ -812,44 +685,44 @@
     <div class="cards">
       <div class="card">
         <div class="card-header">
-          <div class="card-dot cyan"></div>
-          <h3>Precheck tại Flask (nhẹ, trước spawn)</h3>
+          <div class="card-dot violet"></div>
+          <h3>Sáu tool read-only</h3>
         </div>
         <ul>
-          <li>&bull; tuning_run_pipeline kiểm tra is_config_complete, has_evaluated_snapshot và is_pipeline_running trên fingerprint hiện tại</li>
-          <li>&bull; Fail thì render lại tuning.html kèm lỗi (HTTP 400/409), không tạo subprocess</li>
-          <li>&bull; Pass thì subprocess.run scripts/run_pipeline.py đồng bộ; request chờ pipeline xong rồi redirect evaluation</li>
+          <li>&bull; get_stock_signals: tín hiệu 1-2 mã; get_ranking: top/bottom Điểm UP (≤ 10)</li>
+          <li>&bull; get_model_info: model/target/threshold/metrics; get_dataset_info: snapshot dataset</li>
+          <li>&bull; get_feature_info: feature order + global importance; get_project_info: contract tĩnh theo topic</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Revalidation bên trong official pipeline</h3>
+          <h3>Release gate + provenance</h3>
         </div>
         <ul>
-          <li>&bull; main() acquire_pipeline_lock; _run_pipeline chạy dataset_check → clean → features → labels → protocol_time_split → verify</li>
-          <li>&bull; Tự tính lại dataset + experiment fingerprint, guard has_evaluated_snapshot và is_config_complete — không tin precheck Flask</li>
-          <li>&bull; Ghi processed outputs rồi recheck content_hash + guard snapshot lần nữa; snapshot đã eval / config thiếu-stale → dừng trước TEST</li>
+          <li>&bull; current: trả bình thường; legacy: cho signal/ranking kèm warning policy/baseline/scope</li>
+          <li>&bull; inconsistent/missing: chặn signal, ranking, metrics, feature importance</li>
+          <li>&bull; Mỗi tool result mang source, warnings và release_status; service từ chối nếu release đổi giữa các tool call</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot emerald"></div>
-          <h3>TEST, publish và các nhánh dừng an toàn</h3>
+          <div class="card-dot cyan"></div>
+          <h3>Read-only, không train</h3>
         </div>
         <ul>
-          <li>&bull; select_final_model raise nếu winner F1_UP ≤ baseline VALIDATION tốt nhất → dừng trước khi chạm TEST</li>
-          <li>&bull; Chỉ khi vượt baseline mới ghi registry started, refit TRAIN+VALIDATION và chấm TEST đúng một lần → evaluated → published</li>
-          <li>&bull; Lỗi bất kỳ sau started ghi release_failed; atomic_model_release đảm bảo final_model.pkl cũ vẫn phục vụ</li>
+          <li>&bull; Chatbot không import hay gọi run_pipeline.py, không refresh, không sửa dữ liệu hay artifact</li>
+          <li>&bull; Giới hạn cứng: ≤ 3 vòng LLM, ≤ 5 tool call, deadline server 30 giây</li>
+          <li>&bull; Không Vector DB, không LangChain, không database chat; history chỉ trong memory tab trình duyệt</li>
         </ul>
       </div>
     </div>
 
     <!-- Footer -->
     <p class="footer">
-      Workflow diagram &bull; Built with Archify<span class="no-print"> &bull; Press <kbd>T</kbd> for theme and <kbd>E</kbd> for export</span>
+      Sequence diagram &bull; Built with Archify<span class="no-print"> &bull; Press <kbd>T</kbd> for theme and <kbd>E</kbd> for export</span>
     </p>
   </div>
 
