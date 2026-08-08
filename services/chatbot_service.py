@@ -1412,6 +1412,26 @@ def _format_response(decision: dict, action_result: dict | None = None) -> dict:
     }
 
 
+def chat_action_flow(
+    message: str,
+    history: list[dict],
+    conversation_state: dict | None = None,
+    *,
+    client=None,
+    monotonic=time.monotonic,
+) -> dict:
+    """Path action-decision song song; conversation_state chỉ giữ để cutover an toàn."""
+    _ = conversation_state
+    client = client or _create_client()
+    decision = _decide(message, history, client, monotonic)
+    action_result = None
+    if decision["action"] in {"STOCK_SIGNAL", "STOCK_RANKING", "PROJECT_INFO"}:
+        action_result = chatbot_tools.execute_action(
+            decision["action"], decision["arguments"]
+        )
+    return _format_response(decision, action_result)
+
+
 def _append_unique(target: list, value) -> None:
     """Append nhưng bỏ trùng, kể cả khi value là dict/list (không hashable).
 

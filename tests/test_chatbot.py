@@ -835,6 +835,98 @@ class ChatbotFormatterTests(unittest.TestCase):
         )
 
 
+class ChatbotActionFlowTests(unittest.TestCase):
+    @staticmethod
+    def _decision_content(action, arguments, direct_answer=None):
+        return json.dumps(
+            {
+                "action": action,
+                "arguments": arguments,
+                "direct_answer": direct_answer,
+            },
+            ensure_ascii=False,
+        )
+
+    def test_action_flow_runs_five_actions_with_one_provider_call(self):
+        cases = (
+            ("GENERAL_CHAT", {}, "Chào bạn.", None),
+            (
+                "STOCK_SIGNAL",
+                {"symbols": ["FPT"], "focus": "prediction"},
+                None,
+                {
+                    "data": {"signals": [{"symbol": "FPT", "prediction": "UP"}]},
+                    "sources": [], "warnings": [], "data_as_of": None,
+                    "model_trained_through": None, "error": None,
+                },
+            ),
+            (
+                "STOCK_RANKING",
+                {"order": "highest", "top_n": 1},
+                None,
+                {
+                    "data": {"ranking": [{"symbol": "FPT", "up_score_percent": 60}]},
+                    "sources": [], "warnings": [], "data_as_of": None,
+                    "model_trained_through": None, "error": None,
+                },
+            ),
+            (
+                "PROJECT_INFO",
+                {"topic": "overview"},
+                None,
+                {
+                    "data": {"topic": "overview", "title": "Hệ thống HOSE"},
+                    "sources": [], "warnings": [], "data_as_of": None,
+                    "model_trained_through": None, "error": None,
+                },
+            ),
+            ("OUT_OF_SCOPE", {"reason": "news"}, None, None),
+        )
+
+        for action, arguments, direct_answer, action_result in cases:
+            with self.subTest(action=action):
+                client = fake_client(
+                    provider_response(
+                        self._decision_content(action, arguments, direct_answer)
+                    )
+                )
+                with patch.object(
+                    chatbot_service.chatbot_tools,
+                    "execute_action",
+                    return_value=action_result,
+                ) as execute:
+                    response = chatbot_service.chat_action_flow(
+                        "message", [], {"legacy": True}, client=client
+                    )
+
+                client.chat.completions.create.assert_called_once()
+                if action in {"STOCK_SIGNAL", "STOCK_RANKING", "PROJECT_INFO"}:
+                    execute.assert_called_once_with(action, arguments)
+                else:
+                    execute.assert_not_called()
+                self.assertEqual(
+                    set(response),
+                    {"answer", "sources", "warnings", "data_as_of", "model_trained_through"},
+                )
+                self.assertNotIn("conversation_state", response)
+                request = client.chat.completions.create.call_args.kwargs
+                self.assertNotIn("tools", request)
+                self.assertNotIn("tool_choice", request)
+                self.assertNotIn("response_format", request)
+                self.assertNotIn("CONTEXT_JSON", request["messages"][0]["content"])
+
+    def test_action_flow_invalid_decision_never_reaches_dispatcher(self):
+        client = fake_client(provider_response("not json"))
+        with (
+            patch.object(chatbot_service.chatbot_tools, "execute_action") as execute,
+            self.assertRaises(chatbot_service.ChatbotServiceError) as raised,
+        ):
+            chatbot_service.chat_action_flow("FPT", [], client=client)
+        self.assertEqual(raised.exception.code, "provider_protocol_error")
+        client.chat.completions.create.assert_called_once()
+        execute.assert_not_called()
+
+
 class ChatbotServiceTests(unittest.TestCase):
     def setUp(self):
         self.config = patch.multiple(
