@@ -895,7 +895,7 @@ class ChatbotActionFlowTests(unittest.TestCase):
                     "execute_action",
                     return_value=action_result,
                 ) as execute:
-                    response = chatbot_service.chat_action_flow(
+                    response = chatbot_service.chat(
                         "message", [], {"legacy": True}, client=client
                     )
 
@@ -921,13 +921,74 @@ class ChatbotActionFlowTests(unittest.TestCase):
             patch.object(chatbot_service.chatbot_tools, "execute_action") as execute,
             self.assertRaises(chatbot_service.ChatbotServiceError) as raised,
         ):
-            chatbot_service.chat_action_flow("FPT", [], client=client)
+            chatbot_service.chat("FPT", [], client=client)
         self.assertEqual(raised.exception.code, "provider_protocol_error")
         client.chat.completions.create.assert_called_once()
         execute.assert_not_called()
 
+    def test_action_flow_bounds_history_and_rejects_tool_protocol(self):
+        history = [
+            {"role": "user" if index % 2 == 0 else "assistant", "content": f"m{index}"}
+            for index in range(8)
+        ]
+        decision = self._decision_content("GENERAL_CHAT", {}, "Chào bạn.")
+        client = fake_client(provider_response(decision))
+        chatbot_service.chat("Chào", history, client=client)
+        messages = client.chat.completions.create.call_args.kwargs["messages"]
+        self.assertEqual(messages[1:-1], history[-chatbot_service.MAX_HISTORY_MESSAGES :])
 
-class ChatbotServiceTests(unittest.TestCase):
+        tool_client = fake_client(
+            provider_response(
+                "",
+                tool_calls=[{"id": "x", "type": "function", "function": {}}],
+            )
+        )
+        with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
+            chatbot_service.chat("FPT", [], client=tool_client)
+        self.assertEqual(raised.exception.code, "provider_protocol_error")
+
+    def test_action_flow_maps_provider_config_error_and_timeout(self):
+        for error, code, status in (
+            (RuntimeError("secret"), "provider_error", 502),
+            (TimeoutError("slow"), "provider_timeout", 504),
+        ):
+            with self.subTest(code=code):
+                with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
+                    chatbot_service.chat("FPT", [], client=fake_client(side_effect=error))
+                self.assertEqual((raised.exception.code, raised.exception.status), (code, status))
+                self.assertNotIn("secret", raised.exception.message)
+
+        with (
+            patch.multiple(
+                chatbot_service, LLM_BASE_URL="", LLM_API_KEY="", LLM_MODEL=""
+            ),
+            self.assertRaises(chatbot_service.ChatbotServiceError) as raised,
+        ):
+            chatbot_service.chat("FPT", [])
+        self.assertEqual((raised.exception.code, raised.exception.status), ("llm_not_configured", 503))
+
+    def test_provider_base_url_blocks_remote_http_credentials_and_query(self):
+        for valid in (
+            "https://provider.example/v1",
+            "http://localhost:1234/v1",
+            "http://127.0.0.1/v1",
+        ):
+            self.assertEqual(chatbot_service._validate_base_url(valid), valid)
+
+        for invalid in (
+            "http://provider.example/v1",
+            "https://user:pass@provider.example/v1",
+            "https://provider.example/v1?x=1",
+            " https://provider.example/v1",
+        ):
+            with self.subTest(url=invalid), self.assertRaises(
+                chatbot_service.ChatbotServiceError
+            ) as raised:
+                chatbot_service._validate_base_url(invalid)
+            self.assertEqual((raised.exception.code, raised.exception.status), ("llm_invalid_config", 503))
+
+
+class _RemovedChatbotServiceTests:
     def setUp(self):
         self.config = patch.multiple(
             chatbot_service,
@@ -1242,7 +1303,7 @@ class ChatbotRouteTests(unittest.TestCase):
             {"json": {"message": "x" * 1001}},
             {"json": ["not", "object"]},
         )
-        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
+        with patch.object(web_app.chatbot_service, "chat") as chat:
             for payload in cases:
                 with self.subTest(payload=payload):
                     response = self.client.post("/api/chat", **payload)
@@ -1276,7 +1337,7 @@ class ChatbotRouteTests(unittest.TestCase):
             ]
             * 4,
         )
-        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
+        with patch.object(web_app.chatbot_service, "chat") as chat:
             for history in cases:
                 with self.subTest(history=history):
                     response = self.client.post(
@@ -1286,7 +1347,7 @@ class ChatbotRouteTests(unittest.TestCase):
                     self.assertEqual(response.json["error"]["code"], "invalid_request")
         chat.assert_not_called()
 
-    def test_api_rejects_invalid_conversation_state(self):
+    def legacy_api_rejects_invalid_conversation_state(self):
         valid = {
             "active_symbols": ["FPT"],
             "topic": "signal",
@@ -1302,7 +1363,7 @@ class ChatbotRouteTests(unittest.TestCase):
             {**valid, "last_result_symbols": ["FPT"] * 11},
             {**valid, "ranking_order": "random"},
         )
-        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
+        with patch.object(web_app.chatbot_service, "chat") as chat:
             for state in cases:
                 with self.subTest(state=state):
                     response = self.client.post(
@@ -1332,7 +1393,7 @@ class ChatbotRouteTests(unittest.TestCase):
             "last_result_symbols": ["vnm"],
         }
         with patch.object(
-            web_app.chatbot_service, "chat_action_flow", return_value=expected
+            web_app.chatbot_service, "chat", return_value=expected
         ) as chat:
             response = self.client.post(
                 "/api/chat",
@@ -1351,18 +1412,13 @@ class ChatbotRouteTests(unittest.TestCase):
                 {"role": "user", "content": "Phân tích FPT"},
                 {"role": "assistant", "content": "Kết quả cũ"},
             ],
-            {
-                "active_symbols": ["VNM"],
-                "topic": "signal",
-                "ranking_order": None,
-                "last_result_symbols": ["VNM"],
-            },
+            state,
         )
 
     def test_api_without_state_remains_backward_compatible(self):
         with patch.object(
             web_app.chatbot_service,
-            "chat_action_flow",
+            "chat",
             return_value={"answer": "Chào bạn."},
         ) as chat:
             response = self.client.post("/api/chat", json={"message": " Chào "})
@@ -1379,7 +1435,7 @@ class ChatbotRouteTests(unittest.TestCase):
         for code, status in cases:
             with self.subTest(code=code), patch.object(
                 web_app.chatbot_service,
-                "chat_action_flow",
+                "chat",
                 side_effect=chatbot_service.ChatbotServiceError(
                     code, "Không thể kết nối trợ lý lúc này.", status
                 ),
@@ -1390,7 +1446,7 @@ class ChatbotRouteTests(unittest.TestCase):
 
         with patch.object(
             web_app.chatbot_service,
-            "chat_action_flow",
+            "chat",
             side_effect=RuntimeError(r"secret C:\private\artifact.pkl"),
         ):
             response = self.client.post("/api/chat", json={"message": "FPT"})
@@ -1399,18 +1455,11 @@ class ChatbotRouteTests(unittest.TestCase):
         self.assertNotIn("private", response.get_data(as_text=True))
 
     def test_missing_llm_config_returns_503_without_breaking_flask(self):
-        with (
-            patch.multiple(
-                web_app.chatbot_service,
-                LLM_BASE_URL="",
-                LLM_API_KEY="",
-                LLM_MODEL="",
-            ),
-            patch.object(
-                web_app.chatbot_service,
-                "build_context",
-                return_value=context_bundle(),
-            ),
+        with patch.multiple(
+            web_app.chatbot_service,
+            LLM_BASE_URL="",
+            LLM_API_KEY="",
+            LLM_MODEL="",
         ):
             response = self.client.post("/api/chat", json={"message": "FPT"})
 
@@ -1481,7 +1530,7 @@ class ChatbotTemplateTests(unittest.TestCase):
         payload = '<img src=x onerror="alert(1)">'
         with patch.object(
             web_app.chatbot_service,
-            "chat_action_flow",
+            "chat",
             return_value={
                 "answer": payload,
                 "sources": [],

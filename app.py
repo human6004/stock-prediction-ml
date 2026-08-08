@@ -426,9 +426,9 @@ def _validate_chat_payload(payload) -> tuple[str, list[dict], dict | None]:
         raise ValueError
     raw_state = payload.get("conversation_state")
     if "conversation_state" in payload:
-        if raw_state is None:
+        if not isinstance(raw_state, dict):
             raise ValueError
-        state = chatbot_service.normalize_conversation_state(raw_state)
+        state = raw_state
     else:
         state = None
     return message, normalized_history, state
@@ -473,7 +473,7 @@ def chat_api():
         )
     try:
         return jsonify(
-            chatbot_service.chat_action_flow(message, history, conversation_state)
+            chatbot_service.chat(message, history, conversation_state)
         )
     except chatbot_service.ChatbotServiceError as exc:
         return _chat_error(exc.code, exc.message, exc.status)
