@@ -400,6 +400,137 @@ class ChatbotToolTests(unittest.TestCase):
         self.assertNotIn("model.pkl", serialized)
 
 
+class ChatbotDispatcherTests(unittest.TestCase):
+    @staticmethod
+    def _envelope(data=None, *, source=None, as_of=None, warnings=None, error=None):
+        return {
+            "ok": error is None,
+            "data": data or {},
+            "source": source,
+            "as_of": as_of,
+            "release": {"status": "legacy"},
+            "warnings": warnings or [],
+            "error": error,
+        }
+
+    def test_dispatches_stock_signal_and_ranking_with_domain_metadata(self):
+        signal_envelope = self._envelope(
+            {"signals": [{"symbol": "FPT"}]},
+            source={"kind": "stock_signal", "symbols": ["FPT"]},
+            as_of="2026-07-20",
+            warnings=[{"code": "legacy", "message": "Legacy."}],
+        )
+        with patch.object(
+            chatbot_tools, "get_stock_signals", return_value=signal_envelope
+        ) as get_signal:
+            result = chatbot_tools.execute_action(
+                "STOCK_SIGNAL", {"symbols": ["FPT"], "focus": "prediction"}
+            )
+
+        get_signal.assert_called_once_with({"symbols": ["FPT"]})
+        self.assertEqual(result["data"]["focus"], "prediction")
+        self.assertEqual(result["data_as_of"], "2026-07-20")
+        self.assertEqual(result["sources"], [signal_envelope["source"]])
+        self.assertEqual(result["warnings"], signal_envelope["warnings"])
+
+        ranking_envelope = self._envelope(
+            {"ranking": []}, source={"kind": "ranking"}, as_of="2026-07-20"
+        )
+        with patch.object(
+            chatbot_tools, "get_ranking", return_value=ranking_envelope
+        ) as get_ranking:
+            result = chatbot_tools.execute_action(
+                "STOCK_RANKING", {"order": "lowest", "top_n": 3}
+            )
+
+        get_ranking.assert_called_once_with(
+            {"order": "lowest_up_score", "top_n": 3}
+        )
+        self.assertEqual(result["data"]["order"], "lowest")
+
+    def test_dispatches_six_project_topics(self):
+        project_envelope = self._envelope(
+            {"title": "Project"}, source={"kind": "project_contract"}
+        )
+        model_envelope = self._envelope(
+            {"model_name": "Random Forest", "train_through_date": "2026-04-10"},
+            source={"kind": "model_metadata"},
+            as_of="2026-04-10",
+        )
+        dataset_envelope = self._envelope(
+            {"data_as_of": "2026-07-20"},
+            source={"kind": "dataset_info"},
+            as_of="2026-07-20",
+        )
+        feature_envelope = self._envelope(
+            {"global_importance": []}, source={"kind": "feature_importance"}
+        )
+
+        with (
+            patch.object(
+                chatbot_tools, "get_project_info", return_value=project_envelope
+            ) as get_project,
+            patch.object(
+                chatbot_tools, "get_model_info", return_value=model_envelope
+            ) as get_model,
+            patch.object(
+                chatbot_tools, "get_dataset_info", return_value=dataset_envelope
+            ) as get_dataset,
+            patch.object(
+                chatbot_tools, "get_feature_info", return_value=feature_envelope
+            ) as get_features,
+        ):
+            overview = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "overview"}
+            )
+            model = chatbot_tools.execute_action("PROJECT_INFO", {"topic": "model"})
+            dataset = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "dataset"}
+            )
+            features = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "features"}
+            )
+            method = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "method"}
+            )
+            limitations = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "limitations"}
+            )
+
+        self.assertEqual(overview["data"]["topic"], "overview")
+        self.assertEqual(model["model_trained_through"], "2026-04-10")
+        self.assertEqual(dataset["data_as_of"], "2026-07-20")
+        self.assertEqual(features["data"]["topic"], "features")
+        self.assertEqual(set(method["data"]["sections"]), {
+            "target", "data_split", "training", "inference"
+        })
+        self.assertEqual(limitations["data"]["topic"], "limitations")
+        get_model.assert_called_once_with({})
+        get_dataset.assert_called_once_with({})
+        get_features.assert_called_once_with({"top_n": 10})
+        self.assertEqual(get_project.call_count, 6)
+
+    def test_unknown_action_never_calls_a_handler(self):
+        handlers = (
+            "get_stock_signals",
+            "get_ranking",
+            "get_model_info",
+            "get_dataset_info",
+            "get_feature_info",
+            "get_project_info",
+        )
+        patches = [patch.object(chatbot_tools, name) for name in handlers]
+        mocks = [item.start() for item in patches]
+        try:
+            with self.assertRaises(ValueError):
+                chatbot_tools.execute_action("GENERAL_CHAT", {})
+            for mock in mocks:
+                mock.assert_not_called()
+        finally:
+            for item in reversed(patches):
+                item.stop()
+
+
 class ChatbotDecisionTests(unittest.TestCase):
     def test_decides_each_supported_action_with_one_plain_json_call(self):
         cases = (

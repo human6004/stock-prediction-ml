@@ -1190,3 +1190,84 @@ def get_project_info(arguments: dict) -> dict:
         data={"topic": topic, **contract},
         source={"kind": "project_contract", "topic": topic},
     )
+
+
+def _domain_result(envelope: dict) -> dict:
+    data = dict(envelope.get("data") or {})
+    source = envelope.get("source")
+    source_kind = source.get("kind") if isinstance(source, dict) else None
+    as_of = envelope.get("as_of")
+    data_as_of = data.get("data_as_of")
+    model_trained_through = data.get("model_trained_through")
+    if source_kind in {"stock_signal", "ranking", "dataset_info"}:
+        data_as_of = data_as_of or as_of
+    if source_kind in {"model_metadata", "feature_importance"}:
+        model_trained_through = data.get("train_through_date") or as_of
+    return {
+        "data": data,
+        "sources": [source] if source else [],
+        "warnings": list(envelope.get("warnings") or []),
+        "data_as_of": data_as_of,
+        "model_trained_through": model_trained_through,
+        "error": envelope.get("error"),
+    }
+
+
+def execute_action(action: str, arguments: dict) -> dict:
+    """Dispatch một action dữ liệu đã được chatbot_service validate."""
+    if action == "STOCK_SIGNAL":
+        result = _domain_result(get_stock_signals({"symbols": arguments["symbols"]}))
+        result["data"]["focus"] = arguments["focus"]
+        return result
+
+    if action == "STOCK_RANKING":
+        result = _domain_result(
+            get_ranking(
+                {
+                    "order": f"{arguments['order']}_up_score",
+                    "top_n": arguments["top_n"],
+                }
+            )
+        )
+        result["data"]["order"] = arguments["order"]
+        return result
+
+    if action != "PROJECT_INFO":
+        raise ValueError(f"Unsupported data action: {action}")
+
+    topic = arguments["topic"]
+    if topic == "model":
+        envelope = get_model_info({})
+    elif topic == "dataset":
+        envelope = get_dataset_info({})
+    elif topic == "features":
+        envelope = get_feature_info({"top_n": 10})
+    elif topic == "method":
+        sections = {}
+        sources = []
+        warnings = []
+        for section in ("target", "data_split", "training", "inference"):
+            result = _domain_result(get_project_info({"topic": section}))
+            if result["error"]:
+                return result
+            sections[section] = result["data"]
+            for source in result["sources"]:
+                if source not in sources:
+                    sources.append(source)
+            for warning in result["warnings"]:
+                if warning not in warnings:
+                    warnings.append(warning)
+        return {
+            "data": {"topic": "method", "sections": sections},
+            "sources": sources,
+            "warnings": warnings,
+            "data_as_of": None,
+            "model_trained_through": None,
+            "error": None,
+        }
+    else:
+        envelope = get_project_info({"topic": topic})
+
+    result = _domain_result(envelope)
+    result["data"]["topic"] = topic
+    return result
