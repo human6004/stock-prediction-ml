@@ -1,0 +1,476 @@
+/* chat-ui.css — chỉ các rule MỚI cho trang /chat (templates/chat.html).
+
+   Nạp qua block page_styles của base.html nên đứng SAU app.css + ui-kit.css:
+   phần override .chat-entry:focus-visible ở cuối file dựa vào thứ tự đó.
+
+   Nguyên tắc: lớp sẵn có trong app.css (.chat-transcript, .chat-entry,
+   .chat-text, .chat-meta, .chat-compose) được DÙNG LẠI, không định nghĩa lại.
+   Ở đây chỉ thêm: empty state, chỉ báo đang trả lời, khối markdown-lite, chip
+   nguồn dữ liệu theo từng câu trả lời, bộ đếm ký tự, nút copy.
+
+   Màu: chỉ dùng var() của app.css/ui-kit.css, không hex trần -> đúng cả light
+   và dark. Mọi animation đều có nhánh prefers-reduced-motion ở mục 8.
+
+   Cặp đôi JS: static/chat-client.js */
+
+/* ==========================================================
+   1. Empty state trong khung transcript
+   ========================================================== */
+
+/* Transcript rỗng cao 220px (app.css:1427) -> căn giữa phần onboarding cho
+   khỏi trông như hộp trắng bị lỗi. Khi đã có tin nhắn, JS gỡ modifier này. */
+.chat-transcript.is-empty {
+    align-content: center;
+}
+
+.chat-empty {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    padding: var(--space-2) var(--space-1);
+    color: var(--ink-soft);
+}
+
+.chat-empty-title {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.chat-empty-text {
+    margin: 0;
+    max-width: 60ch;
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.chat-empty-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chat-empty-list li {
+    position: relative;
+    padding-left: var(--space-4);
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+
+/* Dấu đầu dòng vẽ bằng CSS: giữ chrome đơn sắc, không thêm ký tự vào DOM. */
+.chat-empty-list li::before {
+    content: "";
+    position: absolute;
+    top: 0.62em;
+    left: 2px;
+    width: 6px;
+    height: 1px;
+    background: var(--line-strong);
+}
+
+.chat-empty-hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+/* ==========================================================
+   2. Chỉ báo đang trả lời — ba chấm
+   ========================================================== */
+
+.chat-entry.is-pending .chat-text {
+    color: var(--muted);
+}
+
+.chat-typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 1.4em;
+}
+
+.chat-typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.chat-typing-dots > span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: chat-typing-bounce 1.25s var(--ease) infinite both;
+}
+
+.chat-typing-dots > span:nth-child(2) {
+    animation-delay: 0.16s;
+}
+
+.chat-typing-dots > span:nth-child(3) {
+    animation-delay: 0.32s;
+}
+
+@keyframes chat-typing-bounce {
+    0%,
+    64%,
+    100% {
+        opacity: 0.28;
+        transform: translateY(0);
+    }
+    32% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
+}
+
+/* ==========================================================
+   3. Markdown-lite trong câu trả lời
+   ========================================================== */
+
+/* .chat-text của app.css có white-space: pre-wrap để giữ \n của server. Khi
+   JS đã dựng thành <p>/<ul>/<pre> thì pre-wrap gây double-spacing -> tắt đi,
+   riêng <pre> bên trong tự bật lại ở dưới. */
+:is(.chat-text, .chat-dock-text).is-rich {
+    white-space: normal;
+}
+
+:is(.chat-text, .chat-dock-text).is-rich > * {
+    margin: 0;
+}
+
+:is(.chat-text, .chat-dock-text).is-rich > * + * {
+    margin-top: var(--space-3);
+}
+
+.chat-p {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+:is(.chat-text, .chat-dock-text).is-rich ul,
+:is(.chat-text, .chat-dock-text).is-rich ol {
+    padding-left: var(--space-5);
+}
+
+:is(.chat-text, .chat-dock-text).is-rich li {
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+:is(.chat-text, .chat-dock-text).is-rich li + li {
+    margin-top: var(--space-1);
+}
+
+/* Danh sách do markdown-lite dựng (buildList đặt class .chat-list cho ul/ol). */
+.chat-list {
+    padding-left: var(--space-5);
+}
+
+/* Code INLINE — chat-client.js đặt class này cho <code> giữa dòng. Cùng ngữ
+   pháp thị giác với .info-box code (app.css:1544). */
+.chat-code {
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--panel);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+/* KHỐI code (```fenced```) — buildCodeBlock đặt class .chat-pre cho <pre>.
+   Dùng token --log-bg/--log-ink (cố ý tối ở cả 2 theme) cho khớp .pipeline-log,
+   nên khi focus phải dùng --focus-ring-inverse mới đủ tương phản. */
+.chat-pre {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    background: var(--log-bg);
+    color: var(--log-ink);
+    white-space: pre;
+    tab-size: 4;
+}
+
+/* <code> trong khối: gỡ khung của .chat-code inline để không thành hộp trong hộp. */
+.chat-pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+.chat-pre:focus-visible {
+    outline: 2px solid var(--focus-ring-inverse);
+    outline-offset: -2px;
+}
+
+/* ==========================================================
+   4. Nguồn dữ liệu theo từng câu trả lời
+   ========================================================== */
+
+.chat-entry-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+/* Chip <details> do buildSourceDetails() dựng (class .chat-cite*). */
+.chat-cite {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+}
+
+.chat-cite-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px var(--space-3);
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.chat-cite-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Mũi tên xoay: dấu hiệu đóng/mở không phụ thuộc màu. */
+.chat-cite-summary::before {
+    content: "›";
+    display: inline-block;
+    color: var(--faint);
+    font-size: 14px;
+    line-height: 1;
+    transition: transform var(--dur-fast) var(--ease);
+}
+
+.chat-cite[open] > .chat-cite-summary::before {
+    transform: rotate(90deg);
+}
+
+.chat-cite-summary:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.chat-cite[open] > .chat-cite-summary {
+    border-bottom: 1px solid var(--line-soft);
+}
+
+/* Số nguồn đẩy về phải; cờ "cảnh báo" giữ màu ngữ nghĩa warn. */
+.chat-cite-count {
+    margin-left: auto;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.chat-cite-flag {
+    padding: 1px 8px;
+    border: 1px solid var(--warn-line);
+    border-radius: 999px;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.chat-cite-body {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+/* Dòng "Phiên bản model: …" */
+.chat-cite-row {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+.chat-cite-row strong,
+.chat-cite-block > strong {
+    color: var(--ink-soft);
+    font-size: 12.5px;
+}
+
+.chat-cite-block {
+    display: grid;
+    gap: var(--space-1);
+}
+
+/* Danh sách nguồn: mono + tabular-nums vì có ngày và mã cổ phiếu. */
+.chat-cite-list {
+    margin: 0;
+    padding-left: var(--space-5);
+    color: var(--muted);
+}
+
+.chat-cite-list li {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+/* Cảnh báo vẫn phải giữ màu warn — đây là ngữ nghĩa, không phải trang trí. */
+.chat-cite-warn {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--r-sm);
+    background: var(--warn-bg);
+}
+
+.chat-cite-warn > strong,
+.chat-cite-warn .chat-cite-list,
+.chat-cite-warn .chat-cite-list li {
+    color: var(--warn-ink);
+}
+
+/* Cảnh báo là câu tiếng Việt, không phải dữ liệu -> về lại font chữ thường. */
+.chat-cite-warn .chat-cite-list li {
+    font-family: var(--sans);
+    font-size: 12.5px;
+}
+
+/* ==========================================================
+   5. Nút copy câu trả lời
+   ========================================================== */
+
+.chat-copy {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 4px var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    box-shadow: none;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease),
+        border-color var(--dur-fast) var(--ease);
+}
+
+.chat-copy:hover {
+    border-color: var(--line-strong);
+    color: var(--ink);
+}
+
+.chat-copy:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* ==========================================================
+   6. Bộ đếm ký tự
+   ========================================================== */
+
+/* .chat-compose là grid 3 cột (app.css:1491); hàng đếm chiếm cả hàng riêng và
+   căn phải để không đẩy nút Gửi. */
+.chat-compose .chat-counter {
+    grid-column: 1 / -1;
+    justify-self: end;
+    order: 9;
+    margin-top: calc(-1 * var(--space-1));
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.chat-counter.is-warn {
+    color: var(--warn-ink);
+    font-weight: 600;
+}
+
+/* ==========================================================
+   7. Polish — focus, transcript scroll
+   ========================================================== */
+
+/* app.css:1470 dùng :focus trần nên click chuột cũng vẽ vòng. appendMessage()
+   gọi item.focus() để screen reader nhảy tới câu trả lời -> vẫn cần thấy vòng
+   khi điều hướng bàn phím, nhưng không cần khi bấm chuột. */
+.chat-entry:focus {
+    outline: none;
+}
+
+.chat-entry:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* Transcript cuộn được bằng bàn phím -> phải có vòng focus riêng. */
+.chat-transcript:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* ==========================================================
+   8. prefers-reduced-motion
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    /* Ba chấm: dừng nhảy nhưng KHÔNG biến mất — giữ mức mờ khác nhau để vẫn
+       đọc ra "đang chờ" bằng hình, cùng ý tưởng .spinner nét đứt ở
+       ui-kit.css:694. Phần chữ ẩn "Đang trả lời…" luôn còn cho screen reader. */
+    .chat-typing-dots > span {
+        animation: none;
+        opacity: 0.35;
+        transform: none;
+    }
+
+    .chat-typing-dots > span:nth-child(2) {
+        opacity: 0.6;
+    }
+
+    .chat-typing-dots > span:nth-child(3) {
+        opacity: 0.85;
+    }
+
+    .chat-cite > summary::before,
+    .chat-copy {
+        transition: none;
+    }
+}
+
+/* ==========================================================
+   9. Mobile
+   ========================================================== */
+
+@media (max-width: 760px) {
+    .chat-entry-tools {
+        align-items: stretch;
+    }
+
+    .chat-copy {
+        width: 100%;
+    }
+
+    .chat-compose .chat-counter {
+        justify-self: start;
+    }
+}

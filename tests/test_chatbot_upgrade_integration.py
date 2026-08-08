@@ -14,10 +14,10 @@ class ChatbotUpgradeRouteTests(unittest.TestCase):
         web_app.app.config.update(TESTING=True)
         self.client = web_app.app.test_client()
 
-    def test_social_and_advice_work_without_provider_configuration(self):
+    def test_every_message_requires_provider_configuration(self):
         messages = (
             "chào",
-            "hôm nay tôi nên mua cổ phiếu nào?",
+            "chọn giúp tôi một mã để mua",
         )
         with patch.multiple(
             chatbot_service, LLM_BASE_URL="", LLM_API_KEY="", LLM_MODEL=""
@@ -25,9 +25,10 @@ class ChatbotUpgradeRouteTests(unittest.TestCase):
             for message in messages:
                 with self.subTest(message=message):
                     response = self.client.post("/api/chat", json={"message": message})
-                    self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.json["sources"], [])
-                    self.assertEqual(response.json["warnings"], [])
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(
+                        response.json["error"]["code"], "llm_not_configured"
+                    )
 
     def test_greeting_with_factual_request_still_requires_provider(self):
         with patch.multiple(

@@ -89,6 +89,22 @@ REFRESH_STEPS = [
 
 
 def _infer_refresh_progress(log: str, running: bool) -> dict:
+    """Suy trạng thái 3 bước refresh **chỉ từ text log** + cờ tiến trình còn sống.
+
+    Vì `scripts/refresh_data.py` chạy ở process con và không báo tiến độ qua API
+    nào, web chỉ có hai nguồn thông tin: nội dung file log và việc fetch.lock còn
+    hay hết. Hàm này ghép hai nguồn đó thành trạng thái cho UI:
+
+    - `current`: bước cao nhất đã *bắt đầu*, đọc ngược từ marker `[3/3]` → `[1/3]`
+      mà script in ra. Đọc ngược vì log là append-only: marker lớn nhất xuất hiện
+      là bước mới nhất.
+    - `completed`: chỉ khi thấy đúng câu kết `Refresh data completed.`
+    - Mấu chốt phân biệt lỗi: bước `== current` mà tiến trình **không còn chạy**
+      và chưa completed ⇒ script đã chết giữa bước đó ⇒ state `error`. Nếu vẫn
+      chạy ⇒ `active`. Đây là cách duy nhất phát hiện crash khi không có exit code.
+    - `percent` cố tình dừng ở 90 khi đang ở bước 3: chỉ câu kết mới cho 100, để
+      thanh tiến trình không "đầy" trước khi ghi file xong.
+    """
     log = log or ""
     current = 0
     completed = "Refresh data completed." in log
@@ -150,8 +166,38 @@ HISTORY_MODEL_LABELS = {
 
 HISTORY_PAGE_SIZE = 50
 
+# Kiểu tham số sắp xếp được: đọc ra số. Kiểu choice (solver) không có thứ tự.
+HISTORY_SORTABLE_PARAM_TYPES = {"float", "int", "int_or_none", "str_or_float"}
+
+# Trạng thái sắp xếp trung tính: thứ tự vốn có của bảng (mới nhất trước). Cần một
+# token riêng chứ không dùng lại time_desc, nếu không cột "Thời điểm" sẽ không phân
+# biệt được "chưa sắp" với "đang giảm dần" và mất trạng thái thứ ba.
+HISTORY_DEFAULT_SORT = "default"
+
+# Cột cố định cho phép sắp xếp ở bảng lịch sử: khóa dùng trong ?sort= → hàm lấy
+# giá trị. Cột tham số (param_<field>) sinh động theo schema từng model nên xử lý
+# riêng trong _parse_history_query. Bảng này phân trang ở server nên phải sắp ở
+# server, không sắp bằng JS trên một trang.
+HISTORY_SORT_COLUMNS = {
+    "time": lambda row: str(row.get("timestamp") or ""),
+    "f1": lambda row: row.get("cv_f1_up_mean"),
+    "std": lambda row: row.get("cv_f1_up_std"),
+    "threshold": lambda row: row.get("decision_threshold"),
+    "seconds": lambda row: row.get("train_seconds"),
+}
+
 
 def get_dataset_meta() -> dict:
+    """Meta hiển thị ở header mọi trang (ngày mới nhất, số mã, danh sách mã).
+
+    Mẫu cache-theo-chữ-ký: hàm này KHÔNG cache, nó chỉ ``stat()`` file (rẻ) rồi
+    truyền ``(size, mtime_ns)`` vào ``_get_dataset_meta`` — hàm mới có
+    ``lru_cache``. Vì chữ ký là tham số, khi file feature bị ghi lại (refresh
+    data / chạy pipeline) chữ ký đổi → lru_cache miss → đọc lại CSV. Nếu đặt
+    ``lru_cache`` trực tiếp lên hàm đọc CSV thì web sẽ dính meta cũ đến khi
+    restart. ``mtime_ns`` (nanosecond) thay vì ``mtime`` giây để không bỏ sót hai
+    lần ghi trong cùng một giây.
+    """
     if not FEATURE_DATA_PATH.exists():
         return {
             "dataset_max_date": None,
@@ -164,6 +210,8 @@ def get_dataset_meta() -> dict:
 
 @lru_cache(maxsize=1)
 def _get_dataset_meta(_signature: tuple[int, int]) -> dict:
+    # ``usecols`` để chỉ nạp 2 cột thay vì cả 20+ feature — file này hàng trăm
+    # nghìn dòng, đọc full mỗi lần render trang là quá tốn.
     cols = pd.read_csv(FEATURE_DATA_PATH, usecols=["symbol", "trading_date"])
     return {
         "dataset_max_date": str(cols["trading_date"].max()),
@@ -172,6 +220,17 @@ def _get_dataset_meta(_signature: tuple[int, int]) -> dict:
     }
 
 def load_selected_model_from_report() -> str:
+    """Lấy tên model đang phục vụ, ưu tiên metadata rồi mới tới report.
+
+    Thứ tự nguồn là có chủ ý:
+    1. ``model_metadata.json`` — đi kèm chính file ``final_model.pkl`` được publish
+       (cùng một ``atomic_model_release``), nên luôn khớp model đang chạy.
+    2. ``model_comparison.csv`` — chỉ là fallback cho artifact cũ chưa có metadata.
+       Report có thể được ghi lại ở lần chạy khác nên có nguy cơ lệch với .pkl.
+
+    Trả "" khi không tra được: đây chỉ là nhãn hiển thị trên UI, thiếu thì để
+    trống chứ không raise làm sập trang.
+    """
     if MODEL_METADATA_PATH.exists():
         metadata = load_metadata()
         if metadata.get("model_name"):
@@ -186,6 +245,17 @@ def load_selected_model_from_report() -> str:
 
 
 def _read_report_rows(path: Path) -> list[dict]:
+    """Đọc CSV báo cáo thành list dict cho Jinja render, xử lý 2 cạm bẫy của pandas.
+
+    1. ``cv_f1_up`` có thể trống (baseline không có CV). Sau ``read_csv`` ô trống
+       thành ``NaN`` — Jinja in ra chữ "nan" và ``tojson`` sinh JSON không hợp lệ.
+       ``.where(notna(), None)`` đổi về ``None`` để template hiện ô rỗng.
+    2. Cột ``selected`` trong CSV là chuỗi "True"/"False" chứ không phải bool
+       (đi qua CSV thì mất kiểu). Vì vậy phải ``astype(str).str.lower()`` rồi
+       ``map`` — so ``== True`` sẽ luôn sai. ``map`` chỉ khớp "true"; mọi giá trị
+       khác thành ``NaN`` rồi ``fillna("")`` → cột ``status`` chỉ có nhãn
+       "Đang dùng" ở đúng một dòng, các dòng còn lại rỗng.
+    """
     if not path.exists():
         return []
     rows = pd.read_csv(path)
@@ -203,6 +273,22 @@ def _read_report_rows(path: Path) -> list[dict]:
 
 
 def load_evaluation_sections() -> dict:
+    """Gom dữ liệu trang Đánh giá, tách rõ report "policy hiện hành" vs "legacy".
+
+    Cổng chặn nằm ở ``policy_id`` trong ``model_metadata.json``: nếu artifact không
+    thuộc ``EXPERIMENT_POLICY_ID`` hiện tại thì các report trên đĩa được sinh bằng
+    giao thức CŨ (mốc split khác, cách chọn threshold khác), nên số liệu VALIDATION
+    và TEST không so sánh được với hiện tại. Khi đó:
+
+    - ``validation``/``test`` trả rỗng — cố ý không hiển thị, thà thiếu hơn cho
+      người đọc tưởng đây là kết quả của policy hiện hành;
+    - toàn bộ ``model_comparison.csv`` được đẩy sang khoá ``legacy`` kèm
+      ``legacy_warning`` để UI hiện banner "hãy chạy lại pipeline";
+    - ``baseline_warning`` cũng bị bỏ vì cảnh báo baseline của policy cũ vô nghĩa.
+
+    Metadata đọc lỗi (thiếu file, JSON vỡ) → ``metadata = {}`` → ``policy_id`` là
+    ``None`` → coi như legacy. Fail an toàn, không raise ra 500.
+    """
     metadata = {}
     if MODEL_METADATA_PATH.exists():
         try:
@@ -278,11 +364,32 @@ def _chat_error(code: str, message: str, status: int):
     return jsonify({"error": {"code": code, "message": message}}), status
 
 
-def _validate_chat_payload(payload) -> tuple[str, list[dict]]:
+def _validate_chat_payload(payload) -> tuple[str, list[dict], dict | None]:
+    """Kiểm tra payload /api/chat rồi trả message, history và state hint.
+
+    Nghiêm ngặt có chủ đích — history do client gửi lên, nếu tin thẳng thì user
+    có thể bơm role/nội dung tùy ý vào prompt của LLM (prompt injection qua
+    lịch sử giả). Các luật:
+
+    - ``set(payload) - {"message","history"}``: chặn key lạ, không chỉ thiếu key.
+      Whitelist thay vì blacklist nên field mới thêm ở client cũng bị chặn tới
+      khi server công nhận.
+    - ``len(history) % 2``: history phải chẵn, tức luôn là từng cặp user↔assistant
+      đã hoàn tất. Số lẻ nghĩa là có lượt bị cắt → coi là hỏng.
+    - ``expected_role`` theo index chẵn/lẻ: bắt buộc xen kẽ user, assistant, user…
+      Client không được tự khai role, thứ tự quyết định role.
+    - ``set(item) != {"role","content"}``: mỗi item đúng 2 key, không hơn không kém.
+    - Giới hạn ba tầng: mỗi message ≤ MAX_MESSAGE_CHARS, số lượt ≤
+      MAX_HISTORY_MESSAGES, và tổng ký tự ≤ MAX_HISTORY_CHARS. Tầng tổng là chốt
+      chi phí token: 20 message ngắn hợp lệ, nhưng 20 message dài thì không.
+
+    Mọi lỗi đều ``raise ValueError`` trần (không message) vì caller chỉ trả về
+    đúng một câu lỗi chung — không tiết lộ luật kiểm tra nào đã chặn.
+    """
     if (
         not isinstance(payload, dict)
         or "message" not in payload
-        or set(payload) - {"message", "history"}
+        or set(payload) - {"message", "history", "conversation_state"}
     ):
         raise ValueError
     message = payload["message"]
@@ -317,7 +424,14 @@ def _validate_chat_payload(payload) -> tuple[str, list[dict]]:
         normalized_history.append({"role": expected_role, "content": content})
     if total_chars > chatbot_service.MAX_HISTORY_CHARS:
         raise ValueError
-    return message, normalized_history
+    raw_state = payload.get("conversation_state")
+    if "conversation_state" in payload:
+        if raw_state is None:
+            raise ValueError
+        state = chatbot_service.normalize_conversation_state(raw_state)
+    else:
+        state = None
+    return message, normalized_history, state
 
 
 @app.route("/chat", methods=["GET"])
@@ -332,22 +446,39 @@ def chat_page():
 
 @app.route("/api/chat", methods=["POST"])
 def chat_api():
+    """Endpoint chat: 3 tầng lỗi, tuyệt đối không để chi tiết nội bộ lọt ra client.
+
+    - Chặn ``mimetype`` trước khi parse: bắt buộc ``application/json`` nên form
+      POST từ trang khác (CSRF đơn giản) bị loại ngay.
+    - ``get_json(silent=True)`` trả ``None`` khi body không phải JSON thay vì tự
+      raise 400 của Werkzeug, để mọi lỗi input đi qua cùng một ``_chat_error``
+      với mã ``invalid_request``.
+    - ``ChatbotServiceError`` mang sẵn ``code``/``message``/``status`` (400/502/
+      503/504) đã được service soạn cho người dùng đọc → chuyển thẳng.
+    - ``except Exception`` cuối là chốt an toàn: log phía server nhưng client chỉ
+      nhận ``internal_error`` chung. Cố ý KHÔNG đưa ``str(exc)`` vào response vì
+      exception của provider có thể chứa URL endpoint hoặc mảnh API key.
+    """
     if request.mimetype != "application/json":
         return _chat_error(
             "invalid_request", "Request phải dùng Content-Type application/json.", 400
         )
     try:
-        message, history = _validate_chat_payload(request.get_json(silent=True))
+        message, history, conversation_state = _validate_chat_payload(
+            request.get_json(silent=True)
+        )
     except ValueError:
         return _chat_error(
-            "invalid_request", "Message hoặc history không hợp lệ.", 400
+            "invalid_request", "Message, history hoặc conversation_state không hợp lệ.", 400
         )
     try:
-        return jsonify(chatbot_service.chat(message, history))
+        return jsonify(chatbot_service.chat(message, history, conversation_state))
     except chatbot_service.ChatbotServiceError as exc:
         return _chat_error(exc.code, exc.message, exc.status)
     except Exception:
-        app.logger.error("Unexpected chatbot error")
+        # exception() thay vì error(): giữ traceback trong log server, nếu không
+        # lỗi nội bộ chỉ còn một dòng vô nghĩa vì response cố ý không mang str(exc).
+        app.logger.exception("Unexpected chatbot error")
         return _chat_error(
             "internal_error", "Trợ lý gặp lỗi nội bộ. Vui lòng thử lại sau.", 500
         )
@@ -496,6 +627,18 @@ def _valid_history_model(model_key: str | None) -> str | None:
 
 
 def _default_active_history_model(cfg: dict) -> str:
+    """Tab model nào mở sẵn khi vào /tuning mà URL không chỉ định ``history_model``.
+
+    Chọn model mà người dùng chốt cấu hình GẦN NHẤT — nghĩa là chỗ họ đang làm
+    việc. Thủ thuật: ghép tuple ``(selected_at, model_key)`` rồi ``max()``; vì
+    ``selected_at`` là ISO-8601 (``2026-07-19T19:12:27``) nên so sánh chuỗi cho
+    ra đúng thứ tự thời gian, không cần parse datetime. Model chưa chốt (không
+    có ``selected_at``) thành chuỗi rỗng → luôn thua. ``model_key`` ở vị trí thứ
+    hai chỉ để tie-break tất định khi hai model chốt cùng một giây.
+
+    Chưa chốt gì cả → mở Logistic Regression (model đơn giản nhất, cũng là bước
+    đầu trong quy trình tuning 3 model).
+    """
     selected_models = cfg.get("selected_models") or {}
     selected_at_by_model: list[tuple[str, str]] = []
     for model_key, selected in selected_models.items():
@@ -509,11 +652,51 @@ def _default_active_history_model(cfg: dict) -> str:
 
 
 def _parse_history_query(args, model_key: str, schema: dict) -> dict:
-    """Validate and normalize GET filters for one history model."""
+    """Đọc query string của bảng lịch sử tuning và chuẩn hóa thành filter dict.
+
+    VÌ SAO PHỨC TẠP: các cột tham số (C, max_depth, max_features...) không cố
+    định — mỗi model có schema riêng (``TUNABLE_PARAM_SCHEMA``). Nên hàm này
+    không thể hard-code danh sách filter; nó *sinh* filter từ schema của model
+    đang xem. Thêm nữa, hai kiểu tham số có "giá trị lai" vừa số vừa chữ:
+
+    - ``int_or_none`` (vd ``max_depth``): hoặc là số nguyên, hoặc là ``None``
+      (không giới hạn độ sâu).
+    - ``str_or_float`` (vd ``max_features``): hoặc là số thực, hoặc là chuỗi
+      ``"sqrt"``/``"log2"``.
+
+    Không thể lọc kiểu lai chỉ bằng min/max, nên mỗi field như vậy có thêm tham
+    số ``p_<field>_kind`` chọn *nhánh giá trị*: ``all`` | ``numeric`` | ``none``
+    (hoặc chính tên choice). Bảng chân lý kind × range mà đoạn dưới thực thi:
+
+        kind=none/sqrt/log2 + có min/max  → bỏ min/max (mâu thuẫn: đang lọc
+                                            nhánh không phải số)
+        kind=all             + có min/max  → tự nâng thành numeric (người dùng
+                                            gõ khoảng số thì rõ ràng muốn nhánh số)
+        kind=all             + không range → giữ all (không lọc gì)
+
+    NGUYÊN TẮC CHUNG: input sai không bao giờ làm request lỗi. Mọi giá trị lạ bị
+    bỏ qua, thay bằng mặc định an toàn, và đẩy một câu tiếng Việt vào
+    ``warnings`` để template hiện cho người dùng biết filter nào đã bị bỏ.
+
+    Trả về dict gồm: các filter đã sạch, ``warnings``, và ``query_args`` — bộ
+    tham số tối giản (chỉ chứa filter khác mặc định) dùng để dựng lại URL cho
+    link phân trang và link sắp xếp, nên bấm sang trang 2 không mất filter.
+    """
     warnings: list[str] = []
     model_schema = schema.get(model_key, {})
 
     def parse_number(key: str, *, integer: bool = False):
+        """Đọc một tham số số từ query string, sai thì bỏ qua chứ không lỗi 400.
+
+        Query string do người dùng gõ/sửa tay được nên phải chịu mọi rác. Quy tắc:
+        - Trống/không có → ``None`` (nghĩa là "không filter"), không phải cảnh báo.
+        - ``math.isfinite`` chặn ``nan``/``inf``: ``float("nan")`` parse được nhưng
+          mọi so sánh với nó đều False, sẽ lọc mất hết dòng một cách âm thầm.
+        - ``integer=True`` đòi ``value.is_integer()`` nên "5.0" hợp lệ còn "5.5"
+          thì không, dùng cho các tham số kiểu số nguyên (trang, n_estimators...).
+        - Giá trị xấu → ghi vào ``warnings`` (closure của hàm ngoài, hiện lên UI)
+          rồi trả ``None``, tức bỏ đúng filter đó và vẫn dựng được trang.
+        """
         raw = args.get(key)
         if raw is None or str(raw).strip() == "":
             return None
@@ -532,10 +715,10 @@ def _parse_history_query(args, model_key: str, schema: dict) -> dict:
             return None, None
         return minimum, maximum
 
-    dataset = args.get("dataset", "current")
+    dataset = args.get("dataset", "all")
     if dataset not in {"current", "all"}:
-        warnings.append("Dataset không hợp lệ; dùng dataset hiện tại.")
-        dataset = "current"
+        warnings.append("Dataset không hợp lệ; dùng toàn bộ lịch sử.")
+        dataset = "all"
 
     status = args.get("status", "ok")
     if status not in {"ok", "error", "all"}:
@@ -550,7 +733,7 @@ def _parse_history_query(args, model_key: str, schema: dict) -> dict:
 
     param_filters: dict[str, dict] = {}
     sortable_params: set[str] = set()
-    numeric_types = {"float", "int", "int_or_none", "str_or_float"}
+    numeric_types = HISTORY_SORTABLE_PARAM_TYPES
     for field, spec in model_schema.items():
         field_type = spec.get("type")
         if field_type == "choice":
@@ -602,13 +785,21 @@ def _parse_history_query(args, model_key: str, schema: dict) -> dict:
 
         param_filters[field] = item
 
-    sort = args.get("sort", "time_desc")
-    allowed_sorts = {"time_desc", "f1_asc", "f1_desc"}
+    sort = args.get("sort", HISTORY_DEFAULT_SORT)
+    # Whitelist sort được SINH RA, không hard-code: cột cố định lấy từ
+    # HISTORY_SORT_COLUMNS, cột tham số lấy từ sortable_params (đã gom ở vòng lặp
+    # schema phía trên, chỉ gồm kiểu số — "solver" là choice nên không sắp được).
+    # Whitelist chứ không parse tự do vì token sort sẽ tra vào bảng lambda; token
+    # lạ mà lọt qua sẽ thành KeyError khi sắp xếp.
+    # time_desc giữ lại vì link cũ / bookmark còn dùng, dù mặc định giờ là "default".
+    allowed_sorts = {HISTORY_DEFAULT_SORT, "time_desc", "time_asc"}
+    for column in HISTORY_SORT_COLUMNS:
+        allowed_sorts.update({f"{column}_asc", f"{column}_desc"})
     for field in sortable_params:
         allowed_sorts.update({f"param_{field}_asc", f"param_{field}_desc"})
     if sort not in allowed_sorts:
         warnings.append("Sắp xếp không hợp lệ; dùng thời gian mới nhất.")
-        sort = "time_desc"
+        sort = HISTORY_DEFAULT_SORT
 
     try:
         page = int(args.get("page", 1))
@@ -630,6 +821,12 @@ def _parse_history_query(args, model_key: str, schema: dict) -> dict:
         "param_filters": param_filters,
         "warnings": warnings,
     }
+    # query_args = bộ tham số ĐÃ LÀM SẠCH, dùng để dựng lại URL trong template
+    # (link phân trang, link đổi chiều sort, link đổi model). Nhờ nó mà bấm "trang
+    # sau" không mất filter đang bật, và một URL bẩn sau khi vào trang sẽ trở thành
+    # URL sạch ở mọi link tiếp theo.
+    # Chỉ ghi vào query_args những giá trị KHÁC mặc định (xem các `if` bên dưới) để
+    # URL ngắn: không nhồi `f1_min=&best=&page=1` vào mọi link.
     query_args = {
         "history_model": model_key,
         "dataset": dataset,
@@ -659,6 +856,89 @@ def _parse_history_query(args, model_key: str, schema: dict) -> dict:
     return filters
 
 
+def _numeric(value):
+    """Đọc value thành float, trả None nếu không phải số dùng được để so sánh.
+
+    Ba cạm bẫy được chặn ở đây:
+    - ``bool`` bị loại tường minh: trong Python ``True`` LÀ ``int`` (``1``), nên
+      nếu không chặn thì một param boolean sẽ lọt vào bộ lọc khoảng số và so
+      sánh được với 0/1 — vô nghĩa.
+    - Chuỗi (vd ``max_features="sqrt"``) trả None, không cố ép sang số.
+    - NaN/inf trả None: NaN so sánh với bất cứ gì cũng False nên nếu để lọt,
+      dòng đó vừa không thỏa min vừa không thỏa max, và với ``sort`` thì NaN
+      làm thứ tự trở nên không tất định. Với ``history_trend`` còn thêm một lý
+      do cứng: NaN/inf serialize ra JSON không hợp lệ (``NaN``), làm
+      ``|tojson`` sinh attribute mà ``JSON.parse`` phía client không đọc được.
+    None ở đây luôn nghĩa là "không có giá trị số" → dòng bị loại khỏi bộ lọc
+    khoảng, bị đẩy xuống cuối khi sắp xếp, hoặc bị loại khỏi biểu đồ trend.
+
+    Nằm ở tầng module (không lồng trong ``_build_history_page``) để bảng lịch sử
+    và biểu đồ trend dùng CHUNG một định nghĩa "số dùng được" — hai bản copy sẽ
+    trôi khỏi nhau ngay lần sửa đầu tiên.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _is_selected_run(row: dict, selected_run_id: str | None) -> bool:
+    """Row này có phải run đang được chốt làm cấu hình chính thức không.
+
+    Tách ra vì cả bảng lịch sử lẫn biểu đồ trend đều cần đánh dấu điểm "đang
+    dùng"; nếu mỗi bên tự so sánh thì một ngày nào đó bảng nói "đang dùng" mà
+    biểu đồ lại không tô điểm nào.
+    """
+    return bool(selected_run_id) and row.get("run_id") == selected_run_id
+
+
+def _build_history_trend(
+    rows: list[dict],
+    model_key: str,
+    fingerprint: str,
+    selected_run_id: str | None,
+) -> list[dict]:
+    """Chuỗi F1 theo thời gian của model đang mở — dữ liệu cho biểu đồ "đã hội tụ chưa".
+
+    Khác bảng lịch sử ở ba điểm, và cả ba đều là chủ ý:
+
+    - KHÔNG chịu ảnh hưởng của ``history_filters``. Bảng là công cụ tra cứu nên
+      người dùng lọc/sắp tùy ý; biểu đồ là câu trả lời cho "tuning đã hội tụ
+      chưa", mà câu đó chỉ có nghĩa khi trục X là thời gian trên TOÀN bộ số lần
+      thử. Sắp theo F1 sẽ vẽ ra một đường luôn đi lên — đẹp và vô nghĩa.
+    - Luôn khóa vào dataset hiện tại: F1 của hai fingerprint khác nhau là hai
+      thang đo, nối chúng thành một đường là sai.
+    - Chỉ giữ run có ``cv_f1_up_mean`` là số hữu hạn (xem ``_numeric``); run lỗi
+      không có F1 nên không có điểm để vẽ.
+
+    Thứ tự: theo ``timestamp`` tăng dần. ``timestamp`` là chuỗi ISO nên so sánh
+    chuỗi đúng bằng so sánh thời gian, và dùng lại ``HISTORY_SORT_COLUMNS["time"]``
+    để không tự viết lại cách đọc cột này. ``list.sort`` là stable, nên timestamp
+    trùng nhau (hoặc rỗng/không parse được — đều quy về chuỗi) giữ nguyên thứ tự
+    trong file, tức thứ tự append. Không parse datetime ở đây chính vì thế: một
+    dòng CSV bị sửa tay sẽ làm ``fromisoformat`` ném lỗi và mất cả biểu đồ.
+    """
+    matching = [
+        row
+        for row in rows
+        if row.get("model_key") == model_key
+        and row.get("policy_id") == EXPERIMENT_POLICY_ID
+        and row.get("dataset_fingerprint") == fingerprint
+        and _numeric(row.get("cv_f1_up_mean")) is not None
+    ]
+    matching.sort(key=HISTORY_SORT_COLUMNS["time"])
+    return [
+        {
+            "n": index,
+            "f1": _numeric(row.get("cv_f1_up_mean")),
+            "timestamp": str(row.get("timestamp") or ""),
+            "is_best": bool(row.get("is_best")),
+            "is_selected": _is_selected_run(row, selected_run_id),
+        }
+        for index, row in enumerate(matching, start=1)
+    ]
+
+
 def _build_history_page(
     rows: list[dict],
     model_key: str,
@@ -674,7 +954,7 @@ def _build_history_page(
         if source.get("policy_id") != EXPERIMENT_POLICY_ID:
             continue
         row = dict(source)
-        row["is_selected"] = bool(selected_run_id) and row.get("run_id") == selected_run_id
+        row["is_selected"] = _is_selected_run(row, selected_run_id)
         active_rows.append(row)
 
     if filters["dataset"] == "current":
@@ -686,11 +966,10 @@ def _build_history_page(
             row for row in active_rows if row.get("status") == filters["status"]
         ]
 
-    def numeric(value):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        number = float(value)
-        return number if math.isfinite(number) else None
+    # Alias cục bộ tới helper module-level: giữ nguyên tên `numeric` cho phần
+    # lọc/sắp bên dưới, nhưng định nghĩa nằm ở một chỗ duy nhất (_numeric) mà
+    # _build_history_trend cũng dùng.
+    numeric = _numeric
 
     if filters["f1_min"] is not None:
         active_rows = [
@@ -756,24 +1035,43 @@ def _build_history_page(
             ]
 
     sort = filters["sort"]
-    if sort == "time_desc":
-        active_rows.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
+    descending = sort.endswith("_desc")
+    column = sort.removesuffix("_asc").removesuffix("_desc")
+    if sort == HISTORY_DEFAULT_SORT:
+        column, descending = "time", True
+    if column == "time":
+        # Timestamp ISO nên so sánh chuỗi là đúng thứ tự thời gian, và không bao
+        # giờ rỗng — sắp trực tiếp, không cần tách nhóm thiếu giá trị.
+        active_rows.sort(key=HISTORY_SORT_COLUMNS["time"], reverse=descending)
     else:
-        descending = sort.endswith("_desc")
-        if sort.startswith("f1_"):
-            value_for = lambda row: numeric(row.get("cv_f1_up_mean"))
+        if column in HISTORY_SORT_COLUMNS:
+            getter = HISTORY_SORT_COLUMNS[column]
         else:
-            field = sort.removeprefix("param_").removesuffix("_asc").removesuffix("_desc")
-            value_for = lambda row: numeric(row.get("params", {}).get(field))
+            field = column.removeprefix("param_")
+            getter = lambda row: (row.get("params") or {}).get(field)
+        value_for = lambda row: numeric(getter(row))
+        # Tách dòng có giá trị và dòng thiếu giá trị (None/NaN/kiểu lạ). Dòng
+        # thiếu KHÔNG được tham gia so sánh số: nếu để lẫn, sort sẽ so None với
+        # float và ném TypeError, hoặc (nếu quy về 0) đẩy dòng rỗng lên đầu bảng
+        # khi sort tăng dần. Nhóm missing luôn xếp cuối, bất kể asc/desc.
         present = [row for row in active_rows if value_for(row) is not None]
         missing = [row for row in active_rows if value_for(row) is None]
+        # Sort HAI LẦN, tận dụng tính stable của list.sort: lần đầu theo
+        # timestamp giảm dần (tie-break), lần sau theo cột người dùng chọn. Vì
+        # stable sort giữ nguyên thứ tự tương đối của các phần tử bằng nhau, kết
+        # quả là "sắp theo cột chính, các dòng cùng giá trị thì mới nhất trước".
+        # Thứ tự hai lệnh này KHÔNG đảo được: khóa phụ phải sort trước khóa chính.
         present.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
         present.sort(key=value_for, reverse=descending)
         missing.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
         active_rows = present + missing
 
+    # Phân trang sau khi đã lọc + sắp. total_pages tối thiểu là 1 để bảng rỗng
+    # vẫn hiển thị "trang 1/1" thay vì 1/0.
     total = len(active_rows)
     total_pages = max(1, math.ceil(total / HISTORY_PAGE_SIZE))
+    # Kẹp page vào [1, total_pages]: người dùng đổi filter khi đang ở trang 5 có
+    # thể còn 2 trang, khi đó hiển thị trang cuối chứ không trả bảng trắng.
     page = min(filters["page"], total_pages)
     offset = (page - 1) * HISTORY_PAGE_SIZE
     page_rows = active_rows[offset : offset + HISTORY_PAGE_SIZE]
@@ -824,21 +1122,40 @@ def _tuning_context(**extra) -> dict:
         row
         for row in history
         if row.get("policy_id") == EXPERIMENT_POLICY_ID
-        and row.get("dataset_fingerprint") == fingerprint["hash"]
+        and (
+            history_filters["dataset"] == "all"
+            or row.get("dataset_fingerprint") == fingerprint["hash"]
+        )
     ]
     history_counts = Counter(row.get("model_key") for row in counted_history)
+    # Dựng từ `history` gốc, KHÔNG từ history_page["rows"]: biểu đồ phải thấy đủ
+    # mọi lần thử theo thời gian, còn history_page đã bị lọc + phân trang theo ý
+    # người dùng.
+    history_trend = _build_history_trend(
+        history,
+        active_history_model,
+        fingerprint["hash"],
+        selected.get("run_id"),
+    )
 
+    # Khi bấm sang tab model khác, chỉ mang theo các filter KHÔNG phụ thuộc schema
+    # (dataset/status/F1/best/selected/sort). Các filter p_<field> bị bỏ vì mỗi
+    # model có bộ tham số riêng: mang p_learning_rate sang tab Random Forest sẽ
+    # lọc trên một field không tồn tại → bảng trắng không rõ nguyên nhân.
     common_args = {
         key: value
         for key, value in history_filters["query_args"].items()
         if key in {"dataset", "status", "f1_min", "f1_max", "best", "selected", "sort"}
     }
+    # Cùng lý do: sort theo cột tham số cũng vô nghĩa ở model khác → hạ về mặc định.
     if str(common_args.get("sort", "")).startswith("param_"):
-        common_args["sort"] = "time_desc"
+        common_args["sort"] = HISTORY_DEFAULT_SORT
     history_tabs = []
     for model_key in MODEL_KEY.values():
         tab_args = {**common_args, "history_model": model_key}
         if model_key == active_history_model:
+            # Tab đang mở giữ nguyên toàn bộ filter hiện tại (kể cả p_<field>) để
+            # bấm lại chính nó không làm mất bộ lọc; chỉ bỏ page cho về trang 1.
             tab_args = {
                 key: value
                 for key, value in history_filters["query_args"].items()
@@ -858,6 +1175,56 @@ def _tuning_context(**extra) -> dict:
         args = {**history_filters["query_args"], "page": page_number}
         return url_for("tuning", **args)
 
+    # Trạng thái sắp xếp cho từng cột header: xoay vòng tăng → giảm → mặc định.
+    # Mặc định là token HISTORY_DEFAULT_SORT, không phải time_desc, để cột "Thời
+    # điểm" cũng có đủ ba trạng thái. Sort đổi thì về trang 1 vì trang cũ không
+    # còn ứng với tập dòng mới.
+    active_sort = history_filters["sort"]
+
+    def sort_state(column: str) -> dict:
+        """Trạng thái hiện tại + link "bấm tiếp" cho một cột header.
+
+        ``current`` là giá trị cho attribute ``aria-sort`` của <th> (chuỗi rỗng =
+        cột này không đang sắp), nên template không phải tự suy ra.
+
+        Vòng xoay ba bước khi bấm liên tiếp vào cùng một cột:
+        chưa sắp → tăng → giảm → về mặc định (bỏ sắp). Không có bước "về tăng"
+        vì lần bấm thứ ba phải cho người dùng đường quay lại thứ tự gốc.
+
+        ``page`` bị loại khỏi query khi đổi sort: tập dòng sắp lại nên trang 5 cũ
+        không còn tương ứng với dữ liệu gì — luôn về trang 1.
+        """
+        current = ""
+        if active_sort == f"{column}_asc":
+            current = "ascending"
+        elif active_sort == f"{column}_desc":
+            current = "descending"
+        next_sort = {
+            "": f"{column}_asc",
+            "ascending": f"{column}_desc",
+            "descending": HISTORY_DEFAULT_SORT,
+        }[current]
+        args = {
+            key: value
+            for key, value in history_filters["query_args"].items()
+            if key != "page"
+        }
+        args["sort"] = next_sort
+        return {
+            "current": current,
+            "next": next_sort,
+            "url": url_for("tuning", **args),
+        }
+
+    history_sort = {
+        column: sort_state(column) for column in HISTORY_SORT_COLUMNS
+    }
+    # Chỉ cột tham số kiểu số mới sắp được; loại choice (solver) vì thứ tự chuỗi
+    # tùy chọn không có nghĩa. Danh sách phải khớp allowed_sorts ở _parse_history_query.
+    for field, spec in param_schema[active_history_model].items():
+        if spec.get("type") in HISTORY_SORTABLE_PARAM_TYPES:
+            history_sort[f"param_{field}"] = sort_state(f"param_{field}")
+
     history_page["prev_url"] = page_url(history_page["page"] - 1) if history_page["page"] > 1 else None
     history_page["next_url"] = (
         page_url(history_page["page"] + 1)
@@ -871,6 +1238,11 @@ def _tuning_context(**extra) -> dict:
     fetch_running = is_fetch_running()
     tuning_running = is_tuning_job_running()
     tuning_job = get_tuning_job_state()
+    # Job state nằm trong biến module (RAM), không gắn với dataset. Nếu người dùng
+    # refresh dữ liệu sau khi job xong, kết quả cũ vẫn còn trong RAM nhưng đã thuộc
+    # fingerprint khác — hiển thị tiếp sẽ khiến người đọc tưởng vừa CV trên dữ liệu
+    # mới. Nên coi như "idle" thay vì xóa state (giữ nguyên để tránh race với
+    # thread đang chạy).
     if (
         tuning_job.get("status") == "completed"
         and (tuning_job.get("result") or {}).get("dataset_fingerprint")
@@ -881,6 +1253,14 @@ def _tuning_context(**extra) -> dict:
         read_fetch_log_tail() if fetch_running else "",
         fetch_running,
     )
+    # Điều kiện bật nút "Chạy official pipeline". Năm điều kiện, mỗi cái chặn một
+    # tình huống khác nhau:
+    # - complete: đã chốt đủ cấu hình cho cả 3 model trên dataset hiện tại.
+    # - not snapshot_evaluated: snapshot này CHƯA từng đánh giá TEST. Đây là khóa
+    #   một-lần của giao thức: mỗi snapshot dữ liệu chỉ được chạm TEST đúng một
+    #   lần, nếu không việc chọn model sẽ dần "học" TEST qua nhiều lần thử.
+    # - ba cờ còn lại: không có job nào (pipeline / fetch / tuning CV) đang chạy,
+    #   vì tất cả đều ghi vào cùng bộ file trong experiments/ và reports/.
     can_run = (
         complete
         and not snapshot_evaluated
@@ -889,6 +1269,9 @@ def _tuning_context(**extra) -> dict:
         and not tuning_running
     )
 
+    # config_stale = "đã chốt cấu hình nhưng nó thuộc dữ liệu/policy khác".
+    # Chỉ cảnh báo khi thực sự có cấu hình đã chốt (bool(selected_models)), chứ
+    # người dùng mới vào lần đầu chưa chốt gì thì không phải là "cũ".
     config_fingerprint = cfg.get("dataset_fingerprint")
     config_stale = bool(cfg.get("selected_models")) and (
         config_fingerprint != fingerprint["hash"]
@@ -908,7 +1291,9 @@ def _tuning_context(**extra) -> dict:
         "history_filters": history_filters,
         "history_filter_warnings": history_filters["warnings"],
         "history_query_args": history_filters["query_args"],
+        "history_sort": history_sort,
         "history_pagination": history_page,
+        "history_trend": history_trend,
         "history_reset_url": url_for(
             "tuning", history_model=active_history_model
         ),
@@ -1058,6 +1443,14 @@ def tuning_run_pipeline():
             **_render_tuning_ctx(error="Tuning CV đang chạy. Hãy chờ job hoàn tất."),
         ), 409
 
+    # Pipeline chạy ĐỒNG BỘ (subprocess.run + check=True): request HTTP bị treo
+    # đến khi train xong. Khác hẳn fetch bên dưới (Popen nền). Lý do: pipeline
+    # phải xong mới có report để redirect sang /evaluation, và pipeline.lock do
+    # chính run_pipeline.py tự giữ nên không cần app quản lý PID.
+    # `check=True` biến exit code != 0 thành CalledProcessError → nhánh except
+    # dưới vẫn ghi được log stdout/stderr (log là thứ duy nhất user thấy khi lỗi).
+    # encoding="utf-8" + errors="replace" vì log tiếng Việt trên Windows dễ vỡ
+    # codec; replace đảm bảo không bao giờ crash chỉ vì một byte lạ.
     try:
         proc = subprocess.run(
             [sys.executable, "scripts/run_pipeline.py"],
@@ -1123,6 +1516,19 @@ def tuning_fetch_data():
 
 @app.route("/tuning/fetch-status", methods=["GET"])
 def tuning_fetch_status():
+    """Trang theo dõi job refresh dữ liệu — trạng thái suy từ ĐĨA, không từ session.
+
+    Job refresh chạy bằng ``Popen`` nền nên tiến trình Flask xử lý request này có
+    thể không phải tiến trình đã khởi động job (reload, nhiều worker). Vì vậy mọi
+    thứ đọc lại từ đĩa mỗi lần F5:
+
+    - ``is_fetch_running()``: đọc ``fetch.lock`` rồi kiểm PID còn sống thật, nên
+      lock mồ côi (máy tắt giữa job) không làm trang treo ở "đang chạy" mãi.
+    - ``read_fetch_log_tail()``: chỉ lấy phần cuối log, tránh nạp cả file vào RAM.
+    - ``_infer_refresh_progress(log, running)``: parse marker ``[1/3]``…``[3/3]``
+      trong log để ra phần trăm. Truyền cả ``running`` vào vì cùng một log "đã
+      thấy [3/3]" có nghĩa khác nhau: còn chạy = đang ở bước 3, đã dừng = xong.
+    """
     running = is_fetch_running()
     log = read_fetch_log_tail()
     fetch_report = _load_fetch_report()

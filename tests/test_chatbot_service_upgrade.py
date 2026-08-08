@@ -1,8 +1,7 @@
-"""Focused regression tests for natural, safe chatbot orchestration."""
+"""Các regression test bổ sung cho chatbot structured context injection (SCI)."""
 
 from __future__ import annotations
 
-import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -10,271 +9,238 @@ from unittest.mock import Mock, patch
 from services import chatbot_service
 
 
-def _final_response(content: str) -> dict:
+def _response(content: str) -> dict:
     return {"choices": [{"message": {"role": "assistant", "content": content}}]}
 
 
-def _tool_response(
-    name: str = "get_stock_signals",
-    arguments: dict | None = None,
-) -> dict:
-    arguments = arguments or {"symbols": ["FPT"]}
-    return {
-        "choices": [
-            {
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call-1",
-                            "type": "function",
-                            "function": {
-                                "name": name,
-                                "arguments": json.dumps(arguments),
-                            },
-                        }
-                    ],
-                }
-            }
-        ]
-    }
-
-
-def _tool_result() -> dict:
-    return {
-        "ok": True,
-        "data": {
-            "signals": [
-                {
-                    "symbol": "FPT",
-                    "up_score_percent": 50.64,
-                    "horizon_sessions": 20,
-                }
-            ]
-        },
-        "source": {
-            "kind": "stock_signal",
-            "symbols": ["FPT"],
-            "as_of": "2026-07-20",
-        },
-        "as_of": "2026-07-20",
-        "release": {
-            "status": "current",
-            "policy_id": "policy",
-            "content_fingerprint": "fingerprint",
-        },
-        "warnings": [],
-        "error": None,
-    }
-
-
-def _client(*responses) -> SimpleNamespace:
-    create = Mock(side_effect=list(responses))
+def _client(content: str) -> SimpleNamespace:
+    create = Mock(return_value=_response(content))
     return SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=create))
     )
 
 
-class NaturalDialogueTests(unittest.TestCase):
-    def test_social_and_advice_work_without_provider_configuration(self):
-        cases = (
-            ("Chào!", "Chào bạn!"),
-            ("Cảm ơn bạn.", "Không có gì"),
-            ("Nên mua cổ phiếu nào?", "Mình không thể quyết định mua hoặc bán thay bạn."),
-            ("Chọn giúp tôi một mã để mua", "Mình không thể quyết định mua hoặc bán thay bạn."),
-            ("Gợi ý mã đầu tư", "Mình không thể quyết định mua hoặc bán thay bạn."),
-        )
-        with patch.multiple(
-            chatbot_service, LLM_BASE_URL="", LLM_API_KEY="", LLM_MODEL=""
-        ):
-            for message, expected in cases:
-                with self.subTest(message=message):
-                    result = chatbot_service.chat(message, [])
-                    self.assertIn(expected, result["answer"])
-                    self.assertEqual(result["sources"], [])
-                    self.assertEqual(result["warnings"], [])
-                    self.assertIsNone(result["release_status"])
-
-    def test_social_and_advice_matching_is_conservative(self):
-        messages = (
-            "Chào, phân tích FPT giúp mình",
-            "So sánh FPT và VNM để tôi tham khảo",
-        )
-        for message in messages:
-            with self.subTest(message=message):
-                client = _client(_final_response("Không dùng tool."))
-                result = chatbot_service.chat(message, [], client=client)
-                client.chat.completions.create.assert_called_once()
-                self.assertEqual(result["answer"], chatbot_service.SCOPE_MESSAGE)
-
-    def test_common_transaction_advice_phrasings_are_handled_locally(self):
-        messages = (
-            "Mua FPT được không?",
-            "Theo bạn mã nào đáng mua?",
-            "Bạn khuyên tôi mua FPT không?",
-        )
-        with patch.multiple(
-            chatbot_service, LLM_BASE_URL="", LLM_API_KEY="", LLM_MODEL=""
-        ):
-            for message in messages:
-                with self.subTest(message=message):
-                    result = chatbot_service.chat(message, [])
-                    self.assertEqual(result["answer"], chatbot_service.ADVICE_MESSAGE)
-
-    def test_safe_no_tool_clarification_is_allowed(self):
-        clarification = "Bạn muốn mình phân tích mã nào?"
-        client = _client(_final_response(clarification))
-
-        result = chatbot_service.chat("Phân tích giúp mình", [], client=client)
-
-        self.assertEqual(result["answer"], clarification)
-        self.assertEqual(result["sources"], [])
-
-    def test_unsafe_no_tool_answers_still_fall_back_to_scope(self):
-        cases = (
-            "Bạn muốn xem top 5 mã?",
-            "Bạn muốn xem FPT?\nHay VNM?",
-            "Bạn muốn mua mã nào?",
-            "Mình có thể giúp bạn chọn mã?",
-            "Bạn muốn xem mã nào??",
-            "Bạn muốn " + ("x" * 231) + "?",
-        )
-        for answer in cases:
-            with self.subTest(answer=answer[:40]):
-                client = _client(_final_response(answer))
-                result = chatbot_service.chat("Câu hỏi thiếu thông tin", [], client=client)
-                self.assertEqual(result["answer"], chatbot_service.SCOPE_MESSAGE)
-
-    def test_no_tool_clarification_cannot_embed_a_model_claim(self):
-        client = _client(
-            _final_response("Bạn muốn xem model hiện tại đang dùng XGBoost?")
-        )
-
-        result = chatbot_service.chat("Model nào?", [], client=client)
-
-        self.assertEqual(result["answer"], chatbot_service.SCOPE_MESSAGE)
-
-    def test_advice_spelled_percent_and_wrong_symbol_score_are_rejected(self):
-        answers = (
-            "Bạn có thể mua FPT.",
-            "Mình khuyên bạn mua FPT.",
-            "FPT phù hợp để mua.",
-            "Hãy bán VNM.",
-            "Điểm UP của FPT là chín mươi chín phần trăm.",
-            "Điểm UP của FPT là 20%.",
-        )
-        for answer in answers:
-            with self.subTest(answer=answer):
-                client = _client(_tool_response(), _final_response(answer))
-                with patch.object(
-                    chatbot_service.chatbot_tools,
-                    "execute_tool",
-                    return_value=_tool_result(),
-                ):
-                    with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
-                        chatbot_service.chat("Phân tích FPT", [], client=client)
-                self.assertEqual(raised.exception.code, "ungrounded_response")
-
-    def test_correct_symbol_score_claim_remains_allowed(self):
-        client = _client(
-            _tool_response(), _final_response("FPT có Điểm UP 50,64%.")
-        )
-        with patch.object(
-            chatbot_service.chatbot_tools,
-            "execute_tool",
-            return_value=_tool_result(),
-        ):
-            result = chatbot_service.chat("Phân tích FPT", [], client=client)
-
-        self.assertEqual(result["answer"], "FPT có Điểm UP 50,64%.")
-
-    def test_project_question_uses_whitelisted_project_tool(self):
-        client = _client(
-            _tool_response("get_project_info", {"topic": "target"}),
-            _final_response("Target dùng đúng 5 phiên thị trường."),
-        )
-        tool_result = {
+def _bundle(*, facts=None, model_facts=None, numbers=None, clarification=False) -> dict:
+    context = {
+        "project_snapshot": {
             "ok": True,
-            "data": {
-                "topic": "target",
-                "title": "Target dự báo",
-                "facts": {"prediction_horizon_sessions": 5},
-                "notes": [],
-            },
-            "source": {"kind": "project_contract", "topic": "target"},
-            "as_of": None,
-            "release": {
-                "status": None,
-                "policy_id": None,
-                "content_fingerprint": None,
-            },
+            "data": {"serving_mode": "offline_published_artifacts"},
+            "as_of": "2026-07-31",
             "warnings": [],
             "error": None,
         }
-        with patch.object(
-            chatbot_service.chatbot_tools,
-            "execute_tool",
-            return_value=tool_result,
-        ) as execute:
-            result = chatbot_service.chat("Target được tạo thế nào?", [], client=client)
-
-        execute.assert_called_once_with("get_project_info", {"topic": "target"})
-        self.assertEqual(result["sources"], [tool_result["source"]])
-
-    def test_ranking_runs_only_after_user_explicitly_asks_for_it(self):
-        first = chatbot_service.chat("Hôm nay nên mua cổ phiếu nào?", [])
-        history = [
-            {"role": "user", "content": "Hôm nay nên mua cổ phiếu nào?"},
-            {"role": "assistant", "content": first["answer"]},
-        ]
-        client = _client(
-            _tool_response(
-                "get_ranking", {"order": "highest_up_score", "top_n": 5}
-            ),
-            _final_response("Mình đã đọc bảng xếp hạng offline."),
-        )
-        ranking_result = {
-            **_tool_result(),
-            "data": {"ranking": [], "top_n": 5, "excluded_stale_count": 0},
-            "source": {"kind": "ranking", "symbols": [], "as_of": "2026-07-20"},
+    }
+    if clarification:
+        context["clarification_required"] = {
+            "reason": "missing_symbol_or_criterion"
         }
+    return {
+        "context": context,
+        "sources": [{"kind": "project_snapshot", "as_of": "2026-07-31"}],
+        "warnings": [],
+        "release_status": "current",
+        "data_as_of": "2026-07-31",
+        "grounded_numbers": numbers or [2026.0, 7.0, 31.0],
+        "stock_facts": facts or {},
+        "model_facts": model_facts or {},
+        "conversation_state": chatbot_service.empty_conversation_state(),
+    }
+
+
+class LlmFirstDialogueTests(unittest.TestCase):
+    def test_social_and_advice_messages_all_use_one_provider_call(self):
+        for message in ("Chào!", "Cảm ơn bạn.", "Có nên mua FPT không?"):
+            with self.subTest(message=message):
+                client = _client("Mình không quyết định giao dịch thay bạn.")
+                with patch.object(
+                    chatbot_service, "build_context", return_value=_bundle()
+                ):
+                    chatbot_service.chat(message, [], client=client)
+                client.chat.completions.create.assert_called_once()
+
+    def test_clarification_is_generated_in_the_same_llm_call(self):
+        client = _client("Bạn muốn mình phân tích mã nào?")
         with patch.object(
-            chatbot_service.chatbot_tools,
-            "execute_tool",
-            return_value=ranking_result,
-        ) as execute:
-            chatbot_service.chat(
-                "Cho mình xem bảng xếp hạng Điểm UP", history, client=client
+            chatbot_service,
+            "build_context",
+            return_value=_bundle(clarification=True),
+        ):
+            result = chatbot_service.chat("Phân tích giúp mình", [], client=client)
+
+        self.assertEqual(result["answer"], "Bạn muốn mình phân tích mã nào?")
+        client.chat.completions.create.assert_called_once()
+
+    def test_clarification_must_be_exactly_one_short_question(self):
+        for answer in (
+            "Mình chưa rõ. Bạn muốn mã nào?",
+            "Bạn muốn mã nào? Hay muốn xem ranking?",
+            "Bạn muốn xem top 5 mã?",
+            "Mình cần thêm thông tin.",
+        ):
+            with self.subTest(answer=answer):
+                with patch.object(
+                    chatbot_service,
+                    "build_context",
+                    return_value=_bundle(clarification=True),
+                ):
+                    result = chatbot_service.chat(
+                        "Phân tích giúp mình", [], client=_client(answer)
+                    )
+                self.assertEqual(result["answer"], chatbot_service.SOFT_BLOCK_ANSWER)
+                self.assertIn(
+                    "answer_blocked_ungrounded",
+                    [w["code"] for w in result["warnings"]],
+                )
+
+    def test_correct_symbol_score_is_allowed_and_swapped_score_is_rejected(self):
+        facts = {
+            "FPT": {
+                "prediction": "UP",
+                "up_score_percent": 50.64,
+                "decision_threshold_percent": 49.0,
+                "threshold_relation": "above",
+            },
+            "VNM": {
+                "prediction": "NOT_UP",
+                "up_score_percent": 40.0,
+                "decision_threshold_percent": 49.0,
+                "threshold_relation": "below",
+            },
+        }
+        bundle = _bundle(facts=facts, numbers=[50.64, 49.0, 40.0])
+        client = _client("FPT có Điểm UP 50,64%.")
+        with patch.object(chatbot_service, "build_context", return_value=bundle):
+            result = chatbot_service.chat("FPT thế nào?", [], client=client)
+        self.assertEqual(result["answer"], "FPT có Điểm UP 50,64%.")
+
+        client = _client("VNM có Điểm UP 50,64%.")
+        with patch.object(chatbot_service, "build_context", return_value=bundle):
+            result = chatbot_service.chat("VNM thế nào?", [], client=client)
+        self.assertEqual(result["answer"], chatbot_service.SOFT_BLOCK_ANSWER)
+        self.assertIn(
+            "answer_blocked_ungrounded",
+            [w["code"] for w in result["warnings"]],
+        )
+
+    def test_colon_prediction_must_match_symbol_fact(self):
+        bundle = _bundle(
+            facts={"FPT": {"prediction": "NOT_UP"}},
+        )
+        with patch.object(chatbot_service, "build_context", return_value=bundle):
+            result = chatbot_service.chat("FPT thế nào?", [], client=_client("FPT: UP"))
+        self.assertEqual(result["answer"], chatbot_service.SOFT_BLOCK_ANSWER)
+        self.assertIn(
+            "answer_blocked_ungrounded",
+            [w["code"] for w in result["warnings"]],
+        )
+
+        generic = "Nhãn: UP chỉ là output phân loại."
+        with patch.object(
+            chatbot_service,
+            "build_context",
+            return_value=_bundle(),
+        ):
+            result = chatbot_service.chat("UP là gì?", [], client=_client(generic))
+        self.assertEqual(result["answer"], generic)
+
+    def test_metric_value_is_bound_to_split_and_metric_name(self):
+        bundle = _bundle(
+            model_facts={
+                "test": {"precision_up": 51.0, "recall_up": 62.0},
+            },
+            numbers=[51.0, 62.0],
+        )
+        with patch.object(chatbot_service, "build_context", return_value=bundle):
+            valid = chatbot_service.chat(
+                "Metric TEST?", [], client=_client("Precision UP TEST là 51%.")
+            )
+        self.assertEqual(valid["answer"], "Precision UP TEST là 51%.")
+
+        for answer in (
+            "Precision UP TEST là 62%.",
+            "Precision UP đạt 62% trên TEST.",
+        ):
+            with (
+                self.subTest(answer=answer),
+                patch.object(chatbot_service, "build_context", return_value=bundle),
+            ):
+                result = chatbot_service.chat("Metric TEST?", [], client=_client(answer))
+            self.assertEqual(result["answer"], chatbot_service.SOFT_BLOCK_ANSWER)
+            self.assertIn(
+                "answer_blocked_ungrounded",
+                [w["code"] for w in result["warnings"]],
             )
 
-        execute.assert_called_once_with(
-            "get_ranking", {"order": "highest_up_score", "top_n": 5}
+    def test_up_score_comparison_relation_must_match_symbol_facts(self):
+        bundle = _bundle(
+            facts={
+                "FPT": {"up_score_percent": 40.0},
+                "VNM": {"up_score_percent": 60.0},
+            },
+            numbers=[40.0, 60.0],
         )
+        with patch.object(chatbot_service, "build_context", return_value=bundle):
+            valid = chatbot_service.chat(
+                "So sánh FPT VNM",
+                [],
+                client=_client("FPT có Điểm UP thấp hơn VNM."),
+            )
+        self.assertEqual(valid["answer"], "FPT có Điểm UP thấp hơn VNM.")
 
-    def test_prompt_locks_natural_tone_and_two_decimal_display(self):
+        for answer in (
+            "FPT có Điểm UP cao hơn VNM.",
+            "FPT cao hơn VNM về Điểm UP.",
+        ):
+            with (
+                self.subTest(answer=answer),
+                patch.object(chatbot_service, "build_context", return_value=bundle),
+            ):
+                result = chatbot_service.chat(
+                    "So sánh FPT VNM", [], client=_client(answer)
+                )
+            self.assertEqual(result["answer"], chatbot_service.SOFT_BLOCK_ANSWER)
+            self.assertIn(
+                "answer_blocked_ungrounded",
+                [w["code"] for w in result["warnings"]],
+            )
+
+    def test_negated_certainty_statement_is_allowed(self):
+        answer = "Điểm UP không đảm bảo giá sẽ tăng."
+        with patch.object(
+            chatbot_service,
+            "build_context",
+            return_value=_bundle(),
+        ):
+            result = chatbot_service.chat("Điểm UP nghĩa là gì?", [], client=_client(answer))
+
+        self.assertEqual(result["answer"], answer)
+
+    def test_prompt_locks_llm_first_rules(self):
         prompt = chatbot_service.SYSTEM_PROMPT.casefold()
-
-        self.assertIn("xưng “mình”", prompt)
-        self.assertIn("chỉ hỏi lại một câu", prompt)
-        self.assertIn("tối đa hai chữ số thập phân", prompt)
-        self.assertIn("không tự tính số mới", prompt)
+        for phrase in (
+            "không gọi tool",
+            "context_json",
+            "history do client cung cấp",
+            "chỉ hỏi lại đúng một câu",
+            "tối đa hai chữ số thập phân",
+            "không tự tính số mới",
+        ):
+            self.assertIn(phrase, prompt)
 
 
 class ProviderUrlSecurityTests(unittest.TestCase):
     def test_allowed_provider_urls(self):
-        urls = (
+        for url in (
             "https://provider.example/v1",
             "http://localhost/v1",
             "http://127.0.0.1:8000/v1",
             "http://[::1]:8000/v1",
-        )
-        for url in urls:
+        ):
             with self.subTest(url=url):
                 self.assertEqual(chatbot_service._validate_base_url(url), url)
 
     def test_invalid_provider_url_returns_stable_503(self):
-        urls = (
+        for url in (
             "http://provider.example/v1",
             "https://user:pass@provider.example/v1",
             "https://provider.example/v1?token=secret",
@@ -282,13 +248,12 @@ class ProviderUrlSecurityTests(unittest.TestCase):
             "ftp://provider.example/v1",
             "https:///v1",
             " https://provider.example/v1",
-        )
-        for url in urls:
+        ):
             with self.subTest(url=url), patch.multiple(
                 chatbot_service,
                 LLM_BASE_URL=url,
                 LLM_API_KEY="test-secret",
-                LLM_MODEL="tool-model",
+                LLM_MODEL="llm-first-model",
             ):
                 with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
                     chatbot_service._create_client()
@@ -297,6 +262,19 @@ class ProviderUrlSecurityTests(unittest.TestCase):
                     ("llm_invalid_config", 503),
                 )
                 self.assertNotIn(url, raised.exception.message)
+
+    def test_whitespace_only_key_or_model_is_invalid_configuration(self):
+        for key, model in ((" ", "model"), ("secret", " ")):
+            with self.subTest(key=key, model=model), patch.multiple(
+                chatbot_service,
+                LLM_BASE_URL="https://provider.example/v1",
+                LLM_API_KEY=key,
+                LLM_MODEL=model,
+            ):
+                self.assertFalse(chatbot_service.is_configured())
+                with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
+                    chatbot_service._create_client()
+                self.assertEqual(raised.exception.status, 503)
 
 
 if __name__ == "__main__":

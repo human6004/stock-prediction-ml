@@ -49,18 +49,11 @@ def signal(symbol, score, *, date="2026-07-20", stale=False):
 
 
 class ChatbotToolUpgradeTests(unittest.TestCase):
-    def test_six_closed_tools_include_project_topic_enum(self):
-        functions = {
-            item["function"]["name"]: item["function"]
-            for item in chatbot_tools.TOOL_DEFINITIONS
-        }
-
-        self.assertEqual(len(functions), 6)
-        project = functions["get_project_info"]
-        self.assertFalse(project["parameters"]["additionalProperties"])
+    def test_direct_project_handler_keeps_closed_topic_enum(self):
+        self.assertFalse(hasattr(chatbot_tools, "TOOL_DEFINITIONS"))
         self.assertEqual(
-            project["parameters"]["properties"]["topic"]["enum"],
-            [
+            chatbot_tools.PROJECT_TOPICS,
+            (
                 "overview",
                 "target",
                 "features",
@@ -69,7 +62,7 @@ class ChatbotToolUpgradeTests(unittest.TestCase):
                 "metrics",
                 "inference",
                 "limitations",
-            ],
+            ),
         )
 
     def test_signal_precision_and_gap_use_raw_scores(self):

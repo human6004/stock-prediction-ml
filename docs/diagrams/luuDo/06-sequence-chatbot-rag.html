@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.6.0">
-  <title>Sequence — Chatbot RAG grounded, read-only trên artifact đã publish Diagram</title>
+  <title>Sequence — Chatbot SCI với context do server dựng Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -494,14 +494,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>Sequence — Chatbot RAG grounded, read-only trên artifact đã publish</h1>
+        <h1>Sequence — Chatbot SCI với context do server dựng</h1>
       </div>
-      <p class="subtitle">Browser /chat → /api/chat → chatbot_service → LLM tool calling → chatbot_tools → Release Gate → artifact/prediction_service → grounding → answer</p>
+      <p class="subtitle">Browser → /api/chat → build_context → published/derived data → đúng một LLM call → grounding → response + canonical state</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 980 860" role="img" aria-label="Sequence — Chatbot RAG grounded, read-only trên artifact đã publish — Browser /chat → /api/chat → chatbot_service → LLM tool calling → chatbot_tools → Release Gate → artifact/prediction_service → grounding → answer (sequence diagram)">
+      <svg viewBox="0 0 980 960" role="img" aria-label="Sequence — Chatbot SCI với context do server dựng — Browser → /api/chat → build_context → published/derived data → đúng một LLM call → grounding → response + canonical state (sequence diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -525,118 +525,122 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Time Segments -->
-        <rect x="48" y="158" width="884" height="82" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="176" class="t-dim" font-size="9" font-weight="600">01 / REQUEST + LOCAL ROUTER</text>
+        <rect x="48" y="158" width="884" height="92" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="176" class="t-dim" font-size="9" font-weight="600">01 / REQUEST + STATE</text>
 
-        <rect x="48" y="250" width="884" height="84" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="268" class="t-dim" font-size="9" font-weight="600">02 / LLM CHỌN TOOL (≤ 3 vòng)</text>
+        <rect x="48" y="260" width="884" height="320" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="278" class="t-dim" font-size="9" font-weight="600">02 / SERVER-BUILT CONTEXT</text>
 
-        <rect x="48" y="344" width="884" height="212" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="362" class="t-dim" font-size="9" font-weight="600">03 / TOOL GROUNDED READ-ONLY (≤ 5 call)</text>
+        <rect x="48" y="600" width="884" height="100" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="618" class="t-dim" font-size="9" font-weight="600">03 / ĐÚNG MỘT LLM CALL</text>
 
-        <rect x="48" y="566" width="884" height="160" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="62" y="584" class="t-dim" font-size="9" font-weight="600">04 / GROUNDING + ANSWER</text>
+        <rect x="48" y="710" width="884" height="170" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="62" y="728" class="t-dim" font-size="9" font-weight="600">04 / GROUNDING + RESPONSE</text>
 
         <!-- Lifelines -->
-        <path d="M 62 142 L 62 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 170 142 L 170 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 278 142 L 278 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 386 142 L 386 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 494 142 L 494 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 602 142 L 602 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
-        <path d="M 710 142 L 710 795" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 62 142 L 62 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 170 142 L 170 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 278 142 L 278 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 386 142 L 386 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 494 142 L 494 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 602 142 L 602 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
+        <path d="M 710 142 L 710 895" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"/>
 
         <!-- Messages -->
-        <path d="M 69 186 L 163 186" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="73.6" y="166" width="84.8" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="176" class="t-backend" font-size="9" text-anchor="middle">POST /api/chat</text>
-        <text x="81" y="204" class="t-dim" font-size="7">message ≤ 1000 ký tự · history ≤ 3 cặp gần nhất, chỉ trong memory tab</text>
+        <path d="M 69 184 L 163 184" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="73.6" y="164" width="84.8" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="174" class="t-backend" font-size="9" text-anchor="middle">POST /api/chat</text>
+        <text x="81" y="202" class="t-dim" font-size="7">message ≤ 1000 · history ≤ 6 message · conversation_state optional; dock và /chat dùng chung sessionStorage</text>
 
-        <path d="M 177 220 L 271 220" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="160.8" y="200" width="126.4" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="210" class="t-backend" font-size="9" text-anchor="middle">chat(message, history)</text>
-        <text x="189" y="238" class="t-dim" font-size="7">social/chào-cảm ơn/hỏi khả năng và tư vấn mua-bán → trả lời local, KHÔNG gọi LLM</text>
+        <path d="M 177 222 L 271 222" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="142.6" y="202" width="162.8" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="212" class="t-backend" font-size="9" text-anchor="middle">chat(message, history, state)</text>
+        <text x="189" y="240" class="t-dim" font-size="7">validate whitelist + normalize state; state client chỉ là hint, không chứa số liệu tài chính</text>
 
-        <path d="M 285 270 L 379 270" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <rect x="242.8" y="250" width="178.4" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="260" class="t-backend" font-size="9" text-anchor="middle">system prompt + history + 6 tool</text>
-        <text x="297" y="288" class="t-dim" font-size="7">tool_choice=auto · deadline tổng 30 giây · max_retries=0</text>
+        <path d="M 285 282 L 379 282" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="279.2" y="262" width="105.60000000000001" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="272" class="t-backend" font-size="9" text-anchor="middle">build_context(...)</text>
+        <text x="297" y="300" class="t-dim" font-size="7">deadline 60 giây bắt đầu trước context; greeting cũng dựng snapshot và vẫn gọi LLM</text>
 
-        <path d="M 379 304 L 285 304" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="300" y="284" width="64" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="294" class="t-muted" font-size="9" text-anchor="middle">tool_calls</text>
-        <text x="297" y="322" class="t-dim" font-size="7">no-tool: chỉ nhận safe clarification, còn lại thay bằng scope message</text>
+        <path d="M 393 326 L 487 326" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="371.6" y="306" width="136.8" height="16" rx="3" class="c-mask"/>
+        <text x="440" y="316" class="t-security" font-size="9" text-anchor="middle">release identity + scope</text>
+        <text x="405" y="344" class="t-dim" font-size="7">snapshot cache theo chữ ký data/model/report/pipeline; data đổi thì lượt sau tự dùng snapshot mới</text>
 
-        <path d="M 285 350 L 487 350" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="317.6" y="330" width="136.8" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="340" class="t-backend" font-size="9" text-anchor="middle">execute_tool(name, args)</text>
-        <text x="297" y="368" class="t-dim" font-size="7">allowlist 6 tool · validate lại JSON args · tool call ≤ 5</text>
+        <path d="M 487 364 L 393 364" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="389.8" y="344" width="100.4" height="16" rx="3" class="c-mask"/>
+        <text x="440" y="354" class="t-muted" font-size="9" text-anchor="middle">status + warnings</text>
+        <text x="405" y="382" class="t-dim" font-size="7">current / legacy / inconsistent / missing; identity phải đồng nhất giữa mọi context block</text>
 
-        <path d="M 501 390 L 595 390" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <rect x="492.6" y="370" width="110.8" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="380" class="t-security" font-size="9" text-anchor="middle">get_release_state()</text>
-        <text x="513" y="408" class="t-dim" font-size="7">đọc identity: final_model.pkl · model_metadata.json · pipeline_summary.json</text>
+        <path d="M 393 410 L 595 410" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <rect x="433.4" y="390" width="121.2" height="16" rx="3" class="c-mask"/>
+        <text x="494" y="400" class="t-backend" font-size="9" text-anchor="middle">gọi handler cần thiết</text>
+        <text x="405" y="428" class="t-dim" font-size="7">signal · comparison · ranking · model · dataset · feature · project · limitations; không gửi schema tool cho LLM</text>
 
-        <path d="M 595 424 L 501 424" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="497.8" y="404" width="100.4" height="16" rx="3" class="c-mask"/>
-        <text x="548" y="414" class="t-muted" font-size="9" text-anchor="middle">status + warnings</text>
-        <text x="513" y="442" class="t-dim" font-size="7">current / legacy / inconsistent / missing; inconsistent+missing chặn signal, ranking, metrics, feature</text>
+        <path d="M 595 454 L 393 454" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="425.6" y="434" width="136.8" height="16" rx="3" class="c-mask"/>
+        <text x="494" y="444" class="t-muted" font-size="9" text-anchor="middle">published/derived blocks</text>
+        <text x="405" y="472" class="t-dim" font-size="7">raw CSV chỉ được prediction_service xử lý nội bộ; không gửi raw CSV, code hoặc pickle ra provider</text>
 
-        <path d="M 501 464 L 703 464" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="507.6" y="444" width="188.8" height="16" rx="3" class="c-mask"/>
-        <text x="602" y="454" class="t-backend" font-size="9" text-anchor="middle">predict_symbols / all · đọc report</text>
-        <text x="513" y="482" class="t-dim" font-size="7">chỉ get_stock_signals &amp; get_ranking chạm prediction_service; read-only, không train</text>
+        <path d="M 393 498 L 487 498" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="395" y="478" width="90" height="16" rx="3" class="c-mask"/>
+        <text x="440" y="488" class="t-security" font-size="9" text-anchor="middle">recheck release</text>
+        <text x="405" y="516" class="t-dim" font-size="7">release đổi giữa lượt → release_changed; không âm thầm ghép dữ liệu từ hai release</text>
 
-        <path d="M 703 498 L 501 498" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="562.2" y="478" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
-        <text x="602" y="488" class="t-muted" font-size="9" text-anchor="middle">rows + report</text>
-        <text x="513" y="516" class="t-dim" font-size="7">recheck chữ ký file sau inference; release đổi giữa chừng → release_changed</text>
+        <path d="M 379 548 L 285 548" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="268.8" y="528" width="126.4" height="16" rx="3" class="c-mask"/>
+        <text x="332" y="538" class="t-muted" font-size="9" text-anchor="middle">context bundle ≤ 16000</text>
+        <text x="297" y="566" class="t-dim" font-size="7">context + sources + warnings + data_as_of + grounded_numbers + stock_facts + canonical state</text>
 
-        <path d="M 487 538 L 285 538" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="265.6" y="518" width="240.8" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="528" class="t-muted" font-size="9" text-anchor="middle">envelope: data · source · release · warnings</text>
-        <text x="297" y="556" class="t-dim" font-size="7">get_project_info trả contract tĩnh, không qua release gate</text>
+        <path d="M 285 628 L 703 628" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <rect x="394.4" y="608" width="199.20000000000002" height="16" rx="3" class="c-mask"/>
+        <text x="494" y="618" class="t-backend" font-size="9" text-anchor="middle">system + context + history + message</text>
+        <text x="297" y="646" class="t-dim" font-size="7">đúng một provider call · không tools · không tool_choice · max_retries=0 · không streaming</text>
 
-        <path d="M 285 586 L 379 586" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <rect x="258.4" y="566" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="576" class="t-backend" font-size="9" text-anchor="middle">tool result (tool_call_id)</text>
-        <text x="297" y="604" class="t-dim" font-size="7">lặp tới final plain text hoặc chạm giới hạn vòng/tool/deadline</text>
+        <path d="M 703 676 L 285 676" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="443.8" y="656" width="100.4" height="16" rx="3" class="c-mask"/>
+        <text x="494" y="666" class="t-muted" font-size="9" text-anchor="middle">assistant content</text>
+        <text x="297" y="694" class="t-dim" font-size="7">content rỗng, schema sai hoặc tool_calls bất thường → provider_protocol_error</text>
 
-        <path d="M 379 620 L 285 620" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="284.4" y="600" width="95.2" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="610" class="t-muted" font-size="9" text-anchor="middle">final plain text</text>
+        <path d="M 285 730 L 487 730" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <rect x="341" y="710" width="90" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="720" class="t-security" font-size="9" text-anchor="middle">validate answer</text>
+        <text x="297" y="748" class="t-dim" font-size="7">đối chiếu symbol + field + value; cho nhận định xu hướng hợp lệ, chặn mua/bán trực tiếp và NOT_UP = chắc chắn giảm</text>
 
-        <path d="M 271 668 L 177 668" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <rect x="166" y="648" width="116" height="16" rx="3" class="c-mask"/>
-        <text x="224" y="658" class="t-security" font-size="9" text-anchor="middle">grounding validation</text>
-        <text x="189" y="686" class="t-dim" font-size="7">chặn số ngoài tool result, Điểm UP gán sai mã, % viết bằng chữ, cụm mua/bán/BUY/SELL</text>
+        <path d="M 487 768 L 285 768" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="359.2" y="748" width="53.6" height="16" rx="3" class="c-mask"/>
+        <text x="386" y="758" class="t-muted" font-size="9" text-anchor="middle">grounded</text>
+        <text x="297" y="786" class="t-dim" font-size="7">sources, warnings, release_status và data_as_of lấy từ server, không tin nội dung LLM</text>
 
-        <path d="M 163 712 L 69 712" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="-4.400000000000006" y="692" width="240.8" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="702" class="t-muted" font-size="9" text-anchor="middle">answer + sources + warnings + release_status</text>
-        <text x="81" y="730" class="t-dim" font-size="7">render bằng textContent; disclaimer offline luôn hiển thị</text>
+        <path d="M 271 812 L 177 812" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="153" y="792" width="142" height="16" rx="3" class="c-mask"/>
+        <text x="224" y="802" class="t-muted" font-size="9" text-anchor="middle">answer + metadata + state</text>
+        <text x="189" y="830" class="t-dim" font-size="7">answer ≤ 1000; lỗi provider 502, cấu hình 503, timeout 504; không local fallback</text>
+
+        <path d="M 163 852 L 69 852" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <rect x="37.2" y="832" width="157.6" height="16" rx="3" class="c-mask"/>
+        <text x="116" y="842" class="t-muted" font-size="9" text-anchor="middle">render + lưu lượt thành công</text>
+        <text x="81" y="870" class="t-dim" font-size="7">DOM/text node, không innerHTML; session tối đa 40 entry, reload khôi phục, đóng tab thì mất</text>
 
         <!-- Activations -->
-        <rect x="165" y="182" width="10" height="534" rx="3" class="c-mask"/>
-        <rect x="165" y="182" width="10" height="534" rx="3" class="c-frontend" stroke-width="1"/>
-        <rect x="273" y="216" width="10" height="456" rx="3" class="c-mask"/>
-        <rect x="273" y="216" width="10" height="456" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="381" y="266" width="10" height="42" rx="3" class="c-mask"/>
-        <rect x="381" y="266" width="10" height="42" rx="3" class="c-external" stroke-width="1"/>
-        <rect x="489" y="346" width="10" height="196" rx="3" class="c-mask"/>
-        <rect x="489" y="346" width="10" height="196" rx="3" class="c-backend" stroke-width="1"/>
-        <rect x="597" y="386" width="10" height="42" rx="3" class="c-mask"/>
-        <rect x="597" y="386" width="10" height="42" rx="3" class="c-security" stroke-width="1"/>
-        <rect x="705" y="460" width="10" height="42" rx="3" class="c-mask"/>
-        <rect x="705" y="460" width="10" height="42" rx="3" class="c-database" stroke-width="1"/>
-        <rect x="381" y="582" width="10" height="42" rx="3" class="c-mask"/>
-        <rect x="381" y="582" width="10" height="42" rx="3" class="c-external" stroke-width="1"/>
+        <rect x="165" y="180" width="10" height="678" rx="3" class="c-mask"/>
+        <rect x="165" y="180" width="10" height="678" rx="3" class="c-frontend" stroke-width="1"/>
+        <rect x="273" y="218" width="10" height="600" rx="3" class="c-mask"/>
+        <rect x="273" y="218" width="10" height="600" rx="3" class="c-backend" stroke-width="1"/>
+        <rect x="381" y="278" width="10" height="276" rx="3" class="c-mask"/>
+        <rect x="381" y="278" width="10" height="276" rx="3" class="c-backend" stroke-width="1"/>
+        <rect x="489" y="322" width="10" height="450" rx="3" class="c-mask"/>
+        <rect x="489" y="322" width="10" height="450" rx="3" class="c-security" stroke-width="1"/>
+        <rect x="597" y="406" width="10" height="54" rx="3" class="c-mask"/>
+        <rect x="597" y="406" width="10" height="54" rx="3" class="c-database" stroke-width="1"/>
+        <rect x="705" y="624" width="10" height="58" rx="3" class="c-mask"/>
+        <rect x="705" y="624" width="10" height="58" rx="3" class="c-external" stroke-width="1"/>
 
         <!-- Participants -->
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
         <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Browser</text>
-        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">trang /chat</text>
+        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">dock + /chat · sessionStorage</text>
 
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-frontend" stroke-width="1.5"/>
@@ -649,35 +653,35 @@
         <text x="278" y="111" class="t-muted" font-size="7" text-anchor="middle">chatbot_service</text>
 
         <rect x="343" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="343" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM</text>
-        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">external · tool calling</text>
+        <rect x="343" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Context</text>
+        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">build_context + handlers</text>
 
         <rect x="451" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="451" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tools</text>
-        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">chatbot_tools · 6 tool</text>
+        <rect x="451" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Guards</text>
+        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">release + grounding</text>
 
         <rect x="559" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="559" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gate</text>
-        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">release gate</text>
+        <rect x="559" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="602" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Published</text>
+        <text x="602" y="111" class="t-muted" font-size="7" text-anchor="middle">artifact + report + signals</text>
 
         <rect x="667" y="72" width="86" height="54" rx="6" class="c-mask"/>
-        <rect x="667" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Artifact</text>
-        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">prediction_service + report</text>
+        <rect x="667" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM</text>
+        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">một Chat Completion</text>
 
         <!-- Legend -->
-        <text x="150" y="786" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <path d="M 150 806 L 184 806" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <text x="193" y="809" class="t-muted" font-size="8">request</text>
-        <path d="M 270 806 L 304 806" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <text x="313" y="809" class="t-muted" font-size="8">return</text>
-        <path d="M 385 806 L 419 806" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <text x="428" y="809" class="t-muted" font-size="8">security</text>
-        <path d="M 530 806 L 564 806" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <text x="573" y="809" class="t-muted" font-size="8">async trace</text>
+        <text x="150" y="886" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <path d="M 150 906 L 184 906" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <text x="193" y="909" class="t-muted" font-size="8">request</text>
+        <path d="M 270 906 L 304 906" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+        <text x="313" y="909" class="t-muted" font-size="8">return</text>
+        <path d="M 385 906 L 419 906" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <text x="428" y="909" class="t-muted" font-size="8">security</text>
+        <path d="M 530 906 L 564 906" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <text x="573" y="909" class="t-muted" font-size="8">async trace</text>
       </svg>
     </div>
 
@@ -686,36 +690,36 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot violet"></div>
-          <h3>Sáu tool read-only</h3>
+          <h3>Context routing</h3>
         </div>
         <ul>
-          <li>&bull; get_stock_signals: tín hiệu 1-2 mã; get_ranking: top/bottom Điểm UP (≤ 10)</li>
-          <li>&bull; get_model_info: model/target/threshold/metrics; get_dataset_info: snapshot dataset</li>
-          <li>&bull; get_feature_info: feature order + global importance; get_project_info: contract tĩnh theo topic</li>
+          <li>&bull; Luôn có snapshot nhỏ; message hiện tại ưu tiên hơn state, state ưu tiên hơn history</li>
+          <li>&bull; Ticker 1-2 mã → signal/comparison; top/xếp hạng → ranking 1-10; model/dataset/feature/project theo intent</li>
+          <li>&bull; Thiếu mã hoặc tiêu chí → context yêu cầu LLM hỏi lại đúng một câu, không tự đưa top 5</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Release gate + provenance</h3>
+          <h3>Grounding + release</h3>
         </div>
         <ul>
-          <li>&bull; current: trả bình thường; legacy: cho signal/ranking kèm warning policy/baseline/scope</li>
-          <li>&bull; inconsistent/missing: chặn signal, ranking, metrics, feature importance</li>
-          <li>&bull; Mỗi tool result mang source, warnings và release_status; service từ chối nếu release đổi giữa các tool call</li>
+          <li>&bull; Server giữ riêng source, warning, release_status, data_as_of, grounded_numbers và stock_facts</li>
+          <li>&bull; Prediction, Điểm UP, threshold, giá, return, volatility, volume ratio và ngày đều kiểm theo đúng mã</li>
+          <li>&bull; Warnings legacy, baseline, scope hoặc stale tồn tại độc lập với lời LLM</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Read-only, không train</h3>
+          <h3>Một call, session chung</h3>
         </div>
         <ul>
-          <li>&bull; Chatbot không import hay gọi run_pipeline.py, không refresh, không sửa dữ liệu hay artifact</li>
-          <li>&bull; Giới hạn cứng: ≤ 3 vòng LLM, ≤ 5 tool call, deadline server 30 giây</li>
-          <li>&bull; Không Vector DB, không LangChain, không database chat; history chỉ trong memory tab trình duyệt</li>
+          <li>&bull; Mọi lượt, kể cả social, gọi LLM đúng một lần; provider không được gọi tool</li>
+          <li>&bull; Dock và /chat dùng key hose-chat-session-v1; gửi 6 message cuối và canonical conversation_state</li>
+          <li>&bull; Không embedding index, LangChain, database chat, raw artifact, retry tự động hoặc fallback local</li>
         </ul>
       </div>
     </div>

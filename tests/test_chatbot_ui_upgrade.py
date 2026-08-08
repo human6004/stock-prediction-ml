@@ -12,6 +12,9 @@ class ChatbotUiUpgradeTests(unittest.TestCase):
         self.source = (ROOT_DIR / "templates" / "chat.html").read_text(
             encoding="utf-8"
         )
+        self.client = (ROOT_DIR / "static" / "chat-client.js").read_text(
+            encoding="utf-8"
+        )
 
     def test_prompts_are_natural_and_project_focused(self):
         prompts = (
@@ -40,18 +43,20 @@ class ChatbotUiUpgradeTests(unittest.TestCase):
             self.assertIn(expected, self.source)
 
     def test_warnings_render_as_safe_list(self):
-        self.assertIn('document.createElement("ul")', self.source)
-        self.assertIn('document.createElement("li")', self.source)
+        combined = self.source + self.client
+        self.assertIn('document.createElement("ul")', combined)
+        self.assertIn('document.createElement("li")', combined)
         self.assertRegex(self.source, r'setMeta\(\s*warnings,\s*"Cảnh báo"')
-        self.assertNotIn("innerHTML", self.source)
+        self.assertNotIn("innerHTML", combined)
         self.assertNotIn('values.join(" | ")', self.source)
 
     def test_each_request_clears_previous_metadata_before_fetch(self):
         self.assertIn("function clearMetadata()", self.source)
         submit = self.source.index('form.addEventListener("submit"')
         clear_metadata = self.source.index("clearMetadata();", submit)
-        fetch = self.source.index('fetch("/api/chat"', submit)
-        self.assertLess(clear_metadata, fetch)
+        send = self.source.index("kit.sendMessage(message)", submit)
+        self.assertLess(clear_metadata, send)
+        self.assertIn('fetch("/api/chat"', self.client)
 
     def test_transcript_announces_and_focuses_the_new_assistant_entry(self):
         transcript_tag = self.source.split('id="chat-transcript"', 1)[1].split(
@@ -65,8 +70,8 @@ class ChatbotUiUpgradeTests(unittest.TestCase):
         self.assertNotIn('document.getElementById("chat-result")', self.source)
 
     def test_transport_and_json_errors_never_render_raw_exception_messages(self):
-        self.assertIn('typeof data.error.message === "string"', self.source)
-        self.assertIn("error.publicMessage", self.source)
+        self.assertIn('typeof data.error.message === "string"', self.client)
+        self.assertIn("error.publicMessage", self.client)
         self.assertIn("Không thể kết nối trợ lý lúc này. Vui lòng thử lại.", self.source)
         self.assertNotIn(": error.message;", self.source)
 
@@ -77,31 +82,43 @@ class ChatbotDocumentationUpgradeTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_document_describes_six_tool_project_contract(self):
-        self.assertIn("## 8. Sáu tool", self.document)
-        self.assertIn("`get_project_info`", self.document)
-        self.assertIn("structured project contract", self.document.lower())
-        self.assertIn("không đọc raw Markdown", self.document)
+    def test_document_describes_server_built_context_sources(self):
+        # Neo vào định danh code (hàm, module, field provider payload) thay vì
+        # văn phong tài liệu: chỉ đổi khi code đổi, không đổi khi sửa câu chữ.
+        required = (
+            "build_context",
+            "chatbot_tools.py",
+            "get_stock_signals",
+            "get_ranking",
+            "get_model_info",
+            "get_dataset_info",
+            "get_feature_info",
+            "get_project_info",
+            "tool_choice",
+        )
+        for identifier in required:
+            self.assertIn(identifier, self.document)
 
     def test_document_covers_new_runtime_safety_contracts(self):
         required = (
-            "social/advice",
-            "safe clarification",
-            "hai chữ số thập phân",
+            "max_retries=0",
+            "context_budget_exceeded",
+            "conversation_state",
+            "up_score_percent",
+            "decision_threshold_percent",
             "excluded_stale_count",
             "no_current_signals",
             "llm_invalid_config",
-            "thu hồi và tạo key mới",
-            "Không chạy lại training",
+            "LLM_API_KEY",
+            "LLM_BASE_URL",
         )
-        for phrase in required:
-            self.assertIn(phrase, self.document)
+        for identifier in required:
+            self.assertIn(identifier, self.document)
 
     def test_503_documents_missing_or_invalid_provider_configuration(self):
-        self.assertRegex(
-            self.document,
-            r"`503`\s*\|\s*Thiếu hoặc sai cấu hình LLM",
-        )
+        self.assertRegex(self.document, r"`503`\s*\|")
+        self.assertRegex(self.document, r"503\s+llm_not_configured")
+        self.assertIn("llm_invalid_config", self.document)
 
 
 if __name__ == "__main__":

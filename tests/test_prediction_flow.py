@@ -530,7 +530,9 @@ class PredictionRouteTests(unittest.TestCase):
 
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(html.count("<table>"), 1)
+        # Đếm "<table" chứ không phải "<table>": thẻ nay mang thêm thuộc tính
+        # data-ui="sortable" cho phần sắp xếp cột. Ý vẫn là đúng một bảng.
+        self.assertEqual(html.count("<table"), 1)
         self.assertIn("Bảng so sánh model", html)
         self.assertIn("CV F1_UP", html)
         self.assertIn("Kết quả Final Model trên TEST", html)

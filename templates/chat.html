@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{# Trợ lý grounded: giữ nguyên 100% khối <script> và mọi id nghiệp vụ; chỉ đổi
-   khung sang shell dùng chung. Test khóa chặt các id/thứ tự trong script. #}
+{# Trang đầy đủ dùng session, transport và renderer chung đã nạp từ base. #}
 
 {% block title %}Trợ lý dữ liệu và mô hình HOSE — HOSE ML{% endblock %}
 
@@ -28,8 +27,29 @@
         <button type="button" class="nav-link" data-prompt="Model học từ dữ liệu gì?">Model học từ dữ liệu gì?</button>
     </div>
 
-    <ol id="chat-transcript" class="chat-transcript" aria-label="Nội dung hội thoại" aria-live="polite"></ol>
+    {# tabindex="0" để vùng transcript cuộn được bằng bàn phím; role="log" +
+       aria-label cho nó một tên khả cận rõ ràng. #}
+    <ol id="chat-transcript" class="chat-transcript is-empty" aria-label="Nội dung hội thoại" aria-live="polite"
+        role="log" tabindex="0">
+        {# Trạng thái rỗng nằm TRONG khung transcript để lấp chỗ trống 220px thay
+           vì để hộp trắng. Không mang class .chat-entry nên JS phân biệt được nó
+           với bong bóng thật; role="presentation" để screen reader không đếm nó
+           như một lượt hội thoại. #}
+        <li id="chat-empty" class="chat-empty" role="presentation">
+            <p class="chat-empty-title">Chưa có câu hỏi nào</p>
+            <p class="chat-empty-text">Mình trả lời dựa trên dữ liệu offline đã publish. Có thể bắt đầu với:</p>
+            <ul class="chat-empty-list">
+                <li>Tín hiệu và giá tham chiếu của một mã cụ thể</li>
+                <li>So sánh hai mã, hoặc xem bảng xếp hạng Điểm UP</li>
+                <li>Model đang dùng học từ dữ liệu và feature nào</li>
+            </ul>
+            <p class="chat-empty-hint">Bấm một câu hỏi gợi ý phía trên để gửi ngay.</p>
+        </li>
+    </ol>
 
+    {# Giữ lại vùng tóm tắt "lượt mới nhất". Mỗi lượt trợ lý còn có chip
+       "Nguồn dữ liệu" riêng bên trong bong bóng nên lịch sử dẫn nguồn không
+       còn bị mất khi gửi lượt tiếp theo. #}
     <div id="chat-result" class="chat-result">
         <section id="chat-release" class="chat-meta" hidden></section>
         <section id="chat-sources" class="chat-meta" hidden></section>
@@ -42,6 +62,12 @@
                   placeholder="VD: Còn VNM thì sao?"></textarea>
         <button id="send-chat" type="submit">Gửi</button>
         <button id="clear-chat" type="button" class="btn-secondary">Xóa hội thoại</button>
+        {# Bộ đếm ký tự: KHÔNG phải live region. Nó nối vào textarea bằng
+           aria-describedby nên screen reader đọc khi cần, không bị đọc chen
+           ngang từng ký tự. Thông báo thật đi qua #chat-counter-live bên dưới,
+           chỉ phát khi vượt ngưỡng và có throttle. #}
+        <p id="chat-counter" class="chat-counter" aria-live="off">0/1000 ký tự</p>
+        <span id="chat-counter-live" class="visually-hidden" aria-live="polite"></span>
     </form>
 </section>
 
@@ -61,7 +87,10 @@
         const release = document.getElementById("chat-release");
         const sources = document.getElementById("chat-sources");
         const warnings = document.getElementById("chat-warnings");
+        const emptyState = document.getElementById("chat-empty");
+        const counter = document.getElementById("chat-counter");
         const promptButtons = [...document.querySelectorAll("[data-prompt]")];
+        const kit = window.ChatClientKit || null;
         const releaseLabels = {
             current: "Hiện hành",
             legacy: "Bản cũ",
@@ -69,6 +98,7 @@
             missing: "Chưa sẵn sàng"
         };
         const sourceLabels = {
+            project_snapshot: "Tổng quan project",
             stock_signal: "Tín hiệu cổ phiếu",
             ranking: "Bảng xếp hạng Điểm UP",
             model_metadata: "Thông tin model",
@@ -78,10 +108,45 @@
             project_contract: "Kiến thức project",
             artifact: "Artifact đã publish"
         };
-        const history = [];
         let busy = false;
 
+        const noop = () => {};
+        // Ẩn/hiện trạng thái rỗng theo số mục trong transcript.
+        const syncEmpty = kit
+            ? kit.createEmptyStateToggle(transcript, emptyState)
+            : noop;
+        // Stagger nhẹ cho lần render đầu; tự bỏ qua khi giảm chuyển động.
+        const staggerOnce = kit
+            ? kit.createStaggerOnce(transcript, ":scope > .chat-entry")
+            : noop;
+        // Enter gửi / Shift+Enter xuống dòng + bộ đếm ký tự.
+        const composer = kit
+            ? kit.enhanceComposer({
+                form,
+                input,
+                counter,
+                liveRegion: document.getElementById("chat-counter-live"),
+                max: 1000
+            })
+            : {updateCounter: noop};
+        const updateCounter = composer.updateCounter || noop;
+
+        // Bong bóng đang chờ trả lời (nếu có). appendMessage() dùng LẠI chính
+        // bong bóng này cho lượt "assistant" kế tiếp -> thay tại chỗ, không
+        // sinh thêm mục nên hội thoại không bị nhân đôi.
+        let pendingItem = null;
+
         function appendMessage(role, content) {
+            if (role === "assistant" && pendingItem) {
+                const reused = pendingItem;
+                pendingItem = null;
+                reused.classList.remove("is-pending");
+                const pendingText = reused.querySelector(".chat-text");
+                pendingText.replaceChildren();
+                pendingText.textContent = content;
+                reused.scrollIntoView({block: "nearest"});
+                return reused;
+            }
             const item = document.createElement("li");
             item.className = `chat-entry chat-entry-${role}`;
             item.tabIndex = -1;
@@ -93,8 +158,50 @@
             text.textContent = content;
             item.append(label, text);
             transcript.append(item);
+            syncEmpty();
+            staggerOnce();
             item.scrollIntoView({block: "nearest"});
             return item;
+        }
+
+        // Bong bóng "đang trả lời": ba chấm động, sẽ được thay tại chỗ bằng
+        // câu trả lời thật (giống khung chat nổi trong base.html).
+        function appendPending() {
+            const item = appendMessage("assistant", "");
+            item.classList.add("is-pending");
+            const text = item.querySelector(".chat-text");
+            if (kit) {
+                text.append(kit.buildTypingIndicator());
+            } else {
+                text.textContent = "Đang trả lời…";
+            }
+            pendingItem = item;
+            return item;
+        }
+
+        // Trang trí lượt trả lời đã render: markdown-lite + chip "Nguồn dữ liệu"
+        // + nút copy. Mọi node dựng bằng createElement/textContent.
+        function decorateAnswer(item, answer, data) {
+            const text = item.querySelector(".chat-text");
+            if (kit) {
+                kit.renderRichText(text, answer);
+            }
+            const tools = document.createElement("div");
+            tools.className = "chat-entry-tools";
+            if (kit) {
+                tools.append(kit.buildCopyButton(() => answer));
+                const details = kit.buildSourceDetails(data, {
+                    releaseLabels,
+                    sourceLabels
+                });
+                if (details) {
+                    tools.append(details);
+                }
+            }
+            if (tools.childNodes.length > 0) {
+                item.append(tools);
+            }
+            item.scrollIntoView({block: "nearest"});
         }
 
         function setMeta(element, label, values, asList = false) {
@@ -127,13 +234,6 @@
                 element.replaceChildren();
                 element.hidden = true;
             });
-        }
-
-        function apiErrorMessage(data) {
-            const message = data && data.error && typeof data.error.message === "string"
-                ? data.error.message.trim()
-                : "";
-            return message ? message.slice(0, 1000) : "Không thể gọi trợ lý lúc này.";
         }
 
         function showMetadata(data) {
@@ -171,42 +271,53 @@
             send.textContent = value ? "Đang xử lý…" : "Gửi";
         }
 
+        // Toàn bộ khối phía trên đã degrade mềm khi thiếu ChatClientKit (kit ===
+        // null → noop), nhưng ba chỗ dưới đây thì không: restoreSession /
+        // sendMessage / clearSession gọi trực tiếp trên kit sẽ ném TypeError và
+        // giết luôn listener submit, để lại form im lặng không phản hồi. Chặn
+        // sớm: khóa composer và nói rõ lý do thay vì hỏng ngầm.
+        if (!kit) {
+            setMeta(
+                warnings,
+                "Lỗi",
+                ["Không tải được thành phần trợ lý. Vui lòng tải lại trang."],
+                true
+            );
+            input.disabled = true;
+            send.disabled = true;
+            clear.disabled = true;
+            promptButtons.forEach((button) => { button.disabled = true; });
+            return;
+        }
+
+        kit.restoreSession((entry) => {
+            const item = appendMessage(entry.role, entry.content);
+            if (entry.role === "assistant") {
+                decorateAnswer(item, entry.content, entry);
+                showMetadata(entry);
+            }
+        });
+
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
             if (busy) return;
             const message = input.value.trim();
             if (!message) return;
             clearMetadata();
-            const requestHistory = history.slice(-6);
+            // Shared kit thực hiện fetch("/api/chat" và chỉ nhận lỗi khi
+            // typeof data.error.message === "string".
             appendMessage("user", message);
             input.value = "";
+            updateCounter();
             setBusy(true);
-            const controller = new AbortController();
-            const timeout = window.setTimeout(() => controller.abort(), 35000);
+            const pending = appendPending();
             try {
-                const response = await fetch("/api/chat", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message, history: requestHistory}),
-                    signal: controller.signal
-                });
-                let data;
-                try {
-                    data = await response.json();
-                } catch {
-                    throw new Error("invalid_response");
-                }
-                if (!response.ok) {
-                    const apiError = new Error("api_error");
-                    apiError.publicMessage = apiErrorMessage(data);
-                    throw apiError;
-                }
+                const data = await kit.sendMessage(message);
+                // appendMessage dùng lại chính bong bóng đang chờ (pending) nên
+                // result === pending: ba chấm được thay bằng câu trả lời tại chỗ.
                 const result = appendMessage("assistant", data.answer);
+                decorateAnswer(result, data.answer, data);
                 showMetadata(data);
-                history.push(
-                    {role: "user", content: message},
-                    {role: "assistant", content: data.answer.slice(0, 1000)}
-                );
                 result.focus();
             } catch (error) {
                 const messageText = error.name === "AbortError"
@@ -214,29 +325,41 @@
                     : typeof error.publicMessage === "string"
                         ? error.publicMessage
                         : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
+                // Cũng thay tại chỗ bong bóng chờ -> không để lại ba chấm treo.
                 const result = appendMessage("assistant", messageText);
                 setMeta(warnings, "Lỗi", [messageText], true);
                 result.focus();
             } finally {
-                window.clearTimeout(timeout);
                 setBusy(false);
+                input.focus();
             }
         });
 
         clear.addEventListener("click", () => {
-            history.splice(0);
-            transcript.replaceChildren();
+            kit.clearSession();
+            pendingItem = null;
+            // Xóa các bong bóng nhưng GIỮ lại mục trạng thái rỗng để khung
+            // transcript quay về đúng màn onboarding ban đầu.
+            transcript.replaceChildren(emptyState);
             clearMetadata();
             input.value = "";
+            updateCounter();
+            syncEmpty();
             input.focus();
         });
 
+        // Gợi ý bấm một lần là gửi luôn (trước đây phải bấm thêm nút Gửi).
         promptButtons.forEach((button) => {
             button.addEventListener("click", () => {
+                if (busy) return;
                 input.value = button.dataset.prompt;
+                updateCounter();
                 input.focus();
+                form.requestSubmit();
             });
         });
+
+        syncEmpty();
     })();
 </script>
 {% endblock %}
