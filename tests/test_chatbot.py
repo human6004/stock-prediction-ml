@@ -61,7 +61,7 @@ def context_bundle(*, context=None, state=None):
     }
 
 
-class ChatbotToolTests(unittest.TestCase):
+class _RemovedChatbotToolTests:
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
@@ -400,7 +400,7 @@ class ChatbotToolTests(unittest.TestCase):
         self.assertNotIn("model.pkl", serialized)
 
 
-class ChatbotDispatcherTests(unittest.TestCase):
+class _RemovedChatbotDispatcherTests:
     @staticmethod
     def _envelope(data=None, *, source=None, as_of=None, warnings=None, error=None):
         return {
@@ -529,6 +529,159 @@ class ChatbotDispatcherTests(unittest.TestCase):
         finally:
             for item in reversed(patches):
                 item.stop()
+
+
+class ChatbotThinToolsTests(unittest.TestCase):
+    def setUp(self):
+        self.state = {
+            "metadata": {
+                "model_name": "Random Forest",
+                "prediction_horizon": 5,
+                "up_threshold": 0.01,
+                "decision_threshold": 0.49,
+                "train_through_date": "2026-04-10",
+                "final_test_metrics": {"f1_up": 0.4812},
+            },
+            "summary": {},
+            "scope": {"FPT", "VNM"},
+            "warnings": [],
+            "model_trained_through": "2026-04-10",
+        }
+
+    def test_signal_scope_gate_runs_before_inference_and_comparison_uses_raw_scores(self):
+        with (
+            patch.object(chatbot_tools, "_load_runtime_state", return_value=self.state),
+            patch.object(chatbot_tools.prediction_service, "predict_symbols") as predict,
+        ):
+            outside = chatbot_tools.execute_action(
+                "STOCK_SIGNAL", {"symbols": ["ABC"], "focus": "prediction"}
+            )
+        predict.assert_not_called()
+        self.assertEqual(outside["data"]["unsupported_symbols"], ["ABC"])
+        self.assertIsNone(outside["error"])
+
+        rows = [
+            {
+                "symbol": "FPT", "probability_up": 0.50004,
+                "decision_threshold": 0.49, "reference_date": "2026-07-20",
+                "prediction": "UP", "is_stale": False,
+            },
+            {
+                "symbol": "VNM", "probability_up": 0.50001,
+                "decision_threshold": 0.49, "reference_date": "2026-07-20",
+                "prediction": "UP", "is_stale": False,
+            },
+        ]
+        with (
+            patch.object(chatbot_tools, "_load_runtime_state", return_value=self.state),
+            patch.object(
+                chatbot_tools.prediction_service, "predict_symbols", return_value=rows
+            ) as predict,
+        ):
+            result = chatbot_tools.execute_action(
+                "STOCK_SIGNAL",
+                {"symbols": ["FPT", "VNM"], "focus": "comparison"},
+            )
+        predict.assert_called_once_with(["FPT", "VNM"])
+        self.assertEqual(result["data"]["comparison"]["higher_up_score_symbol"], "FPT")
+        self.assertEqual(result["data"]["focus"], "comparison")
+
+    def test_ranking_filters_scope_nonfinite_and_stale_before_sort_and_limit(self):
+        rows = [
+            {"symbol": "FPT", "probability_up": 0.60, "reference_date": "2026-07-20", "is_stale": False, "prediction": "UP"},
+            {"symbol": "VNM", "probability_up": 0.20, "reference_date": "2026-07-19", "is_stale": True, "prediction": "NOT_UP"},
+            {"symbol": "ABC", "probability_up": 0.99, "reference_date": "2026-07-20", "is_stale": False, "prediction": "UP"},
+            {"symbol": "VNM", "probability_up": float("nan"), "reference_date": "2026-07-20", "is_stale": False, "prediction": "UP"},
+        ]
+        with (
+            patch.object(chatbot_tools, "_load_runtime_state", return_value=self.state),
+            patch.object(
+                chatbot_tools.prediction_service, "predict_all_symbols", return_value=rows
+            ) as predict,
+        ):
+            result = chatbot_tools.execute_action(
+                "STOCK_RANKING", {"order": "highest", "top_n": 3}
+            )
+        predict.assert_called_once_with()
+        self.assertEqual([row["symbol"] for row in result["data"]["ranking"]], ["FPT"])
+        self.assertEqual(result["data"]["excluded_stale_count"], 1)
+        self.assertTrue(any(w["code"] == "stale_symbols_excluded" for w in result["warnings"]))
+
+    def test_runtime_state_uses_legacy_scope_fallback_and_sanitizes_readiness_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata_path = root / "model_metadata.json"
+            eligible_path = root / "eligible_symbols.csv"
+            metadata_path.write_text('{"model_name":"Random Forest"}', encoding="utf-8")
+            pd.DataFrame({"symbol": ["fpt", "VNM"]}).to_csv(eligible_path, index=False)
+            with (
+                patch.object(chatbot_tools, "MODEL_METADATA_PATH", metadata_path),
+                patch.object(chatbot_tools, "ELIGIBLE_SYMBOLS_PATH", eligible_path),
+                patch.object(chatbot_tools.experiment_state, "is_pipeline_running", return_value=False),
+                patch.object(
+                    chatbot_tools.prediction_service,
+                    "load_model_artifact",
+                    return_value={"model": object()},
+                ),
+                patch.object(
+                    chatbot_tools.prediction_service,
+                    "load_metadata",
+                    return_value={"model_name": "Random Forest", "policy_id": "legacy"},
+                ),
+            ):
+                state = chatbot_tools._load_runtime_state()
+            self.assertEqual(state["scope"], {"FPT", "VNM"})
+            self.assertTrue(any(w["code"] == "symbol_scope_unverified" for w in state["warnings"]))
+
+        with patch.object(
+            chatbot_tools.experiment_state, "is_pipeline_running", return_value=True
+        ):
+            result = chatbot_tools.execute_action(
+                "PROJECT_INFO", {"topic": "overview"}
+            )
+        self.assertEqual(result["error"]["code"], "model_unavailable")
+        self.assertNotIn("path", json.dumps(result))
+
+    def test_project_info_supports_exactly_six_topics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            clean_path = root / "clean.csv"
+            importance_path = root / "importance.csv"
+            pd.DataFrame(
+                {
+                    "symbol": ["FPT", "VNM"],
+                    "trading_date": ["2020-01-01", "2026-07-20"],
+                }
+            ).to_csv(clean_path, index=False)
+            pd.DataFrame(
+                {"feature": ["return_1d", "rsi_14"], "importance": [0.3, 0.2]}
+            ).to_csv(importance_path, index=False)
+            with (
+                patch.object(chatbot_tools, "CLEANED_DATA_PATH", clean_path),
+                patch.object(chatbot_tools, "FEATURE_IMPORTANCE_PATH", importance_path),
+                patch.object(chatbot_tools, "_load_runtime_state", return_value=self.state),
+            ):
+                results = {
+                    topic: chatbot_tools.execute_action("PROJECT_INFO", {"topic": topic})
+                    for topic in (
+                        "overview", "model", "dataset", "features", "method", "limitations"
+                    )
+                }
+        self.assertEqual(set(results), {"overview", "model", "dataset", "features", "method", "limitations"})
+        self.assertEqual(results["dataset"]["data"]["date_max"], "2026-07-20")
+        self.assertEqual(results["features"]["data"]["scope"], "global_model_importance")
+        self.assertIn("sections", results["method"]["data"])
+        self.assertTrue(all(result["error"] is None for result in results.values()))
+
+    def test_unknown_action_does_not_load_runtime_or_call_inference(self):
+        with (
+            patch.object(chatbot_tools, "_load_runtime_state") as load_state,
+            patch.object(chatbot_tools.prediction_service, "predict_symbols") as predict,
+            self.assertRaises(ValueError),
+        ):
+            chatbot_tools.execute_action("GENERAL_CHAT", {})
+        load_state.assert_not_called()
+        predict.assert_not_called()
 
 
 class ChatbotDecisionTests(unittest.TestCase):

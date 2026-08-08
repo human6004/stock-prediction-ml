@@ -439,7 +439,9 @@ def _format_response(decision: dict, action_result: dict | None = None) -> dict:
     if isinstance(unsupported, list) and unsupported:
         symbols = ", ".join(str(symbol) for symbol in unsupported)
         answer = f"Mã {symbols} nằm ngoài phạm vi model đang phục vụ."
-        warnings.append({"code": "symbol_out_of_scope", "message": answer})
+        warning = {"code": "symbol_out_of_scope", "message": answer}
+        if warning not in warnings:
+            warnings.append(warning)
     elif isinstance(error, dict):
         raise ChatbotServiceError(
             str(error.get("code") or "data_unavailable"),
