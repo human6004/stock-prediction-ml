@@ -400,6 +400,160 @@ class ChatbotToolTests(unittest.TestCase):
         self.assertNotIn("model.pkl", serialized)
 
 
+class ChatbotDecisionTests(unittest.TestCase):
+    def test_decides_each_supported_action_with_one_plain_json_call(self):
+        cases = (
+            (
+                "Dự đoán FPT",
+                {
+                    "action": "STOCK_SIGNAL",
+                    "arguments": {"symbols": ["fpt"], "focus": "prediction"},
+                    "direct_answer": None,
+                },
+                {
+                    "action": "STOCK_SIGNAL",
+                    "arguments": {"symbols": ["FPT"], "focus": "prediction"},
+                    "direct_answer": None,
+                },
+            ),
+            (
+                "So sánh FPT với VNM",
+                {
+                    "action": "STOCK_SIGNAL",
+                    "arguments": {
+                        "symbols": ["FPT", "vnm"],
+                        "focus": "comparison",
+                    },
+                    "direct_answer": None,
+                },
+                {
+                    "action": "STOCK_SIGNAL",
+                    "arguments": {
+                        "symbols": ["FPT", "VNM"],
+                        "focus": "comparison",
+                    },
+                    "direct_answer": None,
+                },
+            ),
+            (
+                "Top 3 mã thấp nhất",
+                {
+                    "action": "STOCK_RANKING",
+                    "arguments": {"order": "lowest", "top_n": 3},
+                    "direct_answer": None,
+                },
+                {
+                    "action": "STOCK_RANKING",
+                    "arguments": {"order": "lowest", "top_n": 3},
+                    "direct_answer": None,
+                },
+            ),
+            (
+                "Model dùng gì?",
+                {
+                    "action": "PROJECT_INFO",
+                    "arguments": {"topic": "model"},
+                    "direct_answer": None,
+                },
+                {
+                    "action": "PROJECT_INFO",
+                    "arguments": {"topic": "model"},
+                    "direct_answer": None,
+                },
+            ),
+            (
+                "Tin hôm nay?",
+                {
+                    "action": "OUT_OF_SCOPE",
+                    "arguments": {"reason": "news"},
+                    "direct_answer": None,
+                },
+                {
+                    "action": "OUT_OF_SCOPE",
+                    "arguments": {"reason": "news"},
+                    "direct_answer": None,
+                },
+            ),
+            (
+                "Phân tích cổ phiếu",
+                {
+                    "action": "GENERAL_CHAT",
+                    "arguments": {},
+                    "direct_answer": "Bạn muốn phân tích mã cổ phiếu nào?",
+                },
+                {
+                    "action": "GENERAL_CHAT",
+                    "arguments": {},
+                    "direct_answer": "Bạn muốn phân tích mã cổ phiếu nào?",
+                },
+            ),
+        )
+
+        for message, provider_value, expected in cases:
+            with self.subTest(message=message):
+                client = fake_client(
+                    provider_response(json.dumps(provider_value, ensure_ascii=False))
+                )
+                actual = chatbot_service._decide(
+                    message, [], client, monotonic=Mock(side_effect=[0, 0, 0])
+                )
+
+                self.assertEqual(actual, expected)
+                client.chat.completions.create.assert_called_once()
+                request = client.chat.completions.create.call_args.kwargs
+                self.assertNotIn("tools", request)
+                self.assertNotIn("tool_choice", request)
+                self.assertNotIn("response_format", request)
+
+    def test_decision_rejects_invalid_protocol_without_retry(self):
+        invalid_values = (
+            "```json\n{}\n```",
+            '{"action":"GENERAL_CHAT","arguments":{},"direct_answer":"Chào"} prose',
+            json.dumps(
+                {
+                    "action": "UNKNOWN",
+                    "arguments": {},
+                    "direct_answer": None,
+                }
+            ),
+            json.dumps(
+                {
+                    "action": "STOCK_RANKING",
+                    "arguments": {"order": "highest", "top_n": True},
+                    "direct_answer": None,
+                }
+            ),
+            json.dumps(
+                {
+                    "action": "STOCK_SIGNAL",
+                    "arguments": {"symbols": ["FPT"], "focus": []},
+                    "direct_answer": None,
+                }
+            ),
+            json.dumps(
+                {
+                    "action": "GENERAL_CHAT",
+                    "arguments": {},
+                    "direct_answer": "Chào",
+                    "extra": True,
+                }
+            ),
+        )
+
+        for content in invalid_values:
+            with self.subTest(content=content):
+                client = fake_client(provider_response(content))
+                with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
+                    chatbot_service._decide(
+                        "test", [], client, monotonic=Mock(side_effect=[0, 0, 0])
+                    )
+                self.assertEqual(
+                    (raised.exception.code, raised.exception.status),
+                    ("provider_protocol_error", 502),
+                )
+                client.chat.completions.create.assert_called_once()
+
+
 class ChatbotServiceTests(unittest.TestCase):
     def setUp(self):
         self.config = patch.multiple(
