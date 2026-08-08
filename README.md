@@ -10,7 +10,7 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 - [Sơ đồ kiến trúc hệ thống](docs/SO_DO_KIEN_TRUC_HE_THONG.md)
 - [Các sơ đồ HTML export](docs/diagrams/)
 - [Tuning ba model và chọn Final Model](docs/diagrams/model-workflows/README.md)
-- [Chatbot structured context injection (SCI)](docs/CHATBOT_RAG_MUC_B.md)
+- [Kiến trúc chatbot Action Decision](docs/CHATBOT_ARCHITECTURE.md)
 - `docs/slides/` - slide bảo vệ (`thuyet_trinh_nien_luan.pptx`), outline và script dựng slide
 - `docs/report_render/` - script sinh bản báo cáo `.docx` từ nội dung theo chương
 
@@ -58,7 +58,7 @@ LLM_MODEL=
 
 Thiếu `.env` thì pipeline và các trang dự báo vẫn chạy, chỉ riêng chatbot không gọi được LLM.
 
-Chatbot chạy theo structured context injection: rule-based intent routing khớp keyword để chọn nguồn, server tự dựng context từ signal/artifact/report đã publish rồi gọi provider đúng một lần, không gửi tool schema, raw CSV, code hoặc pickle. Dock và `/chat` dùng chung hội thoại/state trong `sessionStorage`; reload còn, đóng tab thì mất. Sources, warnings, release status và grounding vẫn do server kiểm soát.
+Chatbot gọi LLM đúng một lần để chọn một trong 5 action cố định bằng JSON. Backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi format câu trả lời dữ liệu bằng code. Provider không nhận raw CSV, report, source code hoặc model artifact; không có tool loop hay LLM call thứ hai. Chỉ có UI `/chat`; transcript lưu trong `sessionStorage` và request gửi tối đa 6 message gần nhất.
 
 ## Chạy pipeline
 

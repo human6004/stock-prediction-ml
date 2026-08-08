@@ -1,6 +1,6 @@
 # Lưu đồ kiến trúc và luồng hệ thống
 
-Bộ sơ đồ mô tả hệ thống dự đoán cổ phiếu HOSE: pipeline ML offline, runtime prediction và runtime Chatbot theo structured context injection (SCI). Mỗi file HTML độc lập, có dark/light theme và menu export PNG/JPEG/WebP/SVG. Nguồn là các file JSON cùng tên, render bằng Archify — không sửa HTML/SVG bằng tay.
+Bộ sơ đồ mô tả hệ thống dự đoán cổ phiếu HOSE: pipeline ML offline, runtime prediction và chatbot Action Decision. Mỗi file HTML độc lập, có dark/light theme và menu export PNG/JPEG/WebP/SVG. Nguồn là các file JSON cùng tên, render bằng Archify — không sửa HTML/SVG bằng tay.
 
 ## Tổng quan hệ thống
 
@@ -16,12 +16,12 @@ Bộ sơ đồ mô tả hệ thống dự đoán cổ phiếu HOSE: pipeline ML 
 
 - [04 - Sequence suy luận predict](04-sequence-suy-luan-predict.html) — runtime prediction: Browser/CLI → Flask → `prediction_service` → metadata + clean data + `final_model` → kết quả. Route Flask không đọc PKL trực tiếp; `prediction_service` load in-process mỗi request cho `/predict` và `/compare`, chỉ `/screener` cache theo mtime. Không retrain ở runtime.
 
-## Runtime Chatbot structured context injection
+## Runtime Chatbot Action Decision
 
-- [06 - Sequence chatbot SCI](06-sequence-chatbot-rag.html) — Browser dock hoặc `/chat` → Flask `/api/chat` → `chatbot_service.build_context()` dùng rule-based intent routing gọi trực tiếp handler read-only → Release Gate + artifact/report/prediction service → đúng một LLM call không `tools`/`tool_choice` → grounding → response có sources/warnings/release/data/state. Context chỉ là published/derived data, tối đa 16.000 ký tự; deadline 60 giây. Dock và `/chat` dùng chung `sessionStorage`. Chatbot không train, không chạy `run_pipeline.py`.
+- [06 - Sequence chatbot Action Decision](06-sequence-chatbot-action-decision.html) — `/chat` → Flask `/api/chat` → đúng một LLM call trả JSON decision → validate 5 action → fixed dispatcher → read-only data/ML handler → deterministic formatter. Không có call LLM thứ hai; provider không nhận CSV/report/code/artifact. Chỉ trang `/chat` giữ transcript tab và gửi 6 message cuối.
 
 ## Nguyên tắc
 
 - Sửa JSON nguồn trước, render lại HTML bằng renderer Archify đúng mode (architecture / dataflow / workflow / sequence / lifecycle).
-- Không thêm component không tồn tại trong code. Chatbot là structured context injection: không Vector DB, không embedding, không LangChain hay chat database; provider không điều khiển handler.
-- Không sửa code app/model/pipeline. Không xóa sơ đồ cũ. Tên file được đổi khi thuật ngữ đổi, nhưng phải sửa đồng thời mọi inbound reference và trường `meta.output` trong JSON nguồn.
+- Không thêm component không tồn tại trong code. Chatbot không dùng RAG, Vector DB, embedding, LangChain, agent loop hoặc chat database.
+- Khi thuật ngữ/flow đổi, chỉ giữ một sơ đồ chatbot canonical và sửa đồng thời mọi inbound reference cùng `meta.output` trong JSON nguồn.

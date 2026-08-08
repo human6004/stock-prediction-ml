@@ -106,28 +106,25 @@ sequenceDiagram
     UI-->>User: Biểu đồ và Điểm UP
 ```
 
-## 6. Chatbot structured context injection (SCI)
+## 6. Chatbot Action Decision
 
 ```mermaid
 flowchart LR
-    A["Dock hoặc /chat"] --> B["POST /api/chat\nmessage + history + state"]
-    B --> C["Validate + normalize state"]
-    C --> D["build_context"]
-    D --> E["Snapshot luôn có"]
-    D --> F["Handler theo intent"]
-    E --> G["Published/derived context"]
-    F --> G
-    N["Release Gate"] --> G
-    O["Artifact + report + prediction_service"] --> G
-    G --> H["System policy + context JSON\n+ tối đa 3 cặp history"]
-    H --> I["Đúng một LLM call\nkhông tools/tool_choice"]
-    I --> J["Grounding + advice guard"]
-    J --> K["answer + sources + warnings\n+ release + data_as_of + canonical state"]
-    K --> L["Render bằng DOM/text node"]
-    L --> M["sessionStorage dùng chung\nreload còn, đóng tab mất"]
+    A["User /chat"] --> B["POST /api/chat\nmessage + history"]
+    B --> C["Validate payload\ntối đa 6 history message"]
+    C --> D["Một LLM call\nJSON decision"]
+    D --> E["Validate 5 action\n+ arguments"]
+    E -->|"GENERAL_CHAT / OUT_OF_SCOPE"| I["Deterministic formatter"]
+    E -->|"3 action dữ liệu"| F["Fixed dispatcher"]
+    F --> G["chatbot_tools\nreadiness + scope"]
+    G -->|"STOCK_SIGNAL / STOCK_RANKING"| H["prediction_service\nML inference"]
+    H --> G
+    G --> I
+    I --> J["answer + sources + warnings\n+ hai mốc ngày"]
+    J --> K["Render bằng textContent"]
 ```
 
-Context chỉ chứa dữ liệu published/derived đã rút gọn; không gửi raw CSV, code hoặc pickle tới provider. Data/model cập nhật làm chữ ký snapshot đổi và cache tự vô hiệu. Release identity phải đồng nhất giữa mọi context block. Server cho phép nhận định xu hướng khớp UP/NOT_UP nhưng chặn khuyến nghị mua/bán trực tiếp và số không có trong context.
+LLM hiểu câu hỏi, chọn action và chỉ viết `direct_answer` cho hội thoại chung hoặc câu hỏi làm rõ. Backend chọn handler cố định, kiểm symbol scope, gọi ML model và format số liệu thật. Provider không nhận CSV, report, code hoặc artifact; không có keyword router dự phòng, tool loop, LLM call thứ hai hay regex grounding lớn. `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua dispatcher dữ liệu.
 
 ## 7. Report contract
 

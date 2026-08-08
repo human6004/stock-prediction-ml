@@ -58,8 +58,8 @@ Toàn bộ logic nằm trong 12 module của [services/](../services/) (không t
 | `experiment_state.py` | `manual_config.json`, fingerprint, lock, `evaluation_registry.json` (mục 12) |
 | `pipeline_utils.py` | mọi thao tác ghi **atomic**: `atomic_output_path`, `write_json`, `atomic_write_text`, `atomic_dataframe_to_csv`, `atomic_joblib_dump`, và `atomic_model_release` — hàm promote cặp model + metadata ở mục 12 |
 | `prediction_service.py` | load artifact, dự báo cho UI và CLI (mục 11) |
-| `chatbot_tools.py` | handler dữ liệu read-only + release gate (mục 11) |
-| `chatbot_service.py` | server-built context, một LLM call, state và grounding validation (mục 11) |
+| `chatbot_tools.py` | fixed dispatcher + readiness check + handler dữ liệu read-only (mục 11) |
+| `chatbot_service.py` | một LLM decision JSON, validate action, orchestration và formatter deterministic (mục 11) |
 
 Thứ tự học đề xuất: mục 1 (bài toán) → 2–4 (dữ liệu, feature, split) → 5–7 (CV, metric, tuning) → 8–9 (chọn model, baseline) → 11 (UI + chatbot) → 12 (an toàn quy trình) → 15 (cạm bẫy khi đọc code).
 
@@ -77,7 +77,7 @@ Nếu bạn chỉ muốn nắm ý, đọc 6 đoạn dưới đây là đủ; cá
 
 **Kết quả thật, nói thẳng.** Model đang chạy (Random Forest) **kém hơn một chiến lược ngớ ngẩn là "luôn báo UP"** — theo thang điểm F1_UP. Lý do: chỉ ~24–38% số dòng thực sự là UP, nên cứ báo UP hết thì bắt được 100% dòng UP, và điểm F1 của nó lại cao. Model thì thận trọng hơn, báo UP ít hơn nhưng bỏ sót nhiều, nên điểm thấp hơn. Điều này **không** có nghĩa code sai — nó có nghĩa bài toán "dự báo cổ phiếu 5 phiên bằng chỉ báo kỹ thuật" là bài toán tín hiệu rất yếu. Chính vì vậy code hiện tại có thêm một cổng chặn: nếu model không thắng baseline trên VALIDATION thì pipeline **dừng bằng lỗi**, không cho xuất bản model. Model đang serve lọt qua được chỉ vì nó là artifact cũ, import vào trước khi cổng này tồn tại.
 
-**Web dùng để làm gì.** 6 trang: nhập mã để xem dự báo (`/`), so 2 mã (`/compare`), xếp hạng tất cả mã theo Điểm UP (`/screener`), xem bảng điểm model (`/evaluation`), phòng thí nghiệm tham số (`/tuning`), và một chatbot tiếng Việt (`/chat`) trả lời bằng cách gọi hàm đọc file thật — mọi con số nó nói ra đều bị server đối chiếu lại, nói sai số là bị chặn không cho gửi.
+**Web dùng để làm gì.** 6 trang: nhập mã để xem dự báo (`/`), so 2 mã (`/compare`), xếp hạng tất cả mã theo Điểm UP (`/screener`), xem bảng điểm model (`/evaluation`), phòng thí nghiệm tham số (`/tuning`), và một chatbot tiếng Việt (`/chat`). Với chatbot, LLM hiểu câu hỏi, chọn một action cố định và chỉ viết câu chào/hỏi lại cho `GENERAL_CHAT`; backend lấy dữ liệu/ML rồi tự format câu trả lời có số liệu.
 
 Thuật ngữ dùng xuyên suốt:
 
@@ -85,7 +85,7 @@ Thuật ngữ dùng xuyên suốt:
 - **fingerprint**: mã băm nội dung dataset/config. Dùng để chặn việc chốt một run tuning đã tính trên dữ liệu khác.
 - **purge**: loại bỏ row có nhãn "chồm" qua ranh giới split — chống nhìn trước tương lai.
 - **OOF (out-of-fold)**: xác suất do model dự đoán trên phần validation của mỗi fold, gộp lại để chọn ngưỡng.
-- **release**: cặp artifact + report đang phục vụ. Chatbot chỉ trả lời khi release nhất quán.
+- **release**: artifact + metadata/report đang phục vụ. Chatbot kiểm readiness cơ bản và phát warning nếu scope, policy hoặc baseline thuộc trạng thái legacy.
 
 ## 1. Bài toán
 
@@ -599,8 +599,8 @@ Sáu trang trên là những gì người dùng thấy trong menu, nhưng repo c
 | `/screener` | GET | xếp hạng toàn bộ mã (`app.py:558`) |
 | `/evaluation` | GET | bảng điểm model (`app.py:607`) |
 | `/reports/confusion_matrix.png` | GET | serve file ảnh confusion matrix (`app.py:600`) |
-| `/chat` | GET | giao diện chatbot (`app.py:437`) |
-| `/api/chat` | POST | endpoint JSON của chatbot (`app.py:447`) |
+| `/chat` | GET | giao diện chatbot (`app.py:431`) |
+| `/api/chat` | POST | endpoint JSON của chatbot (`app.py:441`) |
 | `/tuning` | GET | Tuning Lab (`app.py:1324`) |
 | `/tuning/evaluate` | POST | chạy một job CV (`app.py:1329`) |
 | `/tuning/use-config` | POST | chốt một run làm cấu hình chính thức (`app.py:1365`) |
@@ -734,7 +734,7 @@ Frontend **không** chỉ có một file script. Hiện tại là **6 CSS + 7 JS
 | --- | --- | --- | --- |
 | `static/app.css` | 3.565 dòng / 75K | `base.html:12` — mọi trang | style chính của toàn app |
 | `static/ui-kit.css` | 742 dòng / 17K | `base.html:14` — mọi trang | lớp primitive dùng chung, nạp **sau** `app.css` để ghi đè được |
-| `static/chat-ui.css` | 476 dòng / 11K | `base.html:15` — **mọi trang** | style giao diện chatbot (nạp toàn cục, không chỉ trang `/chat`) |
+| `static/chat-ui.css` | 67 dòng / 1K | `chat.html:6` — chỉ trang `/chat` | phần style bổ sung cho transcript, loading, focus và mobile |
 | `static/page-evaluation.css` | 201 dòng / 6K | `evaluation.html:66-67` (block `page_styles`) | riêng trang `/evaluation` |
 | `static/page-signal.css` | 322 dòng / 8K | `index.html:7`, `compare.html:7` | riêng hai trang dự báo |
 | `static/tuning-lab.css` | 620 dòng / 16K | `tuning.html:7-8`, `fetch_status.html:8-9` (block `page_styles`) | riêng Tuning Lab |
@@ -742,7 +742,7 @@ Frontend **không** chỉ có một file script. Hiện tại là **6 CSS + 7 JS
 | `static/tuning-lab.js` | 722 dòng / 29K | `tuning.html:682`, `fetch_status.html` | JS polling job CV + polling fetch + chart CV-trend |
 | `static/ui-kit.js` | 516 dòng / 17K | `base.html:269` | `window.UIKit` + `autoWire()` |
 | `static/table-sort.js` | 204 dòng / 8K | `base.html:273` | sort client-side (mục 11.3) |
-| `static/chat-client.js` | 841 dòng / 30K | `base.html:103` | transport, render DOM và session dùng chung cho `/chat` và dock |
+| `static/chat-client.js` | 231 dòng / 8K | `chat.html:63` — chỉ trang `/chat` | transport, transcript trong `sessionStorage`, history 6 message và timeout |
 | `static/page-evaluation.js` | 270 dòng / 11K | `evaluation.html:305` (block `page_scripts`) | chart và sort trang `/evaluation` |
 | `static/page-signal.js` | 179 dòng / 8K | `index.html`, `compare.html` | helper hai trang dự báo |
 | `static/vendor/chart.umd.min.js` | Chart.js 4.4.9 / 202K | `index.html`, `compare.html`, `evaluation.html:302` | vẽ biểu đồ, nạp **có điều kiện** ở cả ba trang |
@@ -813,31 +813,37 @@ Phân biệt hai ngưỡng số phiên (dễ nhầm):
 
 Cảnh báo mismatch policy: `prediction_service.py` có logic đặt `baseline_warning = "Model đang dùng không thuộc policy hiện hành."` khi `policy_id != EXPERIMENT_POLICY_ID`, nhưng chỉ khi chưa có `baseline_warning` nào khác. Vì artifact hiện tại đã có sẵn warning "chưa vượt baseline" (mục 9), thông báo mismatch-policy này **không hiện ra** trên UI hiện tại — một khoảng trống nhỏ, chưa được xử lý trong code.
 
-**Chatbot** (`/chat` giao diện, `/api/chat` API JSON): trợ lý hỏi-đáp tiếng Việt theo kiến trúc **structured context injection** (SCI) với server-built context. Không embedding, Vector DB hoặc provider tool-calling. [services/chatbot_service.py](../services/chatbot_service.py) dùng rule-based intent routing để chọn dữ liệu cần đọc, gọi trực tiếp các handler read-only trong [services/chatbot_tools.py](../services/chatbot_tools.py), rồi gửi context đã rút gọn tới một LLM OpenAI-compatible cấu hình qua `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`). Raw CSV chỉ được `prediction_service` xử lý nội bộ; provider không nhận raw CSV, code hoặc pickle.
+**Chatbot** (`/chat` giao diện, `/api/chat` API JSON) dùng kiến trúc **action decision**. [services/chatbot_service.py](../services/chatbot_service.py) gọi một LLM OpenAI-compatible cấu hình qua `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) để hiểu câu hỏi và chọn action. [services/chatbot_tools.py](../services/chatbot_tools.py) thực thi đúng một nhánh cố định; câu trả lời có dữ liệu do backend format. Hệ thống không dùng RAG, embedding, Vector DB, tool loop, custom memory hoặc conversation state. Provider không nhận CSV, artifact, source code, report hay context dữ liệu.
 
-Một lượt hỏi đi qua 5 lớp:
+Một lượt hỏi đi qua 5 bước:
 
-1. **Validate request và state**: payload cũ chỉ có `message`/`history` vẫn hợp lệ. Optional `conversation_state` phải có đúng bốn key (`active_symbols`, `topic`, `ranking_order`, `last_result_symbols`), được normalize và chỉ dùng như hint. Browser gửi tối đa 6 history message.
-2. **Server dựng context**: luôn có snapshot nhỏ về model/release/ngày dữ liệu/scope/capability/limitation. Tùy message, server bổ sung signal 1–2 mã, comparison, ranking 1–10, model, dataset, feature, project contract hoặc limitations. Message hiện tại ưu tiên hơn state; state ưu tiên hơn ticker trong history. Câu mơ hồ thiếu mã/tiêu chí không tự lấy top 5 mà yêu cầu LLM hỏi lại đúng một câu.
-3. **Đúng một LLM call**: system policy + context JSON + tối đa 3 cặp history (giới hạn thêm bởi `MAX_HISTORY_CHARS = 6_000` ký tự, `chatbot_service.py:30`) + message hiện tại. Request provider không có `tools` hoặc `tool_choice`; greeting và social cũng đi qua call này. Context tối đa 16.000 ký tự, toàn deadline 60 giây, answer tối đa 1.000 ký tự, SDK `max_retries=0`, không streaming.
-4. **Release và grounding phía server**: context block phải cùng release identity. Answer được đối chiếu theo `symbol + field + value`, quan hệ Điểm UP giữa hai mã và `split + metric + value`, nên không thể tráo prediction, score hoặc metric VALIDATION/TEST. “Nghiêng tích cực” chỉ hợp lệ với UP/trên ngưỡng; NOT_UP không được viết thành chắc chắn giảm. Mọi khuyến nghị mua/bán trực tiếp, cam kết hoặc số ngoài context bị chặn.
-5. **Response do server sở hữu metadata**: `sources`, `warnings`, `release_status`, `data_as_of` và canonical `conversation_state` lấy từ context bundle, không lấy từ lời LLM. Thiếu/sai cấu hình trả 503, provider/protocol/grounding trả 502, timeout trả 504; không có local fallback.
+1. **Validate HTTP payload**: `/api/chat` chỉ nhận đúng `message` và optional `history`. Message dài 1–1.000 ký tự. History phải xen kẽ `user`/`assistant`, tối đa 6 message và tổng tối đa 6.000 ký tự. Key lạ hoặc type sai trả 400.
+2. **LLM quyết định đúng một lần**: prompt gồm một system instruction ngắn, whitelist/schema action, history đã validate và message hiện tại. Provider phải trả JSON thuần đúng ba khóa `action`, `arguments`, `direct_answer`. Request không gửi `tools`, `tool_choice`, `response_format`; không retry, không streaming, không có call thứ hai.
+3. **Backend validate rồi dispatch**: JSON sai, extra field, action lạ hoặc arguments sai type/range trả `provider_protocol_error` 502 trước khi gọi handler. Năm action cố định là `GENERAL_CHAT`, `STOCK_SIGNAL`, `STOCK_RANKING`, `PROJECT_INFO`, `OUT_OF_SCOPE`. Thiếu mã/tiêu chí thì LLM dùng `GENERAL_CHAT` để hỏi lại một câu ngắn, không có action `CLARIFY`.
+4. **Thực thi action dữ liệu nếu cần**: `GENERAL_CHAT` và `OUT_OF_SCOPE` không qua dispatcher. Ba action còn lại đi qua `execute_action()`. Tín hiệu/xếp hạng gọi [prediction_service.py](../services/prediction_service.py), còn thông tin project đọc metadata/report/CSV đã làm sạch. Readiness check chỉ xác nhận pipeline không chạy, model load được, metadata hợp lệ và scope mã không rỗng; symbol ngoài scope trả 200 kèm warning và không gọi inference.
+5. **Formatter deterministic trả response**: action dữ liệu không gọi lại LLM. Backend lấy số trực tiếp từ domain result; tín hiệu/xếp hạng thêm disclaimer offline. Response có đúng năm field: `answer`, `sources`, `warnings`, `data_as_of`, `model_trained_through`. Cấu hình/model chưa sẵn sàng trả 503, provider timeout trả 504. Lời khuyên mua/bán trực tiếp trong `GENERAL_CHAT` bị một advice gate nhỏ thay bằng câu từ chối cố định.
 
-Context snapshot cache theo chữ ký cleaned data, model, metadata, pipeline summary, symbol scope, feature importance và pipeline state. Khi cập nhật data/model, chữ ký đổi làm cache mất hiệu lực; lượt kế tiếp tự đọc `data_as_of` và release mới, history cũ không thể ghi đè số liệu hiện tại.
+Ý nghĩa năm action:
 
-Follow-up liên tục dùng state canonical: “mã trước”, “hai mã trên”, “nó” đọc `active_symbols`; “mã đầu tiên/thứ hai” sau ranking đọc `last_result_symbols`. Social không xóa state dữ liệu trước đó. Chỉ signal/comparison/ranking thành công cập nhật state; lỗi giữ nguyên.
+| Action | Backend làm gì |
+| --- | --- |
+| `GENERAL_CHAT` | trả `direct_answer` của LLM; dùng cả cho chào hỏi hoặc một câu hỏi làm rõ |
+| `STOCK_SIGNAL` | lấy 1–2 mã, focus `info`, `prediction`, `analysis` hoặc `comparison` |
+| `STOCK_RANKING` | xếp top/bottom 1–10 mã theo Điểm UP, loại dữ liệu stale/nonfinite trước khi sort |
+| `PROJECT_INFO` | đọc một trong sáu topic: overview, model, dataset, features, method, limitations |
+| `OUT_OF_SCOPE` | trả câu cố định cho realtime, news, fundamentals, trading advice hoặc yêu cầu ngoài phạm vi |
 
-Dock và `/chat` dùng chung `sessionStorage` key `hose-chat-session-v1`, tối đa 40 transcript entry. Reload còn hội thoại, đóng tab thì mất; nút xóa dọn cả transcript và state. Chỉ lượt thành công được lưu. Cả hai giao diện render nội dung bằng DOM/text node, không dùng `innerHTML`.
+Follow-up như “So với MWG?” hoạt động nhờ tối đa 6 message gần nhất được đưa cho LLM. Không có bộ nhớ hoặc pronoun resolver tự viết. Trang `/chat` là UI duy nhất: transcript lưu trong `sessionStorage` key `hose-chat-session-v1`, tối đa 40 entry; reload tab còn hội thoại, đóng tab thì mất. Request chỉ gửi 6 entry cuối. Nội dung LLM được render qua `textContent`, không dùng `innerHTML`.
 
-Ba lớp phòng thủ đáng nêu trong báo cáo vì nằm ở code, không chỉ ở system prompt:
+Ba lớp phòng thủ đáng nêu trong báo cáo vì nằm ở code, không chỉ ở prompt:
 
 - **`_validate_base_url()`**: cấm khoảng trắng, query/fragment, credentials trong URL và cấm HTTP trừ loopback; tránh gửi API key qua endpoint không an toàn.
-- **Trust boundary rõ**: client state không chứa số tài chính; server tự dựng context từ published/derived data và tự sinh sources/warnings/release metadata.
-- **Một-call budget**: deadline bắt đầu trước khi dựng context, kiểm sau mỗi handler rồi truyền thời gian còn lại cho provider. Provider trả content rỗng hoặc `tool_calls` bất thường là `provider_protocol_error`, không chạy vòng lặp hay fallback.
+- **Strict decision contract**: chỉ chấp nhận đúng 5 action và schema arguments; tool call, Markdown fence, JSON kèm prose hoặc extra key đều bị từ chối, handler chưa được chạy.
+- **Trust boundary rõ**: LLM không nhận dữ liệu tài chính và không sinh câu trả lời dữ liệu. Dispatcher chọn function cố định; formatter server sở hữu số, source, warning và ngày dữ liệu.
 
 Ghi chú thật về artifact hiện tại: `model_metadata.json` legacy **không có** field `training_symbols`, nên chatbot phát warning `symbol_scope_unverified` và lùi về `reports/eligible_symbols.csv` để xác định mã nào trong phạm vi model.
 
-Chi tiết đầy đủ về rule-based intent routing, HTTP contract, grounding validation, session và kiểm thử xem [docs/CHATBOT_RAG_MUC_B.md](CHATBOT_RAG_MUC_B.md).
+Chi tiết đầy đủ về decision contract, HTTP contract, dispatcher, formatter, session và kiểm thử xem [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md).
 
 Ứng dụng Flask chạy loopback (`127.0.0.1:5000`), một người dùng, **không có xác thực** — áp dụng cho toàn bộ route kể cả `/api/chat`. Nếu bind ra ngoài `127.0.0.1` thì bất kỳ ai trong mạng cũng gọi được API chatbot và tiêu API key LLM của bạn; muốn mở ra ngoài thì phải thêm lớp auth trước.
 
@@ -852,7 +858,7 @@ Chi tiết đầy đủ về rule-based intent routing, HTTP contract, grounding
 - Sau khi ghi dataset, recompute fingerprint và assert khớp bản in-memory; lệch → `RuntimeError` "Fingerprint thay đổi sau khi ghi ml_dataset.csv."
 - Cổng provenance hậu-ghi ở trên chỉ có nghĩa nhờ một hàm nhỏ dễ bị coi là vô dụng: `_normalize_fingerprint_dataset()` (`scripts/run_pipeline.py:68`). Fingerprint in-memory tính trên DataFrame vừa build, còn fingerprint kiểm lại (và mọi lần Tuning Lab tính sau này) đọc từ `ml_dataset.csv`. Đi qua CSV, float bị làm tròn theo repr văn bản nên hai hash sẽ khác nhau dù nội dung logic y hệt. Hàm này ép mọi cột số qua `astype(str)` → `pd.to_numeric` để **mô phỏng đúng vòng ghi-đọc đó** trước khi hash. Bỏ nó đi thì cổng kiểm tra ở `:187-193` nổ mọi lần chạy, không phải chỉ khi dữ liệu thật sự đổi.
 - Refit và TEST chạy trong bộ nhớ. `final_model.pkl` chỉ được atomic replace (temp file + `os.replace`, có backup/rollback khi lỗi) sau khi report sinh thành công; metadata ghi cùng cơ chế atomic.
-- **Khoảng hở còn lại (code tự ghi chú, chưa đóng):** `atomic_model_release()` thay `final_model.pkl` và `model_metadata.json` bằng **hai** lệnh `os.replace` liên tiếp. Mỗi lệnh atomic riêng lẻ, nhưng cặp thì không — có một khe rất hẹp giữa hai lệnh mà một reader (UI, chatbot) có thể đọc được model mới đi kèm metadata cũ. Ngoài ra các CSV trong `reports/` được ghi **trước** khi promote artifact, nên nếu promote chết giữa đường thì report đã là số của run mới trong khi `final_model.pkl` vẫn là artifact cũ. Đây chính là tình huống `release_failed` đánh dấu. Chatbot có phòng thủ riêng cho khe này: nó so `(size, mtime_ns)` của bộ file release trước/sau khi đọc, lệch thì trả lỗi `release_inconsistent`/`release_changed` thay vì trả số lẫn giữa hai release (mục 11).
+- **Khoảng hở còn lại (code tự ghi chú, chưa đóng):** `atomic_model_release()` thay `final_model.pkl` và `model_metadata.json` bằng **hai** lệnh `os.replace` liên tiếp. Mỗi lệnh atomic riêng lẻ, nhưng cặp thì không — có một khe rất hẹp giữa hai lệnh mà một reader (UI, chatbot) có thể đọc được model mới đi kèm metadata cũ. Ngoài ra các CSV trong `reports/` được ghi **trước** khi promote artifact, nên nếu promote chết giữa đường thì report đã là số của run mới trong khi `final_model.pkl` vẫn là artifact cũ. Đây chính là tình huống `release_failed` đánh dấu. Chatbot hiện chỉ kiểm readiness cơ bản (pipeline không chạy, model/metadata load được, scope không rỗng), không còn signature/fingerprint chéo; vì vậy khe này vẫn là giới hạn cần nêu, không được trình bày như đã giải quyết hoàn toàn.
 - `scripts/run_pipeline.py` **không nhận tham số dòng lệnh** (chạy với argv khác rỗng sẽ raise lỗi ngay). Không tồn tại cờ CLI nào để "tái dùng TEST xuyên policy" hay để ghi đè một fingerprint đã `evaluated`/`published` — một khi registry đã đánh dấu, không có code path nào cho phép chạy lại/ghi đè cho cùng fingerprint đó.
 - Artifact legacy đang phục vụ (mục "Trạng thái" đầu file) không đi qua luồng trên: nó được đưa thẳng vào `evaluation_registry.json` bằng một thao tác import một lần, đánh dấu `"migration": "Imported prior TEST evaluation without re-evaluation."`, giữ nguyên `policy_id` cũ (`legacy_pre_validation_baseline_gate`). Đây là lý do artifact hiện tại có thể mang `validation_baseline_passed = false` mà không bị chặn — vì nó chưa từng chạy qua cổng VALIDATION mô tả ở mục 8 của code hiện hành.
 
@@ -956,21 +962,15 @@ Ba chi tiết trong lớp bắt lỗi của `fetch_hose_data.py` đáng đọc k
 
 `refresh_data.py` gọi 3 bước theo dây (fetch → preprocess → build_features), không song song hóa được vì bước sau đọc output bước trước. Nó in các marker `[1/3]` / `[2/3]` / `[3/3]` và dòng cuối `Refresh data completed.` — chính ba marker này là thứ `app._infer_refresh_progress` bắt để vẽ thanh tiến độ ở `/tuning/fetch-status` (mốc phần trăm 0/33/66/90/100). Đổi chữ trong marker = mất thanh tiến độ. Job này **không** train model: sau khi xong, `ml_dataset.csv` mới có fingerprint khác → cấu hình Tuning Lab cũ hết hiệu lực, `/tuning` hiện banner `config_stale` và pipeline sẽ đòi chọn lại tham số cho snapshot mới.
 
-Chạy test — **phải set `PYTHONPATH` trước để tránh lỗi collection**:
+Chạy toàn bộ test từ root repo:
 
 ```powershell
-$env:PYTHONPATH="."; python -m pytest tests -q     # PowerShell
+python -m pytest -p no:cacheprovider tests
 ```
 
-```bash
-PYTHONPATH=. python -m pytest tests -q             # bash
-```
+Baseline sau khi hợp nhất test chatbot: **10 file test, 140 test pass**, còn 2 warning thông báo có bản `vnstock`/`vnai` mới, không phải lỗi code.
 
-Lệnh trên chạy toàn bộ suite hiện có: **17 file test, 281 test pass + 198 subtest pass**, khoảng 13 giây (số chạy thật trên máy này). Chỉ còn 2 warning và cả hai đều là thông báo "có bản vnstock/vnai mới" của lib, không phải lỗi code. Còn `python -m pytest tests/` trơn (không `PYTHONPATH`) có thể lỗi collection bằng `ModuleNotFoundError` cho `app` / `config` / `services` / `scripts`.
-
-Suite chia theo mảng: 8 file cho chatbot (`test_chatbot*.py`, trong đó `test_chatbot_audit_scenarios.py` gồm 34 test, mỗi test khóa một lỗi thật đã reproduce trên code live), phần còn lại khóa các bất biến của pipeline — `test_data_protocol.py` (split + purge), `test_recent_cv.py` (fold CV), `test_decision_policy.py` (ngưỡng OOF), `test_model_selection.py` (chọn Final Model + baseline), `test_tuning_lab.py` / `test_tuning_history.py` (Tuning Lab + bảng history), `test_prediction_flow.py`, `test_ui_shell.py`, `test_unified_pipeline.py`.
-
-Lý do: repo **không có** `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg` hay `tox.ini`, và không test module nào tự chèn `sys.path`. Pytest vì vậy không có cách nào biết root repo là import root. Một file `conftest.py` rỗng ở root sẽ fix việc này vĩnh viễn (pytest tự thêm thư mục chứa `conftest.py` vào `sys.path`), nhưng hiện chưa có — nên cứ nhớ set `PYTHONPATH`.
+Suite chatbot nay tập trung trong [tests/test_chatbot.py](../tests/test_chatbot.py): decision JSON, schema 5 action, một provider call, dispatcher, formatter, API/error mapping, follow-up history và một UI an toàn. [tests/test_prediction_flow.py](../tests/test_prediction_flow.py) giữ integration ML inference. Tám file còn lại khóa các bất biến pipeline/UI: split + purge, recent CV, decision policy, model selection/baseline, Tuning Lab/history, UI shell và unified pipeline.
 
 Dựng tài liệu báo cáo (chỉ khi cần, không thuộc đường chạy của app — xem mục 14):
 
@@ -1004,7 +1004,7 @@ Các chart số liệu và slide **đọc số trực tiếp** từ `reports/*.j
 
 Trong `docs/` hiện có **hai** file `.docx`: `bao_cao_project_hose_stock_prediction.docx` (bản `build_report.py` sinh ra) và `bao_cao_project_hose_stock_prediction_FIXED.docx` (bản sửa tay sau đó). Bản `_FIXED` **không** được script nào sinh lại, nên nếu chạy `build_report.py` thì chỉ file đầu được ghi mới — mọi sửa tay trong `_FIXED` phải tự chuyển sang, hoặc sửa trong `content_ch*.py` rồi build lại.
 
-Tài liệu khác: [docs/CHATBOT_RAG_MUC_B.md](CHATBOT_RAG_MUC_B.md) là spec đầy đủ của chatbot, đã đồng bộ theo structured context injection: server dựng context, đúng một provider call, canonical state, grounding validation và session dùng chung. Khi tài liệu và code khác nhau, tin `services/chatbot_service.py`.
+Tài liệu chatbot canonical là [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md): đúng 5 action, một LLM JSON decision, fixed dispatcher, formatter deterministic và một UI `/chat`. Khi tài liệu và code khác nhau, tin `services/chatbot_service.py` cùng `services/chatbot_tools.py`.
 
 [README.md](../README.md) và [docs/SO_DO_KIEN_TRUC_HE_THONG.md](SO_DO_KIEN_TRUC_HE_THONG.md) đã được đồng bộ về policy `rolling_recent_cv_oof_threshold` và mốc rolling suy từ dataset. Khi có xung đột, tin code (`config/settings.py`, `models/model_metadata.json`) trước tiên.
 
@@ -1040,6 +1040,6 @@ Ba cạm bẫy đáng giải thích dài hơn một dòng:
 - Final Model hiện tại (Random Forest) **chưa vượt baseline Always-UP** trên VALIDATION lẫn TEST; phải nêu đúng trạng thái này khi báo cáo.
 - **Dataset trên đĩa không phải dataset của release đang serve.** `reports/` + `models/` là số của snapshot legacy (510.862 row, TEST tới 2026-07-13); `data/processed/ml_dataset.csv` đã là snapshot khác (513.971 row, TEST tới 2026-07-24) và chưa từng mở TEST. Trích số vào báo cáo phải nói rõ đang trích nguồn nào — đừng ghép số dataset mới với metric model cũ.
 - Cổng chạy pipeline sạch **đang mở** (mục 12.1). Nếu chạy trước khi nộp báo cáo thì toàn bộ số ở mục 4, 7, 9, 10 đổi hết, và `/evaluation` chuyển từ view legacy sang view policy hiện hành. Chốt một lần: hoặc báo cáo theo artifact legacy (nêu rõ là legacy), hoặc chạy pipeline rồi viết lại số — không trộn hai.
-- Chatbot là **structured context injection**: rule-based intent routing chọn nguồn, server đọc artifact published/derived rồi tiêm vào prompt, grounding validation đối chiếu lại mọi con số. Không dùng chữ “RAG” trong báo cáo — không có vector similarity, không có embedding, không có corpus văn bản.
+- Chatbot dùng **action decision**: LLM hiểu câu hỏi, chọn một trong 5 action và chỉ viết `direct_answer` cho `GENERAL_CHAT`; backend validate, gọi dispatcher cố định rồi format dữ liệu thật. Không dùng RAG, tool loop, custom memory hoặc context dữ liệu trong prompt; LLM không trực tiếp dự đoán cổ phiếu và không tự viết số liệu ML.
 - Số liệu trong báo cáo/slide nên lấy từ `reports/pipeline_summary.json` và `models/model_metadata.json` (bộ script ở mục 14 đọc trực tiếp hai nguồn này), không gõ tay — tránh lệch giữa văn bản và artifact đang serve.
 - Kết quả chỉ phục vụ nghiên cứu/học tập, không phải khuyến nghị đầu tư.
