@@ -1048,9 +1048,7 @@ class ChatbotActionFlowTests(unittest.TestCase):
                     "execute_action",
                     return_value=action_result,
                 ) as execute:
-                    response = chatbot_service.chat(
-                        "message", [], {"legacy": True}, client=client
-                    )
+                    response = chatbot_service.chat("message", [], client=client)
 
                 client.chat.completions.create.assert_called_once()
                 if action in {"STOCK_SIGNAL", "STOCK_RANKING", "PROJECT_INFO"}:
@@ -1452,6 +1450,7 @@ class ChatbotRouteTests(unittest.TestCase):
             {"data": "{}", "content_type": "text/plain"},
             {"data": "{bad", "content_type": "application/json"},
             {"json": {"message": "FPT", "extra": True}},
+            {"json": {"message": "FPT", "conversation_state": {}}},
             {"json": {"message": "   "}},
             {"json": {"message": "x" * 1001}},
             {"json": ["not", "object"]},
@@ -1539,12 +1538,6 @@ class ChatbotRouteTests(unittest.TestCase):
             "data_as_of": "2026-07-20",
             "model_trained_through": "2026-04-10",
         }
-        state = {
-            "active_symbols": [" vnm "],
-            "topic": "signal",
-            "ranking_order": None,
-            "last_result_symbols": ["vnm"],
-        }
         with patch.object(
             web_app.chatbot_service, "chat", return_value=expected
         ) as chat:
@@ -1553,7 +1546,6 @@ class ChatbotRouteTests(unittest.TestCase):
                 json={
                     "message": " Còn VNM? ",
                     "history": history,
-                    "conversation_state": state,
                 },
             )
 
@@ -1565,10 +1557,9 @@ class ChatbotRouteTests(unittest.TestCase):
                 {"role": "user", "content": "Phân tích FPT"},
                 {"role": "assistant", "content": "Kết quả cũ"},
             ],
-            state,
         )
 
-    def test_api_without_state_remains_backward_compatible(self):
+    def test_chat_api_without_history_calls_service_with_empty_list(self):
         with patch.object(
             web_app.chatbot_service,
             "chat",
@@ -1577,7 +1568,7 @@ class ChatbotRouteTests(unittest.TestCase):
             response = self.client.post("/api/chat", json={"message": " Chào "})
 
         self.assertEqual(response.status_code, 200)
-        chat.assert_called_once_with("Chào", [], None)
+        chat.assert_called_once_with("Chào", [])
 
     def test_api_maps_service_statuses_and_hides_internal_errors(self):
         cases = (
@@ -1620,7 +1611,7 @@ class ChatbotRouteTests(unittest.TestCase):
         self.assertEqual(response.json["error"]["code"], "llm_not_configured")
 
 
-class ChatbotTemplateTests(unittest.TestCase):
+class _RemovedChatbotTemplateTests:
     def setUp(self):
         web_app.app.config.update(TESTING=True)
         self.client = web_app.app.test_client()

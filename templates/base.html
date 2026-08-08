@@ -1,6 +1,4 @@
 <!doctype html>
-{# Shell dùng chung cho mọi trang (plan redesign §2). Sidebar điều hướng tách khỏi
-   #main-content để AJAX của Tuning chỉ thay nội dung, không nuốt shell. #}
 <html lang="vi">
 <head>
     <meta charset="utf-8">
@@ -10,10 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_ver }}">
-    {# ui-kit.css nạp SAU app.css để lớp primitive dùng chung ghi đè được. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='ui-kit.css') }}?v={{ asset_ver }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='chat-ui.css') }}?v={{ asset_ver }}">
-    {# Hợp đồng với template trang: chèn stylesheet riêng của trang tại đây. #}
     {% block page_styles %}{% endblock %}
     <script src="{{ url_for('static', filename='theme.js') }}?v={{ asset_ver }}"></script>
     {% block head_extra %}{% endblock %}
@@ -39,8 +34,6 @@
         <header class="app-sidebar" id="app-sidebar">
             <div class="sidebar-head">
                 <a class="brand" href="{{ url_for('index') }}">HOSE ML</a>
-                {# Tên khả cận phải CHỨA chữ nhìn thấy ("Menu") — WCAG 2.5.3
-                   Label in Name. Trạng thái đóng/mở do aria-expanded truyền tải. #}
                 <button type="button" id="nav-toggle" class="nav-toggle"
                         aria-expanded="false" aria-controls="primary-nav"
                         aria-label="Menu điều hướng">Menu</button>
@@ -66,8 +59,6 @@
                     {% block page_header %}<h1>HOSE ML</h1>{% endblock %}
                 </div>
                 <div class="topbar-aside">
-                    {# Glyph mặc định render sẵn để khi JS tắt nút không rỗng;
-                       theme.js:46 sẽ thay bằng ☀/☾ đúng theo theme hiện tại. #}
                     <button type="button" id="theme-toggle" class="theme-toggle"
                             aria-label="Chuyển chế độ sáng/tối"
                             title="Chuyển chế độ sáng/tối">☾</button>
@@ -93,185 +84,12 @@
             </main>
         </div>
 
-        {# Máng thông báo nổi (toast). Đặt trong #app-shell — shell chỉ là flex
-           column, không position/overflow/transform nên không cắt phần tử fixed.
-           window.UIKit.toast() dùng lại đúng container này. #}
         <div id="toast-stack" class="toast-stack" role="status"
              aria-live="polite" aria-atomic="false"></div>
     </div>
 
-    <script src="{{ url_for('static', filename='chat-client.js') }}?v={{ asset_ver }}"></script>
-
-    {# Khung chat nổi góc phải: quick-access trợ lý trên mọi trang. Không render
-       trên /chat để tránh trùng id với trang chat đầy đủ. Dùng lại /api/chat,
-       id riêng chat-dock-* nên độc lập với script trang /chat. #}
-    {% if active_page != 'chat' %}
-    <div id="chat-dock" class="chat-dock" data-open="false">
-        <section id="chat-dock-panel" class="chat-dock-panel"
-                 role="dialog" aria-label="Trợ lý HOSE" aria-modal="false" hidden>
-            <header class="chat-dock-head">
-                <div class="chat-dock-head-text">
-                    <strong>Trợ lý HOSE</strong>
-                    <span class="chat-dock-sub">Trả lời từ dữ liệu offline</span>
-                </div>
-                <a class="chat-dock-expand" href="{{ url_for('chat_page') }}"
-                   aria-label="Mở toàn màn hình" title="Mở toàn màn hình">⤢</a>
-                <button type="button" id="chat-dock-clear" class="chat-dock-close"
-                        aria-label="Xóa hội thoại" title="Xóa hội thoại">↺</button>
-                <button type="button" id="chat-dock-close" class="chat-dock-close"
-                        aria-label="Đóng trợ lý">✕</button>
-            </header>
-            <ol id="chat-dock-transcript" class="chat-dock-transcript"
-                aria-label="Nội dung hội thoại" aria-live="polite"></ol>
-            <form id="chat-dock-form" class="chat-dock-form" aria-busy="false">
-                <label class="visually-hidden" for="chat-dock-message">Câu hỏi</label>
-                <textarea id="chat-dock-message" rows="1" maxlength="1000" required
-                          placeholder="Hỏi về mã, model, xếp hạng…"></textarea>
-                <button id="chat-dock-send" type="submit" aria-label="Gửi câu hỏi">➤</button>
-            </form>
-        </section>
-        <button type="button" id="chat-dock-toggle" class="chat-dock-toggle"
-                aria-expanded="false" aria-controls="chat-dock-panel"
-                aria-label="Mở trợ lý HOSE">
-            <span class="chat-dock-toggle-icon" aria-hidden="true">💬</span>
-            <span class="chat-dock-toggle-text">Trợ lý</span>
-        </button>
-    </div>
-
-    <script>
-        (() => {
-            const dock = document.getElementById("chat-dock");
-            const kit = window.ChatClientKit;
-            if (!dock || !kit) return;
-            const toggle = document.getElementById("chat-dock-toggle");
-            const panel = document.getElementById("chat-dock-panel");
-            const closeBtn = document.getElementById("chat-dock-close");
-            const clearBtn = document.getElementById("chat-dock-clear");
-            const form = document.getElementById("chat-dock-form");
-            const input = document.getElementById("chat-dock-message");
-            const send = document.getElementById("chat-dock-send");
-            const transcript = document.getElementById("chat-dock-transcript");
-            let busy = false;
-
-            const releaseLabels = {
-                current: "Hiện hành", legacy: "Bản cũ",
-                inconsistent: "Không đồng nhất", missing: "Chưa sẵn sàng"
-            };
-            const sourceLabels = {
-                project_snapshot: "Tổng quan project",
-                stock_signal: "Tín hiệu cổ phiếu",
-                ranking: "Bảng xếp hạng Điểm UP",
-                model_metadata: "Thông tin model",
-                dataset_info: "Thông tin dataset",
-                feature_info: "Thông tin feature",
-                feature_importance: "Thông tin feature",
-                project_contract: "Kiến thức project",
-                artifact: "Artifact đã publish"
-            };
-
-            function decorate(item, content, data) {
-                const text = item.querySelector(".chat-dock-text");
-                kit.renderRichText(text, content);
-                const tools = document.createElement("div");
-                tools.className = "chat-entry-tools";
-                tools.append(kit.buildCopyButton(() => content));
-                const details = kit.buildSourceDetails(data, {releaseLabels, sourceLabels});
-                if (details) tools.append(details);
-                item.append(tools);
-            }
-
-            function appendMessage(role, content, data = null) {
-                const item = document.createElement("li");
-                item.className = `chat-dock-entry chat-dock-entry-${role}`;
-                const text = document.createElement("div");
-                text.className = "chat-dock-text";
-                text.textContent = content;
-                item.append(text);
-                transcript.append(item);
-                if (role === "assistant" && data) decorate(item, content, data);
-                transcript.scrollTop = transcript.scrollHeight;
-                return item;
-            }
-
-            function setOpen(open) {
-                dock.dataset.open = open ? "true" : "false";
-                panel.hidden = !open;
-                toggle.setAttribute("aria-expanded", String(open));
-                toggle.setAttribute("aria-label", open ? "Đóng trợ lý HOSE" : "Mở trợ lý HOSE");
-                if (open) input.focus();
-            }
-
-            function setBusy(value) {
-                busy = value;
-                input.disabled = value;
-                send.disabled = value;
-                clearBtn.disabled = value;
-                form.setAttribute("aria-busy", String(value));
-            }
-
-            kit.enhanceComposer({form, input});
-            kit.restoreSession((entry) => appendMessage(entry.role, entry.content, entry));
-
-            toggle.addEventListener("click", () => setOpen(dock.dataset.open !== "true"));
-            closeBtn.addEventListener("click", () => { setOpen(false); toggle.focus(); });
-            clearBtn.addEventListener("click", () => {
-                kit.clearSession();
-                transcript.replaceChildren();
-                input.focus();
-            });
-            document.addEventListener("keydown", (event) => {
-                if (event.key === "Escape" && dock.dataset.open === "true") {
-                    setOpen(false);
-                    toggle.focus();
-                }
-            });
-            document.querySelectorAll('[data-nav="chat"]').forEach((link) => {
-                link.addEventListener("click", (event) => {
-                    event.preventDefault();
-                    setOpen(true);
-                });
-            });
-
-            form.addEventListener("submit", async (event) => {
-                event.preventDefault();
-                if (busy) return;
-                const message = input.value.trim();
-                if (!message) return;
-                appendMessage("user", message);
-                input.value = "";
-                setBusy(true);
-                const pending = appendMessage("assistant", "");
-                pending.classList.add("is-pending");
-                pending.querySelector(".chat-dock-text").append(kit.buildTypingIndicator());
-                try {
-                    const data = await kit.sendMessage(message);
-                    pending.classList.remove("is-pending");
-                    decorate(pending, data.answer, data);
-                } catch (error) {
-                    const messageText = error.name === "AbortError"
-                        ? "Trợ lý đã quá thời gian chờ. Vui lòng thử lại."
-                        : typeof error.publicMessage === "string"
-                            ? error.publicMessage
-                            : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
-                    pending.classList.remove("is-pending");
-                    kit.renderRichText(pending.querySelector(".chat-dock-text"), messageText);
-                } finally {
-                    setBusy(false);
-                    input.focus();
-                }
-            });
-        })();
-    </script>
-    {% endif %}
-
-    {# Lớp UI primitive dùng chung (toast, skeleton, busy, tooltip…). Nạp TRƯỚC
-       table-sort.js và page_scripts để mọi script trang dùng được window.UIKit. #}
     <script src="{{ url_for('static', filename='ui-kit.js') }}?v={{ asset_ver }}"></script>
-
-    {# Sắp xếp cột cho các bảng render sẵn cả bộ dữ liệu. Đặt cuối body để thead
-       đã có trong DOM; trang nào thay DOM bằng AJAX thì gọi window.mountTableSort. #}
     <script src="{{ url_for('static', filename='table-sort.js') }}?v={{ asset_ver }}"></script>
-
     {% block page_scripts %}{% endblock %}
 </body>
 </html>

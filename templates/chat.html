@@ -1,18 +1,21 @@
 {% extends "base.html" %}
-{# Trang đầy đủ dùng session, transport và renderer chung đã nạp từ base. #}
 
 {% block title %}Trợ lý dữ liệu và mô hình HOSE — HOSE ML{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='chat-ui.css') }}?v={{ asset_ver }}">
+{% endblock %}
+
 {% block page_header %}
 <h1>Trợ lý dữ liệu và mô hình HOSE</h1>
-<p class="subtitle">Hỏi bằng tiếng Việt; câu trả lời chỉ dựa trên artifact và report offline đã publish.</p>
+<p class="subtitle">Hỏi bằng tiếng Việt; hệ thống dùng dữ liệu và model offline đã publish.</p>
 {% endblock %}
 
 {% block dataset_status %}
 <div id="dataset-status" class="dataset-status">
     <span class="status-chip">Offline</span>
     <span class="status-item">
-        Dữ liệu offline{% if dataset_max_date %} đến <strong>{{ dataset_max_date|date_vi }}</strong>{% endif %}
+        Dữ liệu{% if dataset_max_date %} đến <strong>{{ dataset_max_date|date_vi }}</strong>{% endif %}
     </span>
     <span class="status-item">{{ symbol_count }} mã</span>
     <span class="status-item status-model">Model: {{ selected_model or "chưa có" }}</span>
@@ -27,31 +30,16 @@
         <button type="button" class="nav-link" data-prompt="Model học từ dữ liệu gì?">Model học từ dữ liệu gì?</button>
     </div>
 
-    {# tabindex="0" để vùng transcript cuộn được bằng bàn phím; role="log" +
-       aria-label cho nó một tên khả cận rõ ràng. #}
-    <ol id="chat-transcript" class="chat-transcript is-empty" aria-label="Nội dung hội thoại" aria-live="polite"
-        role="log" tabindex="0">
-        {# Trạng thái rỗng nằm TRONG khung transcript để lấp chỗ trống 220px thay
-           vì để hộp trắng. Không mang class .chat-entry nên JS phân biệt được nó
-           với bong bóng thật; role="presentation" để screen reader không đếm nó
-           như một lượt hội thoại. #}
+    <ol id="chat-transcript" class="chat-transcript is-empty"
+        aria-label="Nội dung hội thoại" aria-live="polite" role="log" tabindex="0">
         <li id="chat-empty" class="chat-empty" role="presentation">
             <p class="chat-empty-title">Chưa có câu hỏi nào</p>
-            <p class="chat-empty-text">Mình trả lời dựa trên dữ liệu offline đã publish. Có thể bắt đầu với:</p>
-            <ul class="chat-empty-list">
-                <li>Tín hiệu và giá tham chiếu của một mã cụ thể</li>
-                <li>So sánh hai mã, hoặc xem bảng xếp hạng Điểm UP</li>
-                <li>Model đang dùng học từ dữ liệu và feature nào</li>
-            </ul>
-            <p class="chat-empty-hint">Bấm một câu hỏi gợi ý phía trên để gửi ngay.</p>
+            <p>Hỏi về tín hiệu một mã, so sánh, xếp hạng, model hoặc dataset.</p>
         </li>
     </ol>
 
-    {# Giữ lại vùng tóm tắt "lượt mới nhất". Mỗi lượt trợ lý còn có chip
-       "Nguồn dữ liệu" riêng bên trong bong bóng nên lịch sử dẫn nguồn không
-       còn bị mất khi gửi lượt tiếp theo. #}
     <div id="chat-result" class="chat-result">
-        <section id="chat-release" class="chat-meta" hidden></section>
+        <section id="chat-dates" class="chat-meta" hidden></section>
         <section id="chat-sources" class="chat-meta" hidden></section>
         <section id="chat-warnings" class="chat-meta chat-meta-warn" hidden></section>
     </div>
@@ -62,21 +50,17 @@
                   placeholder="VD: Còn VNM thì sao?"></textarea>
         <button id="send-chat" type="submit">Gửi</button>
         <button id="clear-chat" type="button" class="btn-secondary">Xóa hội thoại</button>
-        {# Bộ đếm ký tự: KHÔNG phải live region. Nó nối vào textarea bằng
-           aria-describedby nên screen reader đọc khi cần, không bị đọc chen
-           ngang từng ký tự. Thông báo thật đi qua #chat-counter-live bên dưới,
-           chỉ phát khi vượt ngưỡng và có throttle. #}
         <p id="chat-counter" class="chat-counter" aria-live="off">0/1000 ký tự</p>
-        <span id="chat-counter-live" class="visually-hidden" aria-live="polite"></span>
     </form>
 </section>
 
 <p class="disclaimer">
-    Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư. Giá và tín hiệu đều là dữ liệu offline tại ngày tham chiếu.
+    Kết quả là tín hiệu kỹ thuật từ dữ liệu offline, không phải khuyến nghị đầu tư.
 </p>
 {% endblock %}
 
 {% block page_scripts %}
+<script src="{{ url_for('static', filename='chat-client.js') }}?v={{ asset_ver }}"></script>
 <script>
     (() => {
         const form = document.getElementById("chat-form");
@@ -84,68 +68,40 @@
         const send = document.getElementById("send-chat");
         const clear = document.getElementById("clear-chat");
         const transcript = document.getElementById("chat-transcript");
-        const release = document.getElementById("chat-release");
+        const emptyState = document.getElementById("chat-empty");
+        const dates = document.getElementById("chat-dates");
         const sources = document.getElementById("chat-sources");
         const warnings = document.getElementById("chat-warnings");
-        const emptyState = document.getElementById("chat-empty");
-        const counter = document.getElementById("chat-counter");
         const promptButtons = [...document.querySelectorAll("[data-prompt]")];
-        const kit = window.ChatClientKit || null;
-        const releaseLabels = {
-            current: "Hiện hành",
-            legacy: "Bản cũ",
-            inconsistent: "Không đồng nhất",
-            missing: "Chưa sẵn sàng"
-        };
+        const kit = window.ChatClientKit;
+        let busy = false;
+        let pendingItem = null;
+
         const sourceLabels = {
-            project_snapshot: "Tổng quan project",
             stock_signal: "Tín hiệu cổ phiếu",
             ranking: "Bảng xếp hạng Điểm UP",
             model_metadata: "Thông tin model",
             dataset_info: "Thông tin dataset",
-            feature_info: "Thông tin feature",
-            feature_importance: "Thông tin feature",
-            project_contract: "Kiến thức project",
+            feature_importance: "Feature importance",
+            project_contract: "Thông tin project",
             artifact: "Artifact đã publish"
         };
-        let busy = false;
 
-        const noop = () => {};
-        // Ẩn/hiện trạng thái rỗng theo số mục trong transcript.
-        const syncEmpty = kit
-            ? kit.createEmptyStateToggle(transcript, emptyState)
-            : noop;
-        // Stagger nhẹ cho lần render đầu; tự bỏ qua khi giảm chuyển động.
-        const staggerOnce = kit
-            ? kit.createStaggerOnce(transcript, ":scope > .chat-entry")
-            : noop;
-        // Enter gửi / Shift+Enter xuống dòng + bộ đếm ký tự.
-        const composer = kit
-            ? kit.enhanceComposer({
-                form,
-                input,
-                counter,
-                liveRegion: document.getElementById("chat-counter-live"),
-                max: 1000
-            })
-            : {updateCounter: noop};
-        const updateCounter = composer.updateCounter || noop;
-
-        // Bong bóng đang chờ trả lời (nếu có). appendMessage() dùng LẠI chính
-        // bong bóng này cho lượt "assistant" kế tiếp -> thay tại chỗ, không
-        // sinh thêm mục nên hội thoại không bị nhân đôi.
-        let pendingItem = null;
+        const syncEmpty = kit.createEmptyStateToggle(transcript, emptyState);
+        const composer = kit.enhanceComposer({
+            form,
+            input,
+            counter: document.getElementById("chat-counter"),
+            max: 1000
+        });
 
         function appendMessage(role, content) {
             if (role === "assistant" && pendingItem) {
-                const reused = pendingItem;
+                const item = pendingItem;
                 pendingItem = null;
-                reused.classList.remove("is-pending");
-                const pendingText = reused.querySelector(".chat-text");
-                pendingText.replaceChildren();
-                pendingText.textContent = content;
-                reused.scrollIntoView({block: "nearest"});
-                return reused;
+                item.classList.remove("is-pending");
+                item.querySelector(".chat-text").textContent = content;
+                return item;
             }
             const item = document.createElement("li");
             item.className = `chat-entry chat-entry-${role}`;
@@ -159,98 +115,54 @@
             item.append(label, text);
             transcript.append(item);
             syncEmpty();
-            staggerOnce();
             item.scrollIntoView({block: "nearest"});
             return item;
         }
 
-        // Bong bóng "đang trả lời": ba chấm động, sẽ được thay tại chỗ bằng
-        // câu trả lời thật (giống khung chat nổi trong base.html).
         function appendPending() {
-            const item = appendMessage("assistant", "");
-            item.classList.add("is-pending");
-            const text = item.querySelector(".chat-text");
-            if (kit) {
-                text.append(kit.buildTypingIndicator());
-            } else {
-                text.textContent = "Đang trả lời…";
-            }
-            pendingItem = item;
-            return item;
+            pendingItem = appendMessage("assistant", "Đang trả lời…");
+            pendingItem.classList.add("is-pending");
         }
 
-        // Trang trí lượt trả lời đã render: markdown-lite + chip "Nguồn dữ liệu"
-        // + nút copy. Mọi node dựng bằng createElement/textContent.
-        function decorateAnswer(item, answer, data) {
-            const text = item.querySelector(".chat-text");
-            if (kit) {
-                kit.renderRichText(text, answer);
-            }
-            const tools = document.createElement("div");
-            tools.className = "chat-entry-tools";
-            if (kit) {
-                tools.append(kit.buildCopyButton(() => answer));
-                const details = kit.buildSourceDetails(data, {
-                    releaseLabels,
-                    sourceLabels
-                });
-                if (details) {
-                    tools.append(details);
-                }
-            }
-            if (tools.childNodes.length > 0) {
-                item.append(tools);
-            }
-            item.scrollIntoView({block: "nearest"});
-        }
-
-        function setMeta(element, label, values, asList = false) {
+        function setMeta(element, label, values, list = false) {
             element.replaceChildren();
-            if (!values || values.length === 0) {
+            if (!values.length) {
                 element.hidden = true;
                 return;
             }
             const title = document.createElement("strong");
-            title.textContent = `${label}:`;
+            title.textContent = `${label}: `;
             element.append(title);
-            if (asList) {
-                const list = document.createElement("ul");
+            if (list) {
+                const ul = document.createElement("ul");
                 values.forEach((value) => {
-                    const item = document.createElement("li");
-                    item.textContent = value;
-                    list.append(item);
+                    const li = document.createElement("li");
+                    li.textContent = value;
+                    ul.append(li);
                 });
-                element.append(list);
+                element.append(ul);
             } else {
                 const text = document.createElement("span");
-                text.textContent = ` ${values.join(" · ")}`;
+                text.textContent = values.join(" · ");
                 element.append(text);
             }
             element.hidden = false;
         }
 
-        function clearMetadata() {
-            [release, sources, warnings].forEach((element) => {
-                element.replaceChildren();
-                element.hidden = true;
-            });
-        }
-
         function showMetadata(data) {
-            const releaseStatus = data.release_status;
-            setMeta(
-                release,
-                "Phiên bản model",
-                releaseStatus ? [releaseLabels[releaseStatus] || releaseStatus] : []
-            );
+            const dateValues = [];
+            if (data.data_as_of) dateValues.push(`Dữ liệu đến ${data.data_as_of}`);
+            if (data.model_trained_through) {
+                dateValues.push(`Model học đến ${data.model_trained_through}`);
+            }
+            setMeta(dates, "Mốc dữ liệu", dateValues);
             setMeta(
                 sources,
                 "Nguồn",
                 (data.sources || []).map((source) => {
-                    const symbols = source.symbols ? ` ${source.symbols.join(", ")}` : "";
+                    const symbols = source.symbols?.length ? ` ${source.symbols.join(", ")}` : "";
                     const asOf = source.as_of ? ` @ ${source.as_of}` : "";
-                    const kind = source.kind || "artifact";
-                    return `${sourceLabels[kind] || kind}${symbols}${asOf}`;
+                    return `${sourceLabels[source.kind] || source.kind || "Artifact"}${symbols}${asOf}`;
                 })
             );
             setMeta(
@@ -259,6 +171,13 @@
                 (data.warnings || []).map((warning) => warning.message || String(warning)),
                 true
             );
+        }
+
+        function clearMetadata() {
+            [dates, sources, warnings].forEach((element) => {
+                element.replaceChildren();
+                element.hidden = true;
+            });
         }
 
         function setBusy(value) {
@@ -271,31 +190,10 @@
             send.textContent = value ? "Đang xử lý…" : "Gửi";
         }
 
-        // Toàn bộ khối phía trên đã degrade mềm khi thiếu ChatClientKit (kit ===
-        // null → noop), nhưng ba chỗ dưới đây thì không: restoreSession /
-        // sendMessage / clearSession gọi trực tiếp trên kit sẽ ném TypeError và
-        // giết luôn listener submit, để lại form im lặng không phản hồi. Chặn
-        // sớm: khóa composer và nói rõ lý do thay vì hỏng ngầm.
-        if (!kit) {
-            setMeta(
-                warnings,
-                "Lỗi",
-                ["Không tải được thành phần trợ lý. Vui lòng tải lại trang."],
-                true
-            );
-            input.disabled = true;
-            send.disabled = true;
-            clear.disabled = true;
-            promptButtons.forEach((button) => { button.disabled = true; });
-            return;
-        }
-
         kit.restoreSession((entry) => {
             const item = appendMessage(entry.role, entry.content);
-            if (entry.role === "assistant") {
-                decorateAnswer(item, entry.content, entry);
-                showMetadata(entry);
-            }
+            if (entry.role === "assistant") showMetadata(entry);
+            item.scrollIntoView({block: "nearest"});
         });
 
         form.addEventListener("submit", async (event) => {
@@ -304,19 +202,14 @@
             const message = input.value.trim();
             if (!message) return;
             clearMetadata();
-            // Shared kit thực hiện fetch("/api/chat" và chỉ nhận lỗi khi
-            // typeof data.error.message === "string".
             appendMessage("user", message);
             input.value = "";
-            updateCounter();
+            composer.updateCounter();
             setBusy(true);
-            const pending = appendPending();
+            appendPending();
             try {
                 const data = await kit.sendMessage(message);
-                // appendMessage dùng lại chính bong bóng đang chờ (pending) nên
-                // result === pending: ba chấm được thay bằng câu trả lời tại chỗ.
                 const result = appendMessage("assistant", data.answer);
-                decorateAnswer(result, data.answer, data);
                 showMetadata(data);
                 result.focus();
             } catch (error) {
@@ -325,7 +218,6 @@
                     : typeof error.publicMessage === "string"
                         ? error.publicMessage
                         : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
-                // Cũng thay tại chỗ bong bóng chờ -> không để lại ba chấm treo.
                 const result = appendMessage("assistant", messageText);
                 setMeta(warnings, "Lỗi", [messageText], true);
                 result.focus();
@@ -338,23 +230,19 @@
         clear.addEventListener("click", () => {
             kit.clearSession();
             pendingItem = null;
-            // Xóa các bong bóng nhưng GIỮ lại mục trạng thái rỗng để khung
-            // transcript quay về đúng màn onboarding ban đầu.
             transcript.replaceChildren(emptyState);
             clearMetadata();
             input.value = "";
-            updateCounter();
+            composer.updateCounter();
             syncEmpty();
             input.focus();
         });
 
-        // Gợi ý bấm một lần là gửi luôn (trước đây phải bấm thêm nút Gửi).
         promptButtons.forEach((button) => {
             button.addEventListener("click", () => {
                 if (busy) return;
                 input.value = button.dataset.prompt;
-                updateCounter();
-                input.focus();
+                composer.updateCounter();
                 form.requestSubmit();
             });
         });

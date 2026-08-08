@@ -1,4 +1,4 @@
-"""Contracts for the shared, tab-scoped chatbot session UI."""
+"""Behavior contracts for the single /chat UI and tab-scoped transcript."""
 
 from pathlib import Path
 import shutil
@@ -9,10 +9,8 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
 requires_node = pytest.mark.skipif(
-    shutil.which("node") is None,
-    reason="cần Node.js trên PATH để chạy assertion JS",
+    shutil.which("node") is None, reason="cần Node.js để chạy assertion JS"
 )
 
 
@@ -30,36 +28,23 @@ def _run_node(source: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_chat_client_is_loaded_globally_once():
+def test_chat_assets_load_only_on_chat_page():
     base = _read("templates/base.html")
     page = _read("templates/chat.html")
+    assert "chat-client.js" not in base
+    assert "chat-ui.css" not in base
+    assert page.count("chat-client.js") == 1
+    assert page.count("chat-ui.css") == 1
 
-    assert base.count("chat-client.js") == 1
-    assert "chat-client.js" not in page
 
-
-def test_session_is_tab_scoped_bounded_and_recovers_from_corruption():
+def test_transport_sends_last_six_messages_without_conversation_state():
     client = _read("static/chat-client.js")
-
-    assert 'SESSION_KEY = "hose-chat-session-v1"' in client
-    assert "MAX_TRANSCRIPT = 40" in client
-    assert "window.sessionStorage.getItem(SESSION_KEY)" in client
-    assert "window.sessionStorage.setItem(SESSION_KEY" in client
-    assert "window.sessionStorage.removeItem(SESSION_KEY)" in client
-    assert ".slice(-MAX_TRANSCRIPT)" in client
-    assert "catch (error)" in client
-
-
-def test_transport_sends_six_messages_and_optional_conversation_state():
-    client = _read("static/chat-client.js")
-
-    assert "function sendMessage(message, options)" in client
     assert "session.transcript.slice(-6)" in client
-    assert "payload.conversation_state = session.conversation_state" in client
     assert 'fetch("/api/chat"' in client
     assert "AbortController" in client
-    # timeout client phải >= TOTAL_DEADLINE_SECONDS(60) của server, không được ngắn hơn
     assert "70000" in client
+    assert "conversation_state" not in client
+    assert "release_status" not in client
 
 
 def test_only_successful_exchange_is_persisted():
@@ -67,48 +52,34 @@ def test_only_successful_exchange_is_persisted():
     send = client.index("function sendMessage(message, options)")
     ok_check = client.index("if (!response.ok)", send)
     persist = client.index("saveExchange(message, data)", ok_check)
-
     assert ok_check < persist
     assert "saveExchange(message, data)" not in client[send:ok_check]
 
 
 @requires_node
-def test_session_runtime_reload_bounds_transport_clear_and_corruption_recovery():
+def test_session_runtime_bounds_history_recovers_and_does_not_persist_failures():
     _run_node(
         r"""
         const assert = require("node:assert/strict");
         const modulePath = require.resolve("./static/chat-client.js");
         const values = new Map();
-        const storage = {
-            getItem(key) { return values.has(key) ? values.get(key) : null; },
-            setItem(key, value) { values.set(key, value); },
-            removeItem(key) { values.delete(key); }
-        };
         global.window = {
-            sessionStorage: storage,
+            sessionStorage: {
+                getItem(key) { return values.has(key) ? values.get(key) : null; },
+                setItem(key, value) { values.set(key, value); },
+                removeItem(key) { values.delete(key); }
+            },
             setTimeout() { return 1; },
-            clearTimeout() {},
-            matchMedia() { return {matches: false}; }
+            clearTimeout() {}
         };
-
-        function loadKit() {
-            delete require.cache[modulePath];
-            require(modulePath);
-            return window.ChatClientKit;
-        }
+        require(modulePath);
+        const kit = window.ChatClientKit;
+        const key = kit.SESSION_KEY;
 
         (async () => {
-            let kit = loadKit();
-            const key = kit.SESSION_KEY;
-            storage.setItem(key, JSON.stringify({
-                transcript: [],
-                conversation_state: {
-                    active_symbols: ["INVALID"], topic: null,
-                    ranking_order: null, last_result_symbols: []
-                }
-            }));
-            assert.equal(kit.loadSession().conversation_state, null);
-            assert.equal(storage.getItem(key), null);
+            values.set(key, JSON.stringify({transcript: [{role: "user", content: "hỏng"}]}));
+            assert.deepEqual(kit.loadSession(), {transcript: []});
+            assert.equal(values.has(key), false);
 
             const requests = [];
             global.fetch = async (_url, options) => {
@@ -117,65 +88,42 @@ def test_session_runtime_reload_bounds_transport_clear_and_corruption_recovery()
                     ok: true,
                     json: async () => ({
                         answer: "Đã trả lời.", sources: [], warnings: [],
-                        release_status: "current",
-                        conversation_state: {
-                            active_symbols: ["FPT"], topic: "signal",
-                            ranking_order: null, last_result_symbols: ["FPT"]
-                        }
+                        data_as_of: "2026-07-20",
+                        model_trained_through: "2026-04-10"
                     })
                 };
             };
             for (let index = 0; index < 21; index += 1) {
                 await kit.sendMessage("Câu " + index);
             }
-            const saved = JSON.parse(storage.getItem(key));
+            const saved = JSON.parse(values.get(key));
             assert.equal(saved.transcript.length, 40);
             assert.equal(requests.at(-1).history.length, 6);
-            assert.deepEqual(requests.at(-1).conversation_state.active_symbols, ["FPT"]);
+            assert.equal("conversation_state" in requests.at(-1), false);
+            assert.equal(saved.transcript.at(-1).data_as_of, "2026-07-20");
 
-            kit = loadKit();
-            assert.equal(kit.loadSession().transcript.length, 40);
-
-            const beforeError = storage.getItem(key);
+            const beforeError = values.get(key);
             global.fetch = async () => ({
                 ok: false,
                 json: async () => ({error: {message: "Provider lỗi"}})
             });
-            await assert.rejects(kit.sendMessage("Không lưu lượt này"));
-            assert.equal(storage.getItem(key), beforeError);
+            await assert.rejects(kit.sendMessage("Không lưu"));
+            assert.equal(values.get(key), beforeError);
 
             kit.clearSession();
-            assert.equal(storage.getItem(key), null);
-        })().catch((error) => {
-            process.nextTick(() => { throw error; });
-        });
+            assert.equal(values.has(key), false);
+        })().catch((error) => process.nextTick(() => { throw error; }));
         """
     )
 
 
-def test_dock_and_full_page_share_restore_clear_and_rich_metadata():
+def test_only_one_chat_ui_and_llm_text_uses_safe_dom():
     base = _read("templates/base.html")
     page = _read("templates/chat.html")
-
-    for source in (base, page):
-        assert "kit.restoreSession(" in source
-        assert "kit.sendMessage(" in source
-        assert "kit.buildSourceDetails(" in source
-    assert "kit.clearSession()" in base
-    assert "kit.clearSession()" in page
-    assert "conversation_state" in _read("static/chat-client.js")
-
-
-def test_llm_content_is_only_rendered_through_safe_dom_apis():
-    sources = "\n".join(
-        _read(path)
-        for path in (
-            "static/chat-client.js",
-            "templates/base.html",
-            "templates/chat.html",
-        )
-    )
-
-    assert "document.createElement" in sources
-    assert "textContent" in sources
-    assert "innerHTML" not in sources
+    client = _read("static/chat-client.js")
+    assert "chat-dock" not in base
+    assert 'id="chat-form"' in page
+    assert "textContent" in page + client
+    assert "innerHTML" not in page + client
+    assert "renderRichText" not in page + client
+    assert "buildSourceDetails" not in page + client

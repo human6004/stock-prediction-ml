@@ -364,8 +364,8 @@ def _chat_error(code: str, message: str, status: int):
     return jsonify({"error": {"code": code, "message": message}}), status
 
 
-def _validate_chat_payload(payload) -> tuple[str, list[dict], dict | None]:
-    """Kiểm tra payload /api/chat rồi trả message, history và state hint.
+def _validate_chat_payload(payload) -> tuple[str, list[dict]]:
+    """Kiểm tra payload /api/chat rồi trả message và history đã chuẩn hóa.
 
     Nghiêm ngặt có chủ đích — history do client gửi lên, nếu tin thẳng thì user
     có thể bơm role/nội dung tùy ý vào prompt của LLM (prompt injection qua
@@ -389,7 +389,7 @@ def _validate_chat_payload(payload) -> tuple[str, list[dict], dict | None]:
     if (
         not isinstance(payload, dict)
         or "message" not in payload
-        or set(payload) - {"message", "history", "conversation_state"}
+        or set(payload) - {"message", "history"}
     ):
         raise ValueError
     message = payload["message"]
@@ -424,14 +424,7 @@ def _validate_chat_payload(payload) -> tuple[str, list[dict], dict | None]:
         normalized_history.append({"role": expected_role, "content": content})
     if total_chars > chatbot_service.MAX_HISTORY_CHARS:
         raise ValueError
-    raw_state = payload.get("conversation_state")
-    if "conversation_state" in payload:
-        if not isinstance(raw_state, dict):
-            raise ValueError
-        state = raw_state
-    else:
-        state = None
-    return message, normalized_history, state
+    return message, normalized_history
 
 
 @app.route("/chat", methods=["GET"])
@@ -464,17 +457,13 @@ def chat_api():
             "invalid_request", "Request phải dùng Content-Type application/json.", 400
         )
     try:
-        message, history, conversation_state = _validate_chat_payload(
-            request.get_json(silent=True)
-        )
+        message, history = _validate_chat_payload(request.get_json(silent=True))
     except ValueError:
         return _chat_error(
-            "invalid_request", "Message, history hoặc conversation_state không hợp lệ.", 400
+            "invalid_request", "Message hoặc history không hợp lệ.", 400
         )
     try:
-        return jsonify(
-            chatbot_service.chat(message, history, conversation_state)
-        )
+        return jsonify(chatbot_service.chat(message, history))
     except chatbot_service.ChatbotServiceError as exc:
         return _chat_error(exc.code, exc.message, exc.status)
     except Exception:

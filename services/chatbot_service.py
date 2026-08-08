@@ -514,13 +514,11 @@ def _format_response(decision: dict, action_result: dict | None = None) -> dict:
 def chat(
     message: str,
     history: list[dict],
-    conversation_state: dict | None = None,
     *,
     client=None,
     monotonic=time.monotonic,
 ) -> dict:
     """Decide one action, execute one fixed branch, then format without another LLM call."""
-    _ = conversation_state
     client = client or _create_client()
     decision = _decide(message, history, client, monotonic)
     action_result = None
