@@ -685,6 +685,156 @@ class ChatbotDecisionTests(unittest.TestCase):
                 client.chat.completions.create.assert_called_once()
 
 
+class ChatbotFormatterTests(unittest.TestCase):
+    @staticmethod
+    def _result(data=None, **extra):
+        return {
+            "data": data or {},
+            "sources": extra.get("sources", []),
+            "warnings": extra.get("warnings", []),
+            "data_as_of": extra.get("data_as_of"),
+            "model_trained_through": extra.get("model_trained_through"),
+            "error": extra.get("error"),
+        }
+
+    @staticmethod
+    def _decision(action, arguments, direct_answer=None):
+        return {
+            "action": action,
+            "arguments": arguments,
+            "direct_answer": direct_answer,
+        }
+
+    def test_formats_stock_focuses_from_handler_values(self):
+        signal = {
+            "symbol": "FPT",
+            "reference_date": "2026-07-20",
+            "close_at_reference": 123.456,
+            "return_20d_percent": 4.567,
+            "volatility_20d_percent": 1.234,
+            "volume_ratio_20": 1.876,
+            "prediction": "UP",
+            "up_score_percent": 62.345,
+            "decision_threshold_percent": 49.0,
+            "threshold_relation": "above",
+            "threshold_gap_percent_points": 13.345,
+        }
+        for focus in ("info", "prediction", "analysis"):
+            with self.subTest(focus=focus):
+                decision = self._decision(
+                    "STOCK_SIGNAL", {"symbols": ["FPT"], "focus": focus}
+                )
+                result = self._result(
+                    {"focus": focus, "signals": [signal]},
+                    data_as_of="2026-07-20",
+                )
+                with patch.object(chatbot_service, "_provider_call") as provider:
+                    response = chatbot_service._format_response(decision, result)
+                provider.assert_not_called()
+                self.assertIn("FPT", response["answer"])
+                self.assertIn("2026-07-20", response["answer"])
+                self.assertNotIn("123.456", response["answer"])
+                self.assertTrue(response["answer"].endswith(chatbot_service.STOCK_DISCLAIMER))
+
+        analysis = chatbot_service._format_response(
+            self._decision(
+                "STOCK_SIGNAL", {"symbols": ["FPT"], "focus": "analysis"}
+            ),
+            self._result({"focus": "analysis", "signals": [signal]}),
+        )["answer"]
+        self.assertIn("62.34%", analysis)
+        self.assertIn("13.35", analysis)
+        self.assertIn("123.46", analysis)
+
+    def test_formats_comparison_ranking_and_project_info(self):
+        signals = [
+            {"symbol": "FPT", "reference_date": "2026-07-20", "up_score_percent": 62.3, "prediction": "UP"},
+            {"symbol": "VNM", "reference_date": "2026-07-20", "up_score_percent": 48.4, "prediction": "NOT_UP"},
+        ]
+        comparison = chatbot_service._format_response(
+            self._decision(
+                "STOCK_SIGNAL",
+                {"symbols": ["FPT", "VNM"], "focus": "comparison"},
+            ),
+            self._result(
+                {
+                    "focus": "comparison",
+                    "signals": signals,
+                    "comparison": {
+                        "higher_up_score_symbol": "FPT",
+                        "up_score_gap_percent_points": 13.9,
+                    },
+                }
+            ),
+        )
+        self.assertIn("FPT", comparison["answer"])
+        self.assertIn("13.9", comparison["answer"])
+
+        ranking = chatbot_service._format_response(
+            self._decision(
+                "STOCK_RANKING", {"order": "highest", "top_n": 2}
+            ),
+            self._result(
+                {"order": "highest", "top_n": 2, "ranking": signals},
+                warnings=[{"code": "stale_excluded", "message": "Đã loại mã stale."}],
+            ),
+        )
+        self.assertIn("Top 2", ranking["answer"])
+        self.assertIn("FPT", ranking["answer"])
+        self.assertEqual(len(ranking["warnings"]), 1)
+
+        model = chatbot_service._format_response(
+            self._decision("PROJECT_INFO", {"topic": "model"}),
+            self._result(
+                {
+                    "topic": "model",
+                    "model_name": "Random Forest",
+                    "target": "Giá tăng sau 5 phiên",
+                    "decision_threshold_percent": 49.0,
+                    "train_through_date": "2026-04-10",
+                    "final_test_metrics_percent": {"f1_up": 48.12},
+                },
+                model_trained_through="2026-04-10",
+            ),
+        )
+        self.assertIn("Random Forest", model["answer"])
+        self.assertIn("48.12%", model["answer"])
+        self.assertEqual(model["model_trained_through"], "2026-04-10")
+
+    def test_general_chat_advice_gate_and_out_of_scope_are_fixed(self):
+        safe = chatbot_service._format_response(
+            self._decision("GENERAL_CHAT", {}, "Chào bạn, mình có thể giúp gì?"),
+        )
+        self.assertEqual(safe["answer"], "Chào bạn, mình có thể giúp gì?")
+
+        advice = chatbot_service._format_response(
+            self._decision("GENERAL_CHAT", {}, "Bạn nên mua FPT ngay."),
+        )
+        self.assertEqual(advice["answer"], chatbot_service.OUT_OF_SCOPE_MESSAGES["trading_advice"])
+
+        news = chatbot_service._format_response(
+            self._decision("OUT_OF_SCOPE", {"reason": "news"}),
+        )
+        self.assertEqual(news["answer"], chatbot_service.OUT_OF_SCOPE_MESSAGES["news"])
+
+    def test_symbol_out_of_scope_is_200_shaped_warning_and_optional_fields_do_not_crash(self):
+        decision = self._decision(
+            "STOCK_SIGNAL", {"symbols": ["ABC"], "focus": "prediction"}
+        )
+        response = chatbot_service._format_response(
+            decision,
+            self._result(
+                error={"code": "symbol_out_of_scope", "message": "ABC ngoài scope."}
+            ),
+        )
+        self.assertIn("ABC", response["answer"])
+        self.assertEqual(response["warnings"][0]["code"], "symbol_out_of_scope")
+        self.assertEqual(
+            set(response),
+            {"answer", "sources", "warnings", "data_as_of", "model_trained_through"},
+        )
+
+
 class ChatbotServiceTests(unittest.TestCase):
     def setUp(self):
         self.config = patch.multiple(
