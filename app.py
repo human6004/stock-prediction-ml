@@ -472,7 +472,9 @@ def chat_api():
             "invalid_request", "Message, history hoặc conversation_state không hợp lệ.", 400
         )
     try:
-        return jsonify(chatbot_service.chat(message, history, conversation_state))
+        return jsonify(
+            chatbot_service.chat_action_flow(message, history, conversation_state)
+        )
     except chatbot_service.ChatbotServiceError as exc:
         return _chat_error(exc.code, exc.message, exc.status)
     except Exception:

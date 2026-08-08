@@ -1242,7 +1242,7 @@ class ChatbotRouteTests(unittest.TestCase):
             {"json": {"message": "x" * 1001}},
             {"json": ["not", "object"]},
         )
-        with patch.object(web_app.chatbot_service, "chat") as chat:
+        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
             for payload in cases:
                 with self.subTest(payload=payload):
                     response = self.client.post("/api/chat", **payload)
@@ -1276,7 +1276,7 @@ class ChatbotRouteTests(unittest.TestCase):
             ]
             * 4,
         )
-        with patch.object(web_app.chatbot_service, "chat") as chat:
+        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
             for history in cases:
                 with self.subTest(history=history):
                     response = self.client.post(
@@ -1302,7 +1302,7 @@ class ChatbotRouteTests(unittest.TestCase):
             {**valid, "last_result_symbols": ["FPT"] * 11},
             {**valid, "ranking_order": "random"},
         )
-        with patch.object(web_app.chatbot_service, "chat") as chat:
+        with patch.object(web_app.chatbot_service, "chat_action_flow") as chat:
             for state in cases:
                 with self.subTest(state=state):
                     response = self.client.post(
@@ -1313,7 +1313,7 @@ class ChatbotRouteTests(unittest.TestCase):
                     self.assertEqual(response.json["error"]["code"], "invalid_request")
         chat.assert_not_called()
 
-    def test_api_trims_valid_request_and_returns_success_contract(self):
+    def test_chat_api_trims_request_and_uses_action_flow_contract(self):
         history = [
             {"role": "user", "content": " Phân tích FPT "},
             {"role": "assistant", "content": " Kết quả cũ "},
@@ -1322,14 +1322,8 @@ class ChatbotRouteTests(unittest.TestCase):
             "answer": "Kết quả mới",
             "sources": [{"kind": "stock_signal", "symbols": ["VNM"]}],
             "warnings": [],
-            "release_status": "current",
             "data_as_of": "2026-07-20",
-            "conversation_state": {
-                "active_symbols": ["VNM"],
-                "topic": "signal",
-                "ranking_order": None,
-                "last_result_symbols": ["VNM"],
-            },
+            "model_trained_through": "2026-04-10",
         }
         state = {
             "active_symbols": [" vnm "],
@@ -1338,7 +1332,7 @@ class ChatbotRouteTests(unittest.TestCase):
             "last_result_symbols": ["vnm"],
         }
         with patch.object(
-            web_app.chatbot_service, "chat", return_value=expected
+            web_app.chatbot_service, "chat_action_flow", return_value=expected
         ) as chat:
             response = self.client.post(
                 "/api/chat",
@@ -1367,7 +1361,9 @@ class ChatbotRouteTests(unittest.TestCase):
 
     def test_api_without_state_remains_backward_compatible(self):
         with patch.object(
-            web_app.chatbot_service, "chat", return_value={"answer": "Chào bạn."}
+            web_app.chatbot_service,
+            "chat_action_flow",
+            return_value={"answer": "Chào bạn."},
         ) as chat:
             response = self.client.post("/api/chat", json={"message": " Chào "})
 
@@ -1383,7 +1379,7 @@ class ChatbotRouteTests(unittest.TestCase):
         for code, status in cases:
             with self.subTest(code=code), patch.object(
                 web_app.chatbot_service,
-                "chat",
+                "chat_action_flow",
                 side_effect=chatbot_service.ChatbotServiceError(
                     code, "Không thể kết nối trợ lý lúc này.", status
                 ),
@@ -1394,7 +1390,7 @@ class ChatbotRouteTests(unittest.TestCase):
 
         with patch.object(
             web_app.chatbot_service,
-            "chat",
+            "chat_action_flow",
             side_effect=RuntimeError(r"secret C:\private\artifact.pkl"),
         ):
             response = self.client.post("/api/chat", json={"message": "FPT"})
@@ -1485,7 +1481,7 @@ class ChatbotTemplateTests(unittest.TestCase):
         payload = '<img src=x onerror="alert(1)">'
         with patch.object(
             web_app.chatbot_service,
-            "chat",
+            "chat_action_flow",
             return_value={
                 "answer": payload,
                 "sources": [],
