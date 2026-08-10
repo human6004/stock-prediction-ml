@@ -222,25 +222,39 @@ a:hover {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 22px;
 }
 
-/* Nhãn nhóm ("Người dùng" / "Model & Dữ liệu") thành divider dọc inline
-   giữa các cụm link — gọn cho thanh ngang, không chiếm cả dòng như bản dọc. */
+/* Mỗi nhóm ("Người dùng" / "Model & Dữ liệu") là một cụm: nhãn nhỏ mờ đứng
+   trước, các link pill theo sau. Divider dọc mảnh phân tách các nhóm để mắt
+   thấy hai khối rõ ràng thay vì một dãy link phẳng. */
+.nav-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-group + .nav-group {
+    padding-left: 22px;
+    border-left: 1px solid var(--line-strong);
+}
+
+/* Nhãn nhóm: caption phụ, tông mờ + cỡ nhỏ để chìm xuống dưới link, không
+   tranh chú ý. In hoa mono giữ chất "data-terminal". */
 .nav-group-label {
-    margin: 0 4px 0 10px;
-    align-self: center;
     font-family: var(--mono);
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--faint);
     white-space: nowrap;
 }
 
-.nav-group-label:first-child {
-    margin-left: 0;
+.nav-group-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* Link trong thanh ngang: pill gọn, nền trong suốt, sáng lên khi hover/active */
@@ -259,13 +273,6 @@ a:hover {
     transform: none;
     background: var(--panel);
     border-color: var(--line);
-}
-
-/* Ẩn link "Trợ lý" khỏi thanh nav: trợ lý giờ chỉ truy cập qua khung chat nổi
-   (nút 💬 góc phải) hoặc nút phóng to ⤢ trong dock. Giữ link trong DOM để không
-   phá test khóa data-nav="chat" và làm fallback khi JS tắt. */
-.primary-nav .nav-link[data-nav="chat"] {
-    display: none;
 }
 
 /* Ẩn link "So sánh" khỏi thanh nav: Dự báo và So sánh giờ là hai tab trong cùng
@@ -289,9 +296,9 @@ a:hover {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 1180px;
+    max-width: 1360px;
     margin: 0 auto; /* căn giữa nội dung, không dồn trái */
-    padding: 40px 48px 72px;
+    padding: 40px 56px 72px;
 }
 
 .app-topbar {
@@ -410,7 +417,7 @@ a:hover {
         display: none;
         flex-direction: column;
         align-items: stretch;
-        gap: 3px;
+        gap: 4px;
         margin-top: 12px;
     }
 
@@ -418,9 +425,27 @@ a:hover {
         display: flex;
     }
 
-    /* Trong cột: nhãn nhóm thành dòng riêng, link căn trái */
+    /* Trong cột: mỗi nhóm xếp dọc, bỏ divider dọc, nhãn thành dòng riêng */
+    .nav-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .nav-group + .nav-group {
+        padding-left: 0;
+        border-left: none;
+        margin-top: 8px;
+    }
+
     .nav-group-label {
-        margin: 12px 0 4px;
+        margin: 8px 0 2px;
+    }
+
+    .nav-group-links {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 3px;
     }
 
     .primary-nav .nav-link {
@@ -602,16 +627,38 @@ button:active {
 }
 
 button:disabled {
-    background: var(--line-strong);
-    color: var(--on-ink);
+    /* Trước đây on-ink trên line-strong ≈ 1.8:1 → gần như không đọc được */
+    background: var(--line-soft);
+    color: var(--muted);
+    border-color: var(--line-strong);
     box-shadow: none;
     cursor: not-allowed;
     transform: none;
 }
 
 :focus-visible {
-    outline: 2px solid var(--ink);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
+}
+
+/* Nút/bề mặt nền mực: vòng focus phải đảo màu, không thì mực-trên-mực = vô hình */
+button:focus-visible,
+.btn-fetch:focus-visible {
+    outline-color: var(--focus-ring-inverse);
+    box-shadow: 0 0 0 4px rgb(var(--up-rgb) / 0.28);
+}
+
+button.btn-secondary:focus-visible,
+button.link-btn:focus-visible,
+button.sort-btn:focus-visible,
+button.filter-btn:focus-visible,
+button.history-tab:focus-visible,
+button.quick-pick:focus-visible,
+button.theme-toggle:focus-visible,
+button.nav-toggle:focus-visible,
+button:disabled:focus-visible {
+    outline-color: var(--focus-ring);
+    box-shadow: none;
 }
 
 /* ---------- Status strip (dataset banner) ---------- */
@@ -624,16 +671,16 @@ button:disabled {
     background: var(--panel);
     color: var(--ink-soft);
     font-family: var(--sans);
-    font-size: 13.5px;
+    font-size: 14.5px;
     letter-spacing: 0;
-    line-height: 1.65;
+    line-height: 1.7;
     box-shadow: var(--shadow-sm);
 }
 
 .dataset-banner strong {
     color: var(--ink);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -891,7 +938,8 @@ textarea:focus {
     color: var(--ink-soft);
     font-family: var(--mono);
     font-weight: 500;
-    font-size: 12px;
+    font-size: 13.5px;
+    line-height: 1.6;
     letter-spacing: 0.01em;
 }
 
@@ -1377,21 +1425,21 @@ td {
     border-bottom: 1px solid var(--line-soft);
     padding: 13px 15px;
     text-align: left;
-    font-size: 13px;
+    font-size: 14.5px;
     white-space: nowrap;
 }
 
 td {
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
-    font-size: 12.5px;
+    font-size: 14px;
 }
 
 thead th {
     background: var(--paper);
     color: var(--ink-soft);
     font-family: var(--sans);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     text-transform: none;
     letter-spacing: 0.01em;
@@ -1423,7 +1471,8 @@ tbody tr:last-child td {
 }
 
 .selected-row:hover td {
-    background: #e3f0e8;
+    /* Đậm hơn --up-bg một chút, nhưng vẫn theo token nên dark mode không vỡ */
+    background: rgb(var(--up-rgb) / 0.16);
 }
 
 .empty {
@@ -1455,6 +1504,89 @@ tbody tr:last-child td {
 
 .cell-dash {
     color: var(--faint);
+}
+
+/* ---------- Sắp xếp cột ----------
+   Nút chiếm hết ô tiêu đề (kể cả padding của th) để vùng bấm rộng bằng cả ô.
+   Phải reset rule `button` chung ở trên: nút mặc định là khối mực đậm, cao 46px
+   và nhấc lên khi hover, không dùng được trong thead.
+   Mũi ⇅/▲/▼ giữ nguyên chỗ ở cả ba trạng thái nên tiêu đề không nhảy khi bấm. */
+thead th.th-sortable {
+    padding: 0;
+}
+
+.sort-btn {
+    display: flex;
+    align-items: inherit;
+    gap: 8px;
+    width: 100%;
+    min-height: 0;
+    padding: 13px 15px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.sort-btn:hover {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: none;
+    transform: none;
+}
+
+/* Bảng lịch sử Tuning dùng <a> thay <button> (sort ở server qua ?sort=), nên
+   phải bỏ gạch chân và màu link để trông y hệt header thường. */
+a.sort-btn,
+a.sort-btn:hover {
+    text-decoration: none;
+}
+
+.sort-btn:active {
+    transform: none;
+}
+
+/* Cột số căn phải: đưa nhãn + mũi về sát lề phải cho khớp phần thân bảng. */
+thead th.num .sort-btn {
+    justify-content: flex-end;
+}
+
+.sort-label {
+    min-width: 0;
+}
+
+/* Mũi ⇅ ở trạng thái mặc định làm mờ đi: 6 cột đều gắn một glyph lạ mắt thì hàng
+   tiêu đề trông như đầy ký tự rác. Ẩn bằng opacity chứ KHÔNG phải display/visibility
+   ẩn-chiếm-chỗ khác — glyph vẫn giữ đúng bề rộng nên nhãn không nhảy khi hiện ra. */
+.sort-icon {
+    flex: 0 0 auto;
+    color: var(--faint);
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0;
+    transition: color 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+
+.sort-btn:hover .sort-icon,
+.sort-btn:focus-visible .sort-icon {
+    color: var(--ink-soft);
+    opacity: 1;
+}
+
+thead th.is-sorted {
+    color: var(--ink);
+}
+
+/* Cột đang sắp thì mũi ▲/▼ luôn hiện — đó là chỉ dấu trạng thái, không phải gợi ý. */
+thead th.is-sorted .sort-icon,
+thead th[aria-sort] .sort-icon {
+    color: var(--ink);
+    opacity: 1;
 }
 
 /* ---------- Compare ---------- */
@@ -1574,10 +1706,51 @@ tbody tr:last-child td {
     animation: rise 0.5s var(--ease) both;
 }
 
+/* Giảm chuyển động = giảm phần trang trí, KHÔNG xoá phần mang thông tin.
+   Thanh xác suất / thanh tiến trình chạy width là dữ liệu đang thay đổi; tắt hết
+   thì người dùng mất luôn tín hiệu "đang chạy". Nên: tắt animation trang trí +
+   transform/scale, giữ transition width & màu ở mức rất ngắn. */
 @media (prefers-reduced-motion: reduce) {
-    * {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* Hover lift / entry rise: bỏ hẳn dịch chuyển */
+    .workspace,
+    .result-panel,
+    .compare-results {
         animation: none !important;
-        transition: none !important;
+    }
+
+    button:hover:not(:disabled),
+    .model-card:hover,
+    .nav-link:hover,
+    .theme-toggle:hover {
+        transform: none !important;
+    }
+
+    /* Ngoại lệ có chủ đích: các thanh thể hiện số liệu vẫn được nội suy nhẹ */
+    .prob-fill,
+    .fetch-progress-fill,
+    .score-bar-fill {
+        transition-duration: 0.2s !important;
+    }
+
+    /* Shimmer "đang tải" đổi sang nhấp nháy độ mờ chậm, vẫn đọc được là đang chạy */
+    .fetch-progress-fill-active {
+        background-image: none;
+        animation: none !important;
+        opacity: 0.75;
+    }
+
+    .live-dot {
+        animation: none !important;
+        box-shadow: 0 0 0 3px rgb(var(--up-rgb) / 0.25) !important;
     }
 }
 
@@ -1666,8 +1839,8 @@ tbody tr:last-child td {
     padding: 14px 16px;
     border: 1px solid var(--line-strong);
     border-radius: var(--r-md);
-    background: #1a1a17;
-    color: #d4d4cc;
+    background: var(--log-bg);
+    color: var(--log-ink);
     overflow-x: auto;
     box-shadow: none;
 }
@@ -1679,7 +1852,7 @@ tbody tr:last-child td {
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
-    color: #d4d4cc;
+    color: var(--log-ink);
     /* Log dài thì cuộn riêng bên trong khối đen, không đẩy cả trang dài ra */
     max-height: 60vh;
     overflow-y: auto;
@@ -1717,7 +1890,7 @@ tbody tr:last-child td {
     background: var(--panel);
     color: var(--up-ink);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -1726,12 +1899,21 @@ tbody tr:last-child td {
 .model-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Ba hàng của grid = ba tầng của card (tiêu đề / form / trạng thái). Card lấy
+       lại đúng ba hàng này qua subgrid nên các tầng khớp ngang giữa 3 cột. */
+    grid-template-rows: auto auto auto;
     gap: 18px;
     margin-top: 20px;
 }
 
+/* Card chia 3 tầng cố định: tiêu đề → form → trạng thái. Ba card có số ô nhập
+   khác nhau (LR 2, RF/GB 4) nên nếu mỗi card tự tính hàng thì nút "Chạy thử CV"
+   lệch nhau ~100px. subgrid buộc cả 3 card dùng chung đường kẻ hàng của grid mẹ. */
 .model-card {
     min-width: 0;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--panel);
@@ -1746,27 +1928,73 @@ tbody tr:last-child td {
     box-shadow: var(--shadow-md);
 }
 
-.model-card h2 {
+.model-card.is-chosen {
+    border-color: var(--up-line);
+    box-shadow: inset 3px 0 0 var(--up), var(--shadow-sm);
+}
+
+.model-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
     margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.model-card h2 {
+    margin: 0;
     font-size: 18px;
     font-weight: 800;
     letter-spacing: -0.01em;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    line-height: 1.3;
+}
+
+.model-star {
+    color: var(--up);
+}
+
+/* Số lần CV là metadata, không phải trạng thái có/không như .model-chip —
+   để dạng nhãn nhỏ cạnh tiêu đề thay vì một chip riêng chiếm cả dòng. */
+.try-count {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
 }
 
 .train-form {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 16px;
+}
+
+/* Hai cột ô nhập: hyperparameter đều là số ngắn, một cột dọc làm card cao vô ích. */
+.train-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+}
+
+/* Label dài xuống 2 dòng (max_depth (để trống = None)) sẽ đẩy ô nhập của nó thấp
+   hơn ô bên cạnh. subgrid cho label và input dùng chung 2 đường kẻ hàng của
+   .train-fields nên các ô nhập cùng hàng luôn thẳng nhau. */
+.train-field {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
 }
 
 .train-form label {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--ink-soft);
     font-weight: 600;
-    margin-top: 4px;
 }
 
 .train-form input,
@@ -1774,11 +2002,98 @@ tbody tr:last-child td {
     width: 100%;
     min-width: 0;
     min-height: 40px;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
 }
 
+/* LR có 2 ô nhập, RF/GB có 4 nên tầng form của LR còn khoảng trống. margin-top:auto
+   đẩy nút xuống đáy tầng để 3 nút "Chạy thử CV" nằm cùng một đường ngang. */
 .train-form button {
-    margin-top: 14px;
+    margin-top: auto;
     width: 100%;
+}
+
+/* ---------- Trạng thái cấu hình trong card ---------- */
+/* Thay 2 chip mono dán liền chuỗi dict Python (xuống 3-4 dòng, không đọc được)
+   bằng bảng key/value: tên tham số bên trái, giá trị mono bên phải. */
+.model-state {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.model-state-row {
+    padding: 12px 14px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+}
+
+.model-state-row.is-current {
+    border-color: var(--up-line);
+    background: var(--up-bg);
+}
+
+.model-state-label {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--muted);
+}
+
+.param-kv {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 3px;
+}
+
+.param-kv li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.param-kv span {
+    color: var(--muted);
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.param-kv b {
+    flex: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.model-state-metric {
+    margin: 8px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.model-state-row.is-empty .model-state-metric {
+    margin: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.model-state-metric strong {
+    color: var(--ink);
+    font-weight: 700;
 }
 
 /* ---------- Config + history panels ---------- */
@@ -1984,8 +2299,39 @@ tbody tr:last-child td {
     overscroll-behavior: contain;
 }
 
+/* Bảng lịch sử có 12 cột (2 cố định + 4 hyperparameter + 6 chỉ số) nên với
+   padding/cỡ chữ mặc định nó rộng ~1437px trong khung 1181px: sinh thanh cuộn
+   ngang và cắt mất cột "Trạng thái". Nén padding + cỡ chữ riêng cho bảng này. */
+.history-table {
+    min-width: 0;
+}
+
+.history-table th,
+.history-table td {
+    padding: 10px 9px;
+    font-size: 13px;
+}
+
+.history-table th:first-child,
+.history-table td:first-child {
+    padding-left: 14px;
+}
+
+.history-table th:last-child,
+.history-table td:last-child {
+    padding-right: 14px;
+}
+
 .history-table thead th {
     z-index: 1;
+    font-size: 12px;
+    /* Tên hyperparameter (min_samples_leaf, n_estimators) dài hơn giá trị số bên
+       dưới nên chính header quyết định độ rộng cột. Cho header xuống dòng để cột
+       co theo dữ liệu, bảng vừa khung mà không cần cuộn ngang. Điểm ngắt do <wbr>
+       trong template quyết định (sau dấu _), không chẻ giữa từ. */
+    white-space: normal;
+    line-height: 1.35;
+    vertical-align: bottom;
 }
 
 .history-table td {
@@ -2019,7 +2365,7 @@ tbody tr:last-child td {
 }
 
 .history-table .best-row:hover td {
-    background: #e3f0e8;
+    background: rgb(var(--up-rgb) / 0.16);
 }
 
 .history-table .stale-row td {
@@ -2297,19 +2643,19 @@ tbody tr:last-child td {
     height: 8px;
     border-radius: 50%;
     background: var(--up);
-    box-shadow: 0 0 0 0 rgba(11, 107, 67, 0.45);
+    box-shadow: 0 0 0 0 rgb(var(--up-rgb) / 0.45);
     animation: livePulse 1.8s ease-out infinite;
 }
 
 @keyframes livePulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(11, 107, 67, 0.45);
+        box-shadow: 0 0 0 0 rgb(var(--up-rgb) / 0.45);
     }
     70% {
-        box-shadow: 0 0 0 8px rgba(11, 107, 67, 0);
+        box-shadow: 0 0 0 8px rgb(var(--up-rgb) / 0);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(11, 107, 67, 0);
+        box-shadow: 0 0 0 0 rgb(var(--up-rgb) / 0);
     }
 }
 
@@ -2335,7 +2681,7 @@ tbody tr:last-child td {
 
 .fetch-progress-fill-active {
     background-color: var(--up);
-    background-image: linear-gradient(90deg, var(--up), #14895c, var(--up));
+    background-image: linear-gradient(90deg, var(--up), var(--up-ink), var(--up));
     background-size: 200% 100%;
     animation: fetchShimmer 2.2s linear infinite;
 }
@@ -2581,6 +2927,12 @@ tbody tr:last-child td {
         grid-template-columns: 1fr;
     }
 
+    /* Card đã chiếm cả chiều rộng: hai cột ô nhập bóp mỗi ô còn ~120px, số dài
+       như 4.12e-07 bị cắt. Về một cột. */
+    .train-fields {
+        grid-template-columns: 1fr;
+    }
+
     .fetch-stat-card-wide {
         grid-column: auto;
     }
@@ -2634,24 +2986,44 @@ tbody tr:last-child td {
     }
 }
 
-/* ---------- Screener: bảng xếp hạng tín hiệu toàn sàn ---------- */
+/* ---------- Screener: bảng xếp hạng tín hiệu toàn sàn ----------
+   Một bảng full-width duy nhất. Toolbar (tổng quan + filter + tìm mã) nằm
+   trên bảng, xếp thành hàng trên desktop và xuống dòng trên mobile. */
+.screener-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin: 0 0 4px;
+}
+
 .screener-summary {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
-    margin: 0 0 20px;
-    font-size: 14px;
+    gap: 10px 14px;
+    margin: 0;
+    font-size: 15px;
     color: var(--muted);
+}
+
+.screener-summary .screener-total strong {
+    font-family: var(--mono);
+    font-size: 16.5px;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
 }
 
 .screener-summary .pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 12px;
+    padding: 5px 13px;
     border-radius: 999px;
-    font-size: 13px;
+    font-family: var(--mono);
+    font-size: 14px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     border: 1px solid var(--line);
@@ -2669,110 +3041,176 @@ tbody tr:last-child td {
     border-color: var(--warn-line);
 }
 
-.screener-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
-    align-items: start;
-}
-
-.screener-col {
-    border: 1px solid var(--line);
-    border-radius: var(--r-lg);
-    background: var(--panel);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-}
-
-.screener-col-up {
-    border-top: 3px solid var(--up);
-}
-
-.screener-col-down {
-    border-top: 3px solid var(--warn);
-}
-
-.screener-col-head {
+/* Nhóm điều khiển: filter dạng segmented pill + ô tìm mã, cùng chiều cao 44px. */
+.screener-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--line);
 }
 
-.screener-col-head h2 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--ink);
+.filter-group {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
 }
 
-.screener-col-mark {
-    font-size: 14px;
-    line-height: 1;
-}
-
-.screener-col-up .screener-col-mark {
-    color: var(--up);
-}
-
-.screener-col-down .screener-col-mark {
-    color: var(--warn);
-}
-
-.screener-col-count {
-    margin-left: auto;
+.filter-btn {
+    min-height: 38px;
+    padding: 0 18px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
     font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease),
+        border-color 0.2s var(--ease);
 }
 
-/* Khung cuộn riêng cho từng cột: thân bảng cuộn dọc, không cuộn ngang. */
-.screener-col .table-wrap {
-    max-height: 620px;
-    margin-top: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
+.filter-btn:hover {
+    color: var(--ink);
+    background: var(--panel);
+}
+
+.filter-btn.is-active {
+    border-color: var(--ink);
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+}
+
+.screener-search {
+    display: inline-flex;
+    position: relative;
+}
+
+.screener-search input {
+    min-height: 46px;
+    width: 210px;
+    padding: 10px 15px;
+    font-family: var(--mono);
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.screener-search input::placeholder {
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--faint);
+}
+
+/* Bảng có vùng cuộn riêng: thanh cuộn dọc nằm trong khung bảng, header dính
+   đỉnh khung nên tên cột luôn thấy khi lướt hàng trăm mã.
+   Chiều cao dòng và header CHỐT thành số nguyên px (--row-h/--head-h) rồi
+   max-height đặt đúng bội số dòng, nên mép dưới khung luôn trùng viền một dòng
+   trọn vẹn. Trước đây max-height là số thô (68vh) chia cho chiều cao dòng lẻ
+   53.3px ra 10.14 dòng — dòng thứ 11 hở nửa thân, đó là chỗ trông bị cắt dở.
+   scrollbar-gutter: stable chừa sẵn rãnh thanh cuộn: lọc còn 3 mã thì thanh cuộn
+   biến mất mà cột không nhảy ngang. */
+.screener-wrap {
+    --row-h: 52px;
+    --head-h: 46px;
+    --wrap-chrome: 2px;   /* viền trên + dưới của .table-wrap, border-box tính vào */
+    --rows-shown: 10;
+    max-height: calc(
+        var(--head-h) + var(--rows-shown) * var(--row-h) + var(--wrap-chrome)
+    );
+    overflow: auto;
     overscroll-behavior: contain;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    background: var(--panel);
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+}
+
+.screener-wrap::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.screener-wrap::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.screener-wrap::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+}
+
+.screener-wrap::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+    background-clip: padding-box;
+}
+
+.screener-wrap::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 .screener-table {
     width: 100%;
-    min-width: 0;
-    table-layout: fixed;
+    min-width: 760px;
     border-collapse: collapse;
 }
 
-.screener-table col.col-symbol { width: 34%; }
-.screener-table col.col-score { width: 66%; }
+/* Cột số chốt px theo đúng bề rộng nội dung tối đa ("100.0%", "999.999,99",
+   "31/12/2025") nên không cột nào còn khoảng trắng chết; phần dư dồn hết cho
+   cột Mã — cột duy nhất đáng rộng vì là thứ mắt quét và là link bấm. */
+.screener-table col.col-rank { width: 56px; }
+.screener-table col.col-symbol { width: auto; }
+.screener-table col.col-status { width: 132px; }
+.screener-table col.col-score { width: 116px; }
+.screener-table col.col-price { width: 148px; }
+.screener-table col.col-date { width: 140px; }
 
+/* height thay cho padding dọc: chiều cao ô do đó là số nguyên đúng --head-h /
+   --row-h, không phụ thuộc line-height của font (chỗ sinh ra 53.3px lẻ trước
+   đây). border-box toàn cục nên height đã gồm cả viền dưới. */
 .screener-table thead th {
     position: sticky;
     top: 0;
     z-index: 1;
+    height: var(--head-h);
     text-align: left;
-    padding: 10px 14px;
-    font-size: 11.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--faint);
+    padding: 0 16px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    color: var(--ink-soft);
     background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    border-bottom: 2px solid var(--line-strong);
 }
 
 .screener-table thead th.num {
     text-align: right;
 }
 
+/* Nút sort chiếm hết ô nên padding ngang PHẢI trùng ô thân bảng, nếu lệch thì
+   nhãn tiêu đề không thẳng cột với dữ liệu bên dưới. */
+.screener-table thead th.th-sortable {
+    padding: 0;
+}
+
+.screener-table thead th.th-sortable .sort-btn {
+    height: 100%;
+    padding: 0 16px;
+}
+
 .screener-table tbody td,
 .screener-table tbody th {
-    padding: 10px 14px;
+    height: var(--row-h);
+    padding: 0 16px;
     border-bottom: 1px solid var(--line-soft);
     vertical-align: middle;
 }
@@ -2786,38 +3224,34 @@ tbody tr:last-child td {
     background: var(--paper);
 }
 
-.screener-symbol {
+.screener-table td.cell-rank {
+    color: var(--faint);
+    font-size: 13px;
+}
+
+.screener-table th.cell-symbol {
+    display: table-cell;
     text-align: left;
-    font-weight: 600;
+    white-space: nowrap;
+    background: none;
 }
 
-.screener-symbol-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.screener-symbol a {
+.cell-symbol a {
     font-family: var(--mono);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--ink);
     text-decoration: none;
+    border-bottom: 1px solid transparent;
 }
 
-.screener-symbol a:hover {
-    text-decoration: underline;
+.cell-symbol a:hover {
+    border-bottom-color: var(--ink);
 }
 
-.screener-ref-price {
-    display: block;
-    margin-top: 2px;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
+.cell-symbol a:focus-visible {
+    outline: 2px solid var(--up);
+    outline-offset: 2px;
 }
 
 .stale-badge {
@@ -2833,37 +3267,54 @@ tbody tr:last-child td {
     vertical-align: middle;
 }
 
-.screener-score {
-    display: flex;
+/* Nhãn trạng thái UP / NOT_UP: chữ đủ lớn để đọc, màu ngữ nghĩa của bảng màu,
+   không dùng dot trang trí. Nền nhạt chỉ để tách khỏi dòng, không để "tô màu". */
+.tag {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-.screener-score .prob-bar {
-    flex: 1;
-    min-width: 40px;
-}
-
-.screener-col-up .screener-score .prob-fill {
-    background: var(--up);
-}
-
-.screener-col-down .screener-score .prob-fill {
-    background: var(--warn);
-}
-
-.screener-score .prob-value {
+    padding: 3px 11px;
+    border-radius: 999px;
+    font-family: var(--mono);
     font-size: 13px;
-    min-width: 42px;
-    text-align: right;
-    flex-shrink: 0;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
 }
 
-.screener-score .prob-value.muted {
+.tag-up {
+    color: var(--up-ink);
+    background: var(--up-bg);
+    border: 1px solid var(--up-line);
+}
+
+.tag-down {
+    color: var(--warn-ink);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+}
+
+/* Điểm UP là con số quan trọng nhất mỗi dòng: mono tabular, to hơn cột khác.
+   Bảng đã sắp giảm dần nên thứ tự dòng đã mang thông tin so sánh — không cần
+   thanh bar nền xám mỗi dòng (396 dòng bar = nhiễu, khó đọc số hơn). */
+.screener-table td.cell-score {
+    text-align: right;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.score-value {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.score-value.muted {
     color: var(--faint);
     font-family: var(--sans);
-    font-size: 12.5px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -2875,32 +3326,64 @@ tbody tr:last-child td {
     white-space: nowrap;
 }
 
-.screener-open a {
-    display: inline-block;
-    color: var(--faint);
-    font-size: 17px;
-    text-decoration: none;
-    line-height: 1;
-    transition: color 0.2s var(--ease);
-}
-
-.screener-open a:hover {
-    color: var(--ink);
-}
-
 .screener-empty {
     padding: 28px 20px;
     text-align: center;
-    color: var(--faint);
-    font-size: 13.5px;
+    color: var(--muted);
+    font-size: 15px;
 }
 
+/* Màn nhỏ: toolbar xếp dọc, ô tìm mã giãn full, bảng vẫn cuộn ngang được nên
+   không cột nào bị bóp chữ. Giữ nguyên cỡ chữ ở đây — chữ nhỏ lại trên điện
+   thoại là chỗ mất khả năng đọc nhiều nhất. */
 @media (max-width: 720px) {
-    .screener-grid {
-        grid-template-columns: minmax(0, 1fr);
+    /* Màn hẹp: bỏ vùng cuộn dọc riêng của bảng. Khung cao ~570px nằm cách đỉnh
+       màn gần 600px thì hai thanh cuộn dọc lồng nhau, ngón tay không biết mình
+       đang cuộn cái nào. Ở đây trả về cuộn trang, chỉ giữ cuộn ngang. */
+    .screener-wrap {
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: visible;
     }
 
-    .screener-score {
-        min-width: 130px;
+    .screener-toolbar {
+        flex-direction: column;
+        align-items: stretch;
     }
+
+    .screener-controls {
+        justify-content: space-between;
+    }
+
+    .screener-search {
+        flex: 1 1 auto;
+    }
+
+    .screener-search input {
+        width: 100%;
+    }
+
+    /* Chỉ bóp padding ngang. Chiều cao ô vẫn là --row-h nguyên px: ngón tay cần
+       vùng bấm cao, và hàng thấp hơn 48px là mất mục tiêu chạm. */
+    .screener-table thead th,
+    .screener-table tbody td,
+    .screener-table tbody th,
+    .screener-table thead th.th-sortable .sort-btn {
+        padding: 0 12px;
+    }
+
+    /* Bảng auto layout chia phần dư cho mọi cột, nên width % ở desktop làm cột
+       thứ tự phình ra 70px trên màn hẹp. Chốt px cứng, tổng đúng bằng min-width
+       để không còn phần dư: 40+104+104+100+110+122 = 580. Nhờ vậy 348px khả dụng
+       của .screener-wrap hiện đủ Mã / Trạng thái / Điểm UP, Giá và Ngày cuộn ngang. */
+    .screener-table {
+        min-width: 580px;
+    }
+
+    .screener-table col.col-rank { width: 40px; }
+    .screener-table col.col-symbol { width: 104px; }
+    .screener-table col.col-status { width: 104px; }
+    .screener-table col.col-score { width: 100px; }
+    .screener-table col.col-price { width: 110px; }
+    .screener-table col.col-date { width: 122px; }
 }

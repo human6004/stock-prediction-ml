@@ -1,0 +1,345 @@
+file=D:\study\niên luận\stock-prediction-ml\docs\slides\thuyet_trinh_nien_luan.pptx
+size_bytes=1736020
+slides=24
+slide_w_emu=12191695 slide_h_emu=6858000
+aspect_ratio=1.7777 (16:9 = 1.7778)
+  IMG: image1.png embedded_bytes=204364
+=== SLIDE 1 | bullets=0 pics=1 tables=0 notes_sent=4
+  TXT: TRƯỜNG ĐẠI HỌC CẦN THƠ - TRƯỜNG CÔNG NGHỆ THÔNG TIN & TRUYỀN THÔNG
+  TXT: NIÊN LUẬN CƠ SỞ - HỌC PHẦN CT239H
+  TXT: DỰ BÁO XU HƯỚNG GIÁ CỔ PHIẾU HOSE BẰNG MACHINE LEARNING
+  TXT: Giảng viên hướng dẫn: Phan Phương Lan
+  TXT: Sinh viên thực hiện: Lê Trần Hiếu Nhân - B2308203
+  TXT: Ngành Công nghệ thông tin - Cần Thơ, tháng 7 năm 2026
+  NOTES: Em xin phép trình bày niên luận cơ sở CT239H về dự báo xu hướng giá cổ phiếu HOSE bằng machine learning. Đề tài do cô Phan Phương Lan hướng dẫn. Bài trình bày khoảng 15 phút, đi theo bốn chương của báo cáo. Tất cả số liệu trên slide đều lấy từ các tệp báo cáo sinh ra bởi pipeline trong repo.
+=== SLIDE 2 | bullets=6 pics=0 tables=0 notes_sent=4
+  TXT: Nội dung trình bày
+  TXT: Bốn chương theo guideline CT239H
+  BUL(8w): Chương 1: đặt vấn đề và mục tiêu
+  BUL(9w): Chương 2: cơ sở lý thuyết và công cụ
+  BUL(9w): Chương 3: dữ liệu, feature, kiến trúc, thực nghiệm
+  BUL(8w): Chương 3: kết quả trên VALIDATION và TEST
+  BUL(9w): Chương 4: kết luận, hạn chế, hướng phát triển
+  BUL(2w): Hỏi đáp
+  NOTES: Bài trình bày đi theo đúng bốn chương của báo cáo. Phần lớn thời lượng dành cho chương 3 vì đó là phần thực nghiệm. Em sẽ nói rõ giao thức chống rò rỉ dữ liệu trước khi công bố kết quả. Kết quả cuối cùng là kết quả trung thực, kể cả phần chưa đạt mục tiêu.
+  TABLE 5x2
+    | Dữ liệu thô | Giá trị
+    | Số mã | 400
+    | Số dòng OHLCV | 554.897
+    | Từ ngày | 2019-08-14
+    | Đến ngày | 2026-07-20
+=== SLIDE 3 | bullets=6 pics=0 tables=1 notes_sent=4
+  TXT: HOSE có 400 mã mỗi phiên, và kết quả dự báo dễ bị rò rỉ dữ liệu
+  TXT: Chương 1.1 - Đặt vấn đề
+  TXT: Nguồn: reports/pipeline_summary.json
+  BUL(10w): Nhà đầu tư cá nhân không theo kịp toàn sàn
+  BUL(9w): Chỉ báo kỹ thuật phải tính lại mỗi phiên
+  BUL(10w): Rò rỉ 1: nhãn lấy theo dòng riêng từng mã
+  BUL(11w): Rò rỉ 2: CV trộn cùng ngày vào train và test
+  BUL(11w): Rò rỉ 3: chọn model trên TEST rồi báo cáo TEST
+  BUL(11w): Cần quy trình thực nghiệm có kỷ luật, không chỉ model
+  NOTES: Vấn đề thứ nhất là khối lượng: 400 mã, hơn 554 nghìn dòng OHLCV từ tháng 8 năm 2019 đến tháng 7 năm 2026. Không ai theo dõi thủ công hết được. Vấn đề thứ hai nghiêm trọng hơn: ba dạng rò rỉ dữ liệu khiến nhiều thử nghiệm dự báo chứng khoán cho chỉ số đẹp nhưng vô giá trị. Vì vậy trọng tâm của niên luận là quy trình thực nghiệm chống rò rỉ, không chỉ là huấn luyện một mô hình.
+  TABLE 5x2
+    | Định nghĩa bài toán | Giá trị
+    | Loại bài toán | Phân loại nhị phân
+    | Horizon | 5 phiên
+    | Ngưỡng UP | > 1,0%
+    | Phạm vi dữ liệu | Chỉ giá và khối lượng
+=== SLIDE 4 | bullets=6 pics=0 tables=1 notes_sent=4
+  TXT: Mục tiêu: phân loại UP/NOT_UP cho phiên t+5, kèm giao thức kiểm chứng
+  TXT: Chương 1.2 - Mục tiêu và phạm vi
+  TXT: Nguồn: config/settings.py, reports/pipeline_summary.json
+  BUL(8w): Pipeline từ OHLCV thô đến dataset học máy
+  BUL(8w): Nhãn theo đúng phiên thị trường thứ năm
+  BUL(9w): Chia dữ liệu theo thời gian, có purge nhãn
+  BUL(8w): Tuning ba model bằng CV chuỗi thời gian
+  BUL(8w): Chọn model trên VALIDATION, chấm TEST một lần
+  BUL(11w): Web Flask, chatbot nội bộ và bộ kiểm thử tự động
+  NOTES: Bài toán được phát biểu là phân loại nhị phân: giá đóng cửa tại đúng phiên thứ năm tăng hơn 1% thì nhãn UP, ngược lại NOT_UP. Mục tiêu không chỉ là mô hình mà còn là giao thức: purge, khóa TEST, so sánh baseline. Phạm vi giới hạn ở dữ liệu giá và khối lượng lịch sử, không dùng tin tức hay báo cáo tài chính. Kết quả phục vụ học tập, không phải khuyến nghị đầu tư.
+  TABLE 6x2
+    | Công cụ | Vai trò
+    | scikit-learn | Model, CV, metric
+    | pandas, numpy | Xử lý bảng dữ liệu
+    | Flask | Web dự báo, đánh giá
+    | matplotlib | Vẽ confusion matrix
+    | vnstock | Thu thập OHLCV
+=== SLIDE 5 | bullets=6 pics=0 tables=1 notes_sent=4
+  TXT: Cơ sở lý thuyết: ba họ mô hình bảng, đo bằng F1 cho lớp UP
+  TXT: Chương 2 - Cơ sở lý thuyết và công cụ
+  TXT: Nguồn: requirements.txt, services/model_tuning.py
+  BUL(8w): Logistic Regression: tuyến tính, làm mốc tham chiếu
+  BUL(5w): Random Forest: bagging, giảm variance
+  BUL(8w): Gradient Boosting: boosting tuần tự trên cây nông
+  BUL(10w): Chỉ báo kỹ thuật: SMA, RSI, volatility, vị thế giá
+  BUL(9w): Metric chính là F1_UP vì lớp UP thiểu số
+  BUL(6w): Baseline hằng số always-UP và always-NOT_UP
+  NOTES: Ba họ mô hình được chọn vì đây là dữ liệu bảng, không phải chuỗi thuần: một mô hình tuyến tính làm mốc và hai mô hình ensemble trên cây. Metric chính là F1 của lớp UP vì UP là lớp thiểu số, chỉ khoảng 37,6% dữ liệu. Nếu chỉ dùng accuracy thì mô hình luôn dự báo NOT_UP đã đạt hơn 76% trên TEST. Công cụ đều là thư viện Python phổ biến, khai báo trong requirements.txt.
+  IMG: image2.png embedded_bytes=62968
+=== SLIDE 6 | bullets=6 pics=1 tables=0 notes_sent=4
+  TXT: Từ 554.897 dòng thô còn 510.862 dòng có nhãn hợp lệ
+  TXT: Chương 3 - Làm sạch và lọc mã đủ điều kiện
+  TXT: Nguồn: reports/pipeline_summary.json (dataset_report, clean_report), scripts/fetch_hose_data.py
+  BUL(9w): Nguồn: OHLCV tải qua vnstock, lưu CSV chia sẻ
+  BUL(5w): Loại nến sai logic OHLC
+  BUL(7w): Bỏ mã dưới 250 phiên giao dịch
+  BUL(9w): Cần đủ 50 phiên lịch sử cho rolling feature
+  BUL(8w): Bỏ dòng thiếu giá tại phiên đích t+5
+  BUL(7w): Không dòng nào trùng mã và ngày
+  NOTES: Dữ liệu OHLCV được tải bằng scripts/fetch_hose_data.py qua thư viện vnstock, lưu thành một tệp CSV chia sẻ ngoài repo. Phễu dữ liệu cho thấy từng bước mất bao nhiêu dòng: 233 dòng bị loại vì nến sai logic OHLC, {cr['excluded_symbols']} mã bị loại vì dưới 250 phiên. Bước sinh feature mất thêm dòng vì rolling window dài nhất cần 50 phiên lịch sử. Cuối cùng còn 510.862 dòng có nhãn hợp lệ trên 396 mã.
+  IMG: image3.png embedded_bytes=50867
+=== SLIDE 7 | bullets=6 pics=1 tables=0 notes_sent=4
+  TXT: Nhãn t+5 tính trên lịch phiên chung, tỷ lệ UP chỉ 37,6%
+  TXT: Chương 3 - Định nghĩa nhãn chống rò rỉ
+  TXT: Nguồn: services/feature_engineering.py, reports/pipeline_summary.json
+  BUL(11w): Lịch phiên lấy từ toàn bộ dữ liệu đã làm sạch
+  BUL(8w): Phiên đích là phiên thị trường thứ năm
+  BUL(9w): Mã thiếu giá tại phiên đích thì bỏ dòng
+  BUL(8w): Không nhảy sang phiên kế tiếp để lấp
+  BUL(9w): label_end_date lưu lại để purge khi chia dữ liệu
+  BUL(9w): Lớp UP thiểu số nên chọn F1_UP làm metric
+  NOTES: Đây là điểm kỹ thuật quan trọng nhất của phần dữ liệu. Nhiều thử nghiệm lấy dòng thứ năm của riêng từng mã, nên hai mã có thể có nhãn ở hai phiên khác nhau. Ở đây phiên đích được tính trên lịch phiên chung của thị trường; mã nào không có giá đúng phiên đó thì bỏ dòng. Kết quả là 37,6% nhãn UP và 62,4% nhãn NOT_UP, tức lớp UP là lớp thiểu số.
+  TABLE 8x2
+    | Nhóm feature | Thành phần
+    | Return | return_1d, 3d, 5d, 10d, 20d, close_open_return
+    | Trung bình động | sma5, sma20, sma50, close_vs_sma20, sma20_vs_sma50
+    | Động lượng | rsi14
+    | Biến động | volatility_5d, volatility_20d, price_range
+    | Khối lượng | volume_change_1d, volume_ratio_20
+    | Vị thế giá | dist_high20, dist_low20
+    | Thời gian | month
+=== SLIDE 8 | bullets=2 pics=0 tables=1 notes_sent=4
+  TXT: 20 feature kỹ thuật, mỗi feature chỉ dùng dòng hiện tại và quá khứ
+  TXT: Chương 3 - Feature engineering
+  TXT: Nguồn: config/settings.py (FEATURE_COLUMNS), services/feature_engineering.py
+  BUL(9w): Rolling tính riêng theo từng mã, không trộn mã
+  BUL(8w): Bốn cột tương lai bị chặn khỏi feature
+  NOTES: Hai mươi feature chia thành bảy nhóm, tất cả tính từ giá và khối lượng theo ngày. Mọi phép rolling đều chạy riêng trong từng mã, không trộn dữ liệu giữa các mã. Bốn cột liên quan tương lai là future_close_5d, future_return_5d, target và label_end_date bị kiểm tra tự động để không lọt vào tập feature. Không có feature nào nhìn thấy giá sau ngày tham chiếu.
+  IMG: image4.png embedded_bytes=693645
+=== SLIDE 9 | bullets=5 pics=1 tables=0 notes_sent=4
+  TXT: Kiến trúc: pipeline offline tách khỏi tầng phục vụ dự báo
+  TXT: Chương 3.2.1 - Kiến trúc ứng dụng
+  TXT: Nguồn: docs/report_assets/architecture_overview.png, app.py
+  BUL(7w): config: đường dẫn, feature, mốc thời gian
+  BUL(8w): services: xử lý, tuning, đánh giá, dự báo
+  BUL(7w): scripts: chạy từng bước và pipeline chính
+  BUL(7w): models và reports: hiện vật công bố
+  BUL(8w): app.py: web dự báo, đánh giá, Tuning Lab
+  NOTES: Hệ thống tách hai phần: pipeline offline sinh hiện vật, và tầng phục vụ đọc lại hiện vật đó. Pipeline ghi ra final_model.pkl, model_metadata.json và các tệp báo cáo. Web Flask và CLI chỉ đọc hiện vật, không tự huấn luyện lại, nên kết quả trên web luôn khớp báo cáo. Tuning Lab là nơi thử siêu tham số và chốt cấu hình trước khi chạy pipeline chính thức.
+  TABLE 5x2
+    | Ràng buộc runtime | Giá trị
+    | LLM call mỗi lượt | 1
+    | Context JSON | Tối đa 16.000 ký tự
+    | History gửi kèm | 3 cặp hỏi đáp
+    | Memory | sessionStorage dùng chung
+  IMG: image5.png embedded_bytes=141105
+=== SLIDE 10 | bullets=6 pics=1 tables=1 notes_sent=5
+  TXT: Chatbot dùng structured context injection (SCI)
+  TXT: Chương 3 - Chức năng chatbot
+  TXT: Nguồn: services/chatbot_tools.py, services/chatbot_service.py, tests/test_chatbot*.py
+  BUL(8w): Server chọn context trước, LLM diễn giải sau
+  BUL(6w): Đúng một LLM call, không tools/tool_choice
+  BUL(8w): Chỉ đọc artifact đã publish, không train lại
+  BUL(7w): Mã ngoài symbol scope bị từ chối
+  BUL(9w): Grounding chặn số sai và tư vấn mua bán
+  BUL(9w): Không có API key thì trả 503, không bịa
+  NOTES: Chatbot dùng structured context injection: không vector database, không embedding, không provider tool-calling. Server khớp keyword để chọn nguồn dữ liệu, dựng context từ signal, metadata và report đã publish, rồi gọi LLM đúng một lần. Sources, warnings, release status và canonical state do server giữ riêng; grounding đối chiếu mã, trường và giá trị sau khi LLM trả lời. Hệ thống cho phép nhận định xu hướng phù hợp dữ liệu nhưng chặn khuyến nghị mua bán trực tiếp. Dock và trang chat dùng chung sessionStorage; provider lỗi trả mã lỗi rõ, không fallback local.
+  IMG: image6.png embedded_bytes=411210
+=== SLIDE 11 | bullets=5 pics=1 tables=0 notes_sent=5
+  TXT: Demo: chatbot trả lời có số liệu, từ chối câu ngoài phạm vi
+  TXT: Chương 3 - Ảnh chụp phiên làm việc thật
+  TXT: Nguồn: ảnh chụp 127.0.0.1:5000/chat, docs/slides/shoot_chat.py
+  BUL(10w): Câu 1: model và kết quả TEST, đọc từ metadata
+  BUL(10w): Câu 2: tín hiệu FPT, kèm Điểm UP và ngưỡng
+  BUL(11w): Câu 3: hỏi P/E và tin tức thì bị từ chối
+  BUL(9w): Mọi câu trả lời đều kèm cảnh báo baseline
+  BUL(8w): Chatbot nói rõ đây là dữ liệu offline
+  NOTES: Đây là ảnh chụp thật từ phiên làm việc với Flask đang chạy, không phải ảnh minh họa. Câu đầu tiên cho thấy chatbot trả đúng các số trên TEST, trùng khớp với bảng ở slide kết quả. Câu thứ hai trả về Điểm UP của FPT kèm ngưỡng quyết định, và nói rõ đây là dữ liệu offline chứ không phải giá hiện tại. Câu thứ ba hỏi về P/E và tin tức thì chatbot từ chối và gợi lại đúng phạm vi hỗ trợ, đó là cơ chế chặn bịa số liệu. Ba cảnh báo bên dưới luôn đi kèm: policy legacy, chưa vượt baseline và symbol scope chưa verified.
+  TABLE 4x4
+    | Tập | Số dòng | Từ ngày | Đến ngày
+    | TRAIN | 419.807 | 2019-10-23 | 2025-07-03
+    | VALIDATION | 67.047 | 2025-07-11 | 2026-04-03
+    | TEST | 20.350 | 2026-04-13 | 2026-07-13
+  IMG: image7.png embedded_bytes=75199
+=== SLIDE 12 | bullets=4 pics=1 tables=1 notes_sent=4
+  TXT: Chia theo thời gian, purge nhãn vắt biên và khóa TEST bằng fingerprint
+  TXT: Chương 3 - Giao thức thực nghiệm
+  TXT: Nguồn: reports/split_summary.csv, reports/pipeline_summary.json
+  BUL(6w): Purge 1.883 dòng ở biên TRAIN/VALIDATION
+  BUL(6w): Purge 1.775 dòng ở biên VALIDATION/TEST
+  BUL(11w): TEST chỉ được chấm một lần, sau khi đã chọn model
+  BUL(7w): Fingerprint nội dung chặn chấm lại TEST
+  NOTES: Ba tập được cắt theo mốc thời gian, không trộn ngẫu nhiên. Dòng nào có nhãn kết thúc vắt qua ranh giới thì bị purge, cụ thể 1.883 dòng ở biên TRAIN/VALIDATION và 1.775 dòng ở biên VALIDATION/TEST. Model được chọn trên VALIDATION, sau đó refit trên TRAIN cộng VALIDATION và chấm TEST đúng một lần. Fingerprint nội dung của snapshot dữ liệu được ghi vào registry để không thể chấm lại TEST nhiều lần rồi chọn kết quả đẹp nhất.
+  TABLE 4x4
+    | Model | CV F1_UP | Độ lệch chuẩn | Ngưỡng
+    | Logistic Regression | 0,4573 | 0,0420 | 0,49
+    | Random Forest | 0,4703 | 0,0250 | 0,49
+    | Gradient Boosting | 0,4714 | 0,0237 | 0,49
+  IMG: image8.png embedded_bytes=50481
+=== SLIDE 13 | bullets=4 pics=1 tables=1 notes_sent=4
+  TXT: Tuning bằng CV 4 fold theo ngày, purge 5 phiên, ngưỡng chọn từ OOF
+  TXT: Chương 3 - Thiết lập thực nghiệm
+  TXT: Nguồn: reports/tuning_results.csv, reports/cv_fold_results.csv, config/settings.py
+  BUL(9w): Fold cắt theo ngày thị trường, không theo dòng
+  BUL(9w): CV chỉ chấm giai đoạn từ 2021 trở đi
+  BUL(8w): Ngưỡng chọn từ xác suất out-of-fold trên TRAIN
+  BUL(10w): Ràng buộc precision và tỷ lệ UP tối đa 50%
+  NOTES: Kiểm định chéo cắt theo ngày thị trường: mọi dòng của cùng một phiên nằm cùng một fold. Giữa train và validation của mỗi fold bỏ 5 phiên và purge dòng có nhãn vắt biên. Ngưỡng quyết định 0,49 được chọn từ xác suất out-of-fold trên TRAIN, có ràng buộc precision không thấp hơn tỷ lệ UP thật và tỷ lệ dự báo UP không quá 50%. Ràng buộc này ngăn mô hình suy biến thành luôn dự báo UP để ăn điểm F1.
+  TABLE 4x2
+    | Model | Siêu tham số đã chốt
+    | Logistic Regression | C=2.68e-05, solver=liblinear
+    | Random Forest (final) | n_estimators=130, max_depth=8, min_samples_leaf=100, max_features=0.2
+    | Gradient Boosting | n_estimators=110, learning_rate=0.25, max_depth=2, subsample=0.6
+  IMG: image9.png embedded_bytes=110413
+=== SLIDE 14 | bullets=4 pics=1 tables=1 notes_sent=4
+  TXT: Siêu tham số chốt: cây nông, lá lớn để giảm overfit
+  TXT: Chương 3 - Cấu hình model và độ ổn định CV
+  TXT: Nguồn: reports/best_params.json, reports/cv_fold_results.csv, models/model_metadata.json
+  BUL(7w): Cây nông, lá tối thiểu 100 mẫu
+  BUL(4w): class_weight balanced_subsample cho RF
+  BUL(6w): random_state 42 nên tái lập được
+  BUL(8w): F1_UP dao động theo chế độ thị trường
+  NOTES: Siêu tham số được chốt thủ công tại Tuning Lab rồi khóa lại trong manual_config.json trước khi chạy pipeline. Hướng chung là giữ model đơn giản: cây nông, lá tối thiểu 100 mẫu, chỉ xét 20 phần trăm feature mỗi lần split. Random Forest dùng class_weight balanced_subsample vì lớp UP là lớp thiểu số, và random_state 42 để tái lập. Biểu đồ bên phải cho thấy F1_UP từng fold dao động từ khoảng 0,41 đến 0,51, tức chất lượng phụ thuộc chế độ thị trường từng giai đoạn.
+  TABLE 5x2
+    | Số lần thử (tuning_history.csv) | Số run
+    | Logistic Regression | 371
+    | Random Forest | 81
+    | Gradient Boosting | 50
+    | Tổng | 502
+=== SLIDE 15 | bullets=6 pics=0 tables=1 notes_sent=4
+  TXT: Tuning Lab ghi lại 350 lần thử cấu hình, chọn tay rồi khóa lại
+  TXT: Chương 3 - Quy trình thử siêu tham số
+  TXT: Nguồn: experiments/tuning_history.csv, experiments/manual_config.json, services/tuning_lab.py
+  BUL(9w): Trang /tuning: nhập tham số, chạy CV trên TRAIN
+  BUL(8w): Mỗi lần chạy ghi một dòng vào tuning_history.csv
+  BUL(7w): Chỉ TRAIN được dùng, không nhìn VALIDATION
+  BUL(6w): Cấu hình chốt lưu vào manual_config.json
+  BUL(9w): Pipeline từ chối chạy nếu thiếu cấu hình model
+  BUL(9w): Fingerprint dữ liệu chặn dùng lại kết quả cũ
+  NOTES: Siêu tham số không dò tự động bằng GridSearch mà thử tay qua trang Tuning Lab, vì em muốn kiểm soát từng cấu hình và hiểu ảnh hưởng của mỗi tham số. Mọi lần chạy đều được ghi vào tuning_history.csv, tổng cộng 350 run cho ba model, nên quá trình thử là truy vết được chứ không phải chọn ngẫu nhiên. Điểm quan trọng về giao thức: Tuning Lab chỉ chấm trên TRAIN bằng cross-validation, không hề nhìn VALIDATION hay TEST. Cấu hình cuối cùng được khóa vào manual_config.json và pipeline chính thức từ chối chạy nếu thiếu cấu hình hoặc sai fingerprint dữ liệu.
+  TABLE 5x5
+    | Model | F1_UP | Precision_UP | Recall_UP | Accuracy
+    | Logistic Regression | 0,4350 | 0,3881 | 0,4949 | 0,5736
+    | Random Forest | 0,4773 | 0,3952 | 0,6026 | 0,5622
+    | Gradient Boosting | 0,4734 | 0,4009 | 0,5778 | 0,5735
+    | Always UP (baseline) | 0,4982 | 0,3318 | 1,0000 | 0,3318
+  IMG: image10.png embedded_bytes=73431
+=== SLIDE 16 | bullets=4 pics=1 tables=1 notes_sent=4
+  TXT: Random Forest thắng trên VALIDATION với F1_UP 0,4773
+  TXT: Chương 3.3.2 - Chọn họ mô hình
+  TXT: Nguồn: reports/model_comparison.csv, models/model_metadata.json
+  BUL(8w): Tiêu chí 1: F1_UP cao nhất trên VALIDATION
+  BUL(9w): Tiêu chí 2: Recall_UP cao hơn khi bằng điểm
+  BUL(8w): Tiêu chí 3: chọn model đơn giản hơn
+  BUL(8w): Baseline always-UP vẫn cao hơn cả ba model
+  NOTES: Ba mô hình được chấm trên VALIDATION bằng ngưỡng đã chốt từ TRAIN. Random Forest đạt F1_UP 0,4773, cao hơn Gradient Boosting 0,4734 và Logistic Regression 0,4350, nên được chọn. Cần nói thẳng: baseline luôn dự báo UP đạt 0,4982 trên VALIDATION, vẫn cao hơn cả ba mô hình. Hệ thống ghi lại cảnh báo này trong metadata thay vì bỏ qua.
+  TABLE 4x5
+    | Trên TEST (20.350 dòng) | F1_UP | Precision_UP | Recall_UP | Accuracy
+    | Random Forest (final) | 0,3754 | 0,2890 | 0,5356 | 0,5766
+    | Always UP | 0,3839 | 0,2375 | 1,0000 | 0,2375
+    | Always NOT_UP | 0,0000 | 0,0000 | 0,0000 | 0,7625
+  IMG: image11.png embedded_bytes=61301
+=== SLIDE 17 | bullets=4 pics=1 tables=1 notes_sent=4
+  TXT: Trên TEST, F1_UP 0,3754 vẫn dưới baseline always-UP 0,3839
+  TXT: Chương 3.3.2 - Đánh giá TEST một lần
+  TXT: Nguồn: reports/final_model_evaluation.csv, models/model_metadata.json
+  BUL(6w): Mục tiêu vượt baseline: không đạt
+  BUL(6w): Hệ thống ghi baseline_passed = false
+  BUL(9w): Web hiển thị cảnh báo, không che kết quả
+  BUL(10w): Chỉ dùng cho học tập, không khuyến nghị đầu tư
+  NOTES: Đây là kết quả chính thức, chấm một lần trên 20.350 dòng TEST từ 13/04/2026 đến 13/07/2026. Random Forest đạt F1_UP 0,3754 và accuracy 0,5766, còn baseline luôn dự báo UP đạt F1_UP 0,3839. Nghĩa là mục tiêu vượt baseline không đạt, và hệ thống ghi baseline_passed bằng false kèm cảnh báo hiển thị trên web. Em chọn báo cáo trung thực con số này thay vì nới giao thức để có số đẹp hơn.
+  IMG: image12.png embedded_bytes=35515
+=== SLIDE 18 | bullets=5 pics=1 tables=0 notes_sent=4
+  TXT: Model bắt được 2.589 phiên UP nhưng báo động sai 6.371 lần
+  TXT: Chương 3.3.2 - Phân tích lỗi
+  TXT: Nguồn: reports/confusion_matrix.csv, reports/classification_report.csv
+  BUL(8w): Recall_UP 0,536: bắt được hơn nửa phiên tăng
+  BUL(8w): Precision_UP 0,289: cứ 10 tín hiệu, 3 đúng
+  BUL(7w): Ngưỡng 0,49 ưu tiên recall hơn precision
+  BUL(10w): Tỷ lệ UP trên TEST chỉ 23,8%, thấp hơn TRAIN
+  BUL(8w): Phân phối lớp lệch khiến precision giảm mạnh
+  NOTES: Ma trận nhầm lẫn cho thấy bản chất lỗi: mô hình dự báo UP khá thoáng nên bắt được 2.589 trong 4.834 phiên tăng thật, đạt recall 0,536. Nhưng đi kèm 6.371 tín hiệu UP sai, nên precision chỉ 0,289. Một lý do là tỷ lệ UP trên TEST chỉ 23,8%, thấp hơn mức 37,6% của toàn bộ dữ liệu, nên ngưỡng chốt từ TRAIN trở nên quá thoáng. Đây chính là hạn chế về hiệu chỉnh ngưỡng theo chế độ thị trường.
+  IMG: image13.png embedded_bytes=71081
+=== SLIDE 19 | bullets=5 pics=1 tables=0 notes_sent=4
+  TXT: Biến động 20 phiên là feature quan trọng nhất, chiếm 19,7%
+  TXT: Chương 3.3.2 - Diễn giải mô hình
+  TXT: Nguồn: reports/feature_importance.csv
+  BUL(8w): Biến động lấn át tín hiệu xu hướng
+  BUL(7w): month có importance cao, cần soi kỹ
+  BUL(7w): Return dài hạn hơn return 1 phiên
+  BUL(7w): SMA thô gần như không đóng góp
+  BUL(9w): Đúng kỳ vọng: giá ngày khó dự báo hướng
+  NOTES: Random Forest xếp volatility_20d cao nhất với 19,7%, rồi tới month và volatility_5d. Mô hình dựa vào mức biến động nhiều hơn là hướng đi của giá, phù hợp với việc F1_UP thấp. Feature month đứng thứ hai là điểm cần thận trọng: nó có thể chỉ phản ánh chế độ thị trường trong giai đoạn huấn luyện. Các trung bình động thô như sma5, sma20, sma50 gần như không đóng góp vì đã có các tỷ lệ so sánh tương đối.
+  TABLE 7x2
+    | Trang | Chức năng
+    | /predict | Dự báo UP/NOT_UP một đến hai mã
+    | /compare | So sánh Điểm UP hai mã
+    | /screener | Xếp hạng Điểm UP toàn sàn
+    | /evaluation | CV, VALIDATION, TEST và baseline
+    | /tuning | Tuning Lab, chốt cấu hình, chạy pipeline
+    | /chat | Chatbot dữ liệu nội bộ
+=== SLIDE 20 | bullets=5 pics=0 tables=1 notes_sent=5
+  TXT: Sản phẩm: sáu trang web đọc lại đúng artifact đã publish
+  TXT: Chương 3 - Chức năng hệ thống
+  TXT: Nguồn: app.py (route), templates/, services/prediction_service.py
+  BUL(8w): Web và CLI dùng chung một model artifact
+  BUL(8w): Trang dự báo chỉ đọc, không train lại
+  BUL(9w): Kết quả trên web khớp số trong báo cáo
+  BUL(7w): Trang đánh giá tách CV, VALIDATION, TEST
+  BUL(8w): Cảnh báo baseline hiện ngay trên giao diện
+  NOTES: Sản phẩm giao nộp gồm sáu trang chức năng, tất cả đọc lại cùng một model artifact do pipeline publish. Các trang dự báo, so sánh, xếp hạng và đánh giá chỉ đọc hiện vật, không train lại, nên số trên web luôn khớp báo cáo. Riêng trang Tuning Lab có nút chạy pipeline chính thức, nhưng bị chặn bởi ba điều kiện: đủ cấu hình ba model, đúng fingerprint dữ liệu và snapshot chưa từng được đánh giá. Trang đánh giá cố tình tách ba khối: cross-validation trên TRAIN, chọn model trên VALIDATION và đánh giá TEST một lần, để không trộn lẫn ba loại số này. Cảnh báo chưa vượt baseline được hiển thị trực tiếp trên giao diện thay vì chỉ nằm trong metadata.
+  TABLE 7x2
+    | Nhóm kiểm thử | Tệp
+    | Giao thức dữ liệu và nhãn | tests/test_data_protocol.py
+    | CV chuỗi thời gian | tests/test_recent_cv.py
+    | Chọn model và giao thức TEST | tests/test_model_selection.py
+    | Luồng dự báo | tests/test_prediction_flow.py
+    | Tuning Lab và lịch sử tuning | tests/test_tuning_lab.py, test_tuning_history.py
+    | Web UI và chatbot | tests/test_ui_shell.py, test_chatbot*.py
+=== SLIDE 21 | bullets=2 pics=0 tables=1 notes_sent=4
+  TXT: Bộ kiểm thử phủ giao thức dữ liệu, model, chatbot và UI
+  TXT: Chương 3.3.1 - Kế hoạch kiểm thử
+  TXT: Nguồn: tests/, reports/pipeline_summary.json
+  BUL(9w): Cổng kiểm tra trong pipeline chặn rò rỉ biên
+  BUL(9w): Chưa có kiểm thử hiệu năng và chấp nhận
+  NOTES: Bộ kiểm thử trong thư mục tests được mở rộng cùng code nên slide không khóa cứng tổng số. Quan trọng nhất là nhóm kiểm thử giao thức: có test khẳng định nhãn dùng đúng phiên thị trường thứ năm, và test chặn cột tương lai lọt vào feature. Ngoài kiểm thử tự động, pipeline còn có cổng kiểm tra chạy trong lúc thực thi để chặn rò rỉ ranh giới và sai lệch mô hình được chọn. Phần chưa làm là kiểm thử hiệu năng và kiểm thử chấp nhận có người dùng thật.
+=== SLIDE 22 | bullets=6 pics=0 tables=0 notes_sent=4
+  TXT: Hạn chế lớn nhất: chất lượng dự báo chưa vượt baseline
+  TXT: Chương 4.3 - Hạn chế
+  TXT: Nguồn: báo cáo mục 4.3, reports/final_model_evaluation.csv
+  BUL(7w): TEST F1_UP thấp hơn baseline luôn UP
+  BUL(8w): Chỉ dùng giá và khối lượng theo ngày
+  BUL(9w): Ngưỡng cố định, chưa hiệu chỉnh theo thị trường
+  BUL(8w): Suy luận trên dữ liệu tĩnh, không realtime
+  BUL(7w): Web chưa có xác thực người dùng
+  BUL(8w): Chưa kiểm thử hiệu năng và chấp nhận
+  NOTES: Hạn chế quan trọng nhất là chất lượng dự báo chưa vượt baseline trên TEST, nên hệ thống chỉ dùng cho học tập và nghiên cứu. Nguyên nhân chính là tập feature chỉ khai thác giá và khối lượng theo ngày, chưa có dữ liệu cơ bản hay dòng tiền khối ngoại. Ngưỡng quyết định được chọn một lần từ OOF trên TRAIN và giữ cố định, chưa hiệu chỉnh lại theo chế độ thị trường. Về phần mềm, web chưa có xác thực người dùng và chưa có kiểm thử hiệu năng.
+=== SLIDE 23 | bullets=6 pics=0 tables=0 notes_sent=4
+  TXT: Hướng phát triển: mở rộng feature và hiệu chỉnh xác suất
+  TXT: Chương 4.4 - Hướng phát triển
+  TXT: Nguồn: báo cáo mục 4.4
+  BUL(7w): Thêm VN-Index, sức mạnh ngành, khối ngoại
+  BUL(7w): Thử XGBoost, LightGBM, LSTM cùng giao thức
+  BUL(7w): Hiệu chỉnh xác suất Platt hoặc isotonic
+  BUL(9w): Đánh giá theo lợi nhuận và mức sụt giảm
+  BUL(7w): Tự động walk-forward định kỳ mỗi tháng
+  BUL(9w): Thêm xác thực, khóa liên tiến trình, ghi vết
+  NOTES: Hướng ưu tiên là mở rộng feature sang dữ liệu thị trường và ngành, vì đây là điểm nghẽn rõ nhất của mô hình hiện tại. Sau đó mới thử các họ mô hình mạnh hơn như XGBoost hay LSTM, nhưng giữ nguyên giao thức chống rò rỉ hiện có. Thay vì chọn một ngưỡng cố định, bước tiếp theo là hiệu chỉnh xác suất rồi chọn ngưỡng theo mục tiêu sử dụng. Cuối cùng là đánh giá theo hướng đầu tư có chi phí giao dịch, thay vì chỉ dựa vào độ đo phân loại.
+  TABLE 6x2
+    | Mục tiêu | Kết quả
+    | Pipeline dữ liệu và feature | Đạt - 510.862 dòng, 20 feature
+    | Nhãn không rò rỉ theo phiên chung | Đạt - có test kiểm chứng
+    | So sánh ba model theo giao thức | Đạt - 3 model, CV 4 fold
+    | Công bố hiện vật và web | Đạt - final_model.pkl, web Flask + CLI
+    | Vượt baseline always-UP trên TEST | Không đạt - 0,3754 so 0,3839
+=== SLIDE 24 | bullets=2 pics=0 tables=1 notes_sent=4
+  TXT: Bốn mục tiêu kỹ thuật đạt, mục tiêu vượt baseline không đạt
+  TXT: Chương 4.1 - Kết luận
+  TXT: Nguồn: báo cáo mục 4.1, models/model_metadata.json
+  BUL(11w): Giá trị chính: giao thức chống rò rỉ, tái lập được
+  BUL(11w): Xin cảm ơn - kính mời hội đồng đặt câu hỏi
+  NOTES: Tổng kết: bốn mục tiêu về kỹ thuật và sản phẩm đã đạt, mục tiêu về chất lượng dự báo không đạt. Em báo cáo công khai điều đó vì nó có ý nghĩa phương pháp: khi loại bỏ ba nguồn rò rỉ, năng lực dự báo thực tế của feature kỹ thuật thuần trên dữ liệu ngày là rất hạn chế. Đóng góp chính của niên luận là một giao thức thực nghiệm có kỷ luật và tái lập được, cùng hệ thống web cho phép kiểm chứng lại kết quả. Em xin hết và sẵn sàng nhận câu hỏi từ hội đồng.
+FONTS=['Arial']
+IMAGE_REFS=['architecture_overview.png', 'chatbot_demo.png', 'chatbot_flow.png', 'confusion_matrix_test.png', 'cv_f1_up.png', 'cv_fold_spread.png', 'data_funnel.png', 'feature_importance_top8.png', 'label_balance.png', 'logo_ctu.png', 'split_rows.png', 'test_vs_baseline.png', 'validation_f1_up.png']
+
+=== PROBLEMS ===
+total_problems=0

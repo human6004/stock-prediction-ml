@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Hướng 1 — Pipeline Data → Tuning → Train → Final Model",
+    "subtitle": "HOSE: fetch incremental → gộp atomic → clean/feature/label → rolling split + guard fingerprint → tuning (đọc manual_config từ Tuning Lab, fit 1 lần) → chọn trên VALIDATION → refit + đánh giá TEST 1 lần → publish artifact",
+    "output": "huong1-pipeline.html",
+    "viewBox": [1140, 720]
+  },
+  "stages": [
+    { "label": "Nguồn dữ liệu" },
+    { "label": "Tiền xử lý" },
+    { "label": "Tách & Khóa" },
+    { "label": "Tuning & Chọn" },
+    { "label": "Train & Phát hành" }
+  ],
+  "nodes": [
+    { "id": "fetch", "type": "cloud", "label": "Fetch HOSE", "sublabel": "vnstock KBS", "stage": 0, "row": 0, "tag": "incremental/mã" },
+    { "id": "rawmerge", "type": "database", "label": "Gộp raw", "sublabel": "hose_stock.csv", "stage": 0, "row": 2, "tag": "atomic dedupe" },
+    { "id": "clean", "type": "backend", "label": "Làm sạch", "sublabel": "clean_data", "stage": 1, "row": 0, "tag": "≥250 phiên" },
+    { "id": "feature", "type": "backend", "label": "Đặc trưng", "sublabel": "build_features", "stage": 1, "row": 2, "tag": "20 feature" },
+    { "id": "label", "type": "database", "label": "Gán nhãn", "sublabel": "create_labels", "stage": 1, "row": 4, "tag": "t+5 · +1%" },
+    { "id": "split", "type": "backend", "label": "Rolling split", "sublabel": "walk-forward", "stage": 2, "row": 0, "tag": "purge biên" },
+    { "id": "fingerprint", "type": "security", "label": "Fingerprint", "sublabel": "2 scope hash", "stage": 2, "row": 2, "tag": "guard TEST" },
+    { "id": "cvconfig", "type": "security", "label": "Cấu hình CV", "sublabel": "manual_config v4", "stage": 2, "row": 4, "tag": "từ Tuning Lab" },
+    { "id": "tune", "type": "backend", "label": "Tune 3 model", "sublabel": "fit 1 lần TRAIN", "stage": 3, "row": 0, "tag": "LR·RF·GB" },
+    { "id": "valeval", "type": "backend", "label": "Chấm VAL", "sublabel": "+ 2 baseline", "stage": 3, "row": 2, "tag": "F1·Recall UP" },
+    { "id": "select", "type": "backend", "label": "Chọn model", "sublabel": "select_final", "stage": 3, "row": 4, "tag": "theo VAL" },
+    { "id": "refit", "type": "backend", "label": "Refit + TEST", "sublabel": "TRAIN+VAL", "stage": 4, "row": 0, "tag": "đánh giá 1 lần" },
+    { "id": "finalmodel", "type": "database", "label": "Final model", "sublabel": "final_model.pkl", "stage": 4, "row": 2, "tag": "atomic + meta" },
+    { "id": "reports", "type": "database", "label": "Reports", "sublabel": "reports/ + registry", "stage": 4, "row": 4, "tag": "traceable" }
+  ],
+  "flows": [
+    { "from": "fetch", "to": "rawmerge", "label": "OHLCV/mã", "classification": "append phiên mới", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [156, 262] },
+    { "from": "rawmerge", "to": "clean", "label": "raw gộp", "classification": "merge + dedupe", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[270, 385], [270, 157]], "labelAt": [270, 271] },
+    { "from": "clean", "to": "feature", "label": "giá sạch", "classification": "eligible train", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [430, 271] },
+    { "from": "feature", "to": "label", "label": "chỉ báo KT", "classification": "features", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [430, 499] },
+    { "from": "label", "to": "split", "label": "ml_dataset", "classification": "TRAIN·VAL·TEST", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[450, 613], [450, 157]], "labelAt": [462, 235] },
+    { "from": "split", "to": "fingerprint", "label": "snapshot", "classification": "content hash", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [608, 250] },
+    { "from": "split", "to": "tune", "label": "TRAIN", "classification": "fit", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [637, 140] },
+    { "from": "split", "to": "valeval", "label": "VALIDATION", "classification": "chấm điểm", "variant": "default", "fromSide": "bottom", "toSide": "left", "via": [[530, 300], [662, 300], [662, 385]], "labelAt": [598, 288] },
+    { "from": "cvconfig", "to": "tune", "label": "params CV", "classification": "khớp fingerprint", "variant": "security", "fromSide": "right", "toSide": "left", "via": [[640, 613], [640, 157]], "labelAt": [652, 455] },
+    { "from": "tune", "to": "valeval", "label": "3 model fit", "classification": "LR·RF·GB", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [822, 258] },
+    { "from": "valeval", "to": "select", "label": "bảng so sánh", "classification": "comparison", "variant": "default", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [852, 499] },
+    { "from": "select", "to": "refit", "label": "model thắng", "classification": "F1→Recall→đơn giản", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[862, 613], [862, 157]], "labelAt": [874, 455] },
+    { "from": "refit", "to": "finalmodel", "label": "artifact", "classification": "atomic release", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [905, 288] },
+    { "from": "refit", "to": "reports", "label": "metrics TEST", "classification": "published", "variant": "default", "fromSide": "right", "toSide": "right", "via": [[1064, 157], [1064, 613]], "labelAt": [1078, 385] }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Đường dữ liệu chính",
+      "items": [
+        "Fetch incremental từng mã (vnstock KBS) → gộp atomic vào hose_stock.csv, dedupe theo (mã, ngày)",
+        "clean_data loại mã <250 phiên → eligible/excluded_symbols; build_features 20 chỉ báo KT; create_labels UP nếu close tăng >1% sau đúng 5 phiên (lịch chợ chung)",
+        "Rolling walk-forward: VALIDATION 274 ngày, TEST 94 ngày, purge nhãn xuyên biên chống leakage"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Cơ chế khóa (guard)",
+      "items": [
+        "Fingerprint 2 scope (train / experiment); has_evaluated_snapshot chặn re-run cùng snapshot để câu TEST",
+        "manual_config.json (schema v4) phải khớp policy_id + content fingerprint mới cho tune; CV thật chạy ở Tuning Lab, pipeline chỉ fit lại 1 lần trên full TRAIN",
+        "pipeline.lock create-exclusive theo PID (OpenProcess check stale); evaluation_registry: started → evaluated → published / release_failed"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Tuning & chọn model",
+      "items": [
+        "Tune LR·RF·GB (params từ manual_config) + chấm VALIDATION cùng 2 baseline (Always UP / NOT_UP)",
+        "Chọn theo F1_UP → Recall_UP → độ đơn giản, bắt buộc vượt baseline; ràng buộc tỉ lệ dự đoán UP ≤ 50%",
+        "Refit TRAIN+VAL → đánh giá TEST đúng một lần rồi mới publish"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Sản phẩm đầu ra",
+      "items": [
+        "models/: final_model.pkl + model_metadata.json (atomic_model_release, rollback nếu lỗi)",
+        "reports/: confusion_matrix (.csv/.png), feature_importance, tuning_results, model_comparison, final_model_evaluation, classification_report, pipeline_summary.json",
+        "experiments/: evaluation_registry.json, manual_config.json (đọc), tuning_history.csv (Tuning Lab ghi); data/processed/: hose_stock_clean.csv phục vụ, ml_dataset.csv nguồn fingerprint"
+      ]
+    }
+  ]
+}

@@ -109,6 +109,30 @@ def _to_float(value) -> float | None:
 # Dataset fingerprint
 # --------------------------------------------------------------------------- #
 def _fingerprint_scope_frame(frame: pd.DataFrame, scope: str) -> pd.DataFrame:
+    """Lọc dataset xuống đúng phần dữ liệu mà một loại fingerprint được phép thấy.
+
+    Có HAI scope vì hai fingerprint trả lời hai câu hỏi khác nhau:
+
+    - ``"train"`` → dùng cho ``compute_dataset_fingerprint`` (tuning fingerprint).
+      Chỉ giữ row có ``label_end_date <= train_end``. Mọi cấu hình CV chọn ở
+      Tuning Lab chỉ được gắn với PHẦN TRAIN; nếu scope này bao gồm cả
+      VALIDATION/TEST thì mỗi lần dữ liệu mới về là fingerprint đổi và toàn bộ
+      lịch sử tuning bị vô hiệu dù phần train không hề khác.
+    - ``"experiment"`` → dùng cho ``compute_experiment_fingerprint``, định danh
+      snapshot đầy đủ TRAIN+VALIDATION+TEST. Đây là khóa của registry "TEST đã
+      mở chưa", nên bắt buộc phải đổi khi bất kỳ split nào đổi.
+
+    Ba mask cố ý dùng cột KHÁC nhau, không phải nhầm lẫn:
+    - TRAIN lọc theo ``label_end_date`` (nhãn phải kết thúc trước mốc train, đây
+      chính là purge chống rò rỉ).
+    - VALIDATION lọc theo ``trading_date > train_end`` (row phải nằm sau train) VÀ
+      ``label_end_date <= validation_end`` (nhãn không được vượt sang TEST).
+    - TEST chỉ lọc theo ``trading_date`` trong khoảng, vì nhãn của TEST là phần
+      tương lai xa nhất, không có split nào phía sau để rò rỉ vào.
+
+    Frame thiếu ``trading_date``/``label_end_date`` được trả về nguyên vẹn: đó là
+    dataset legacy chưa có cột thời gian, hash toàn bộ vẫn tất định.
+    """
     if scope not in {"train", "experiment"}:
         raise ValueError(f"Unsupported fingerprint scope: {scope}")
     if not {"trading_date", "label_end_date"}.issubset(frame.columns):
@@ -155,6 +179,11 @@ def compute_dataset_fingerprint(
 
     source_rows = int(len(ml_dataset_df))
     scoped_df = _fingerprint_scope_frame(ml_dataset_df, scope)
+    # "Order-independent": hash phải chỉ phụ thuộc NỘI DUNG, không phụ thuộc thứ
+    # tự cột hay thứ tự dòng. Nếu không, chỉ cần sort lại dataset là fingerprint
+    # đổi → manual_config bị coi là "thuộc dataset khác" và Tuning Lab bắt tuning
+    # lại dù dữ liệu y nguyên. Cách chuẩn hóa gồm 3 bước bên dưới.
+    # (1) Cột: sắp theo tên rồi reindex, nên thứ tự cột trong CSV không ảnh hưởng.
     columns = sorted(str(column) for column in scoped_df.columns)
     normalized = scoped_df.loc[:, columns].copy()
     schema = json.dumps(
@@ -162,7 +191,12 @@ def compute_dataset_fingerprint(
         ensure_ascii=True,
         separators=(",", ":"),
     )
+    # (2) Schema (tên cột + dtype) vào hash trước dữ liệu: đổi dtype của một cột
+    # là thay đổi thật, phải làm fingerprint khác dù giá trị in ra giống nhau.
     content_hasher = hashlib.sha256(schema.encode("utf-8"))
+    # (3) Dòng: băm từng dòng thành uint64 rồi SORT mảng hash. Sort hash (không
+    # sort DataFrame) vừa rẻ vừa bỏ hoàn toàn thứ tự dòng khỏi kết quả.
+    # index=False để index của pandas không lọt vào hash.
     row_hashes = pd.util.hash_pandas_object(
         normalized, index=False, categorize=True
     ).to_numpy(copy=True)
@@ -223,6 +257,20 @@ def canonical_params_json(params: dict) -> str:
 
 
 def _rewrite_history_with_current_schema() -> None:
+    """Nâng cấp header CSV lịch sử sang ``HISTORY_COLUMNS`` hiện hành.
+
+    Vì sao cần: ``append_history`` ghi bằng ``csv.DictWriter`` với fieldnames là
+    schema MỚI. Nếu file cũ có ít cột hơn (bản trước thêm cột mới), append thẳng
+    sẽ tạo file lệch cột — dòng cũ đọc theo header cũ, dòng mới theo header mới,
+    và ``read_history`` sẽ đọc sai giá trị sang cột khác.
+
+    Cách xử lý: đọc toàn bộ dòng cũ, ghi lại đủ ``HISTORY_COLUMNS`` (thiếu thì
+    để rỗng), gán ``policy_id="legacy"`` cho dòng chưa có để chúng bị loại ở
+    ``_eligible_policy_rows`` thay vì lẫn vào ranking. Ghi ra ``.tmp`` rồi
+    ``replace`` — atomic, không mất lịch sử nếu crash giữa đường.
+
+    Không làm gì khi header đã đúng (đường nhanh, gọi trước mỗi lần append).
+    """
     path = Path(TUNING_HISTORY_PATH)
     if not path.exists():
         return
@@ -259,6 +307,24 @@ def append_history(record: dict) -> None:
 
 
 def read_history() -> list[dict]:
+    """Đọc `tuning_history.csv` và dựng lại kiểu dữ liệu đã bị CSV làm phẳng.
+
+    CSV chỉ lưu text, nên mọi thứ đọc ra đều là str. Hàm này đảo ngược quá trình
+    ghi ở `append_history_row`:
+    - Cột số → `_to_float` (trả None nếu rỗng/không parse được, KHÔNG phải 0.0;
+      phân biệt "chưa đo" với "đo được 0" là bắt buộc cho `_ranking_key`).
+    - `threshold_constraint_passed` → bool qua whitelist {"1","true","yes"};
+      bất kỳ giá trị lạ nào đều thành False (fail an toàn: coi như chưa đạt
+      ràng buộc threshold).
+    - Các cột `*_json` → list/dict qua `json.loads`, bọc try/except để một dòng
+      hỏng không làm sập cả bảng lịch sử: fallback về `{}`/`[]` rồi vẫn giữ dòng
+      đó. Lịch sử tuning là dữ liệu chỉ-đọc dùng cho UI, mất một dòng còn tệ hơn
+      hiển thị dòng thiếu chi tiết fold.
+    - `policy_id` rỗng → "legacy": row cũ ghi trước khi có policy id, phải đánh
+      dấu để `_eligible_policy_rows` loại chúng ra khỏi việc chọn config.
+    - `is_best` luôn khởi tạo False; cờ này do `get_best_runs`/tầng UI gán sau
+      chứ không nằm trong file.
+    """
     if not Path(TUNING_HISTORY_PATH).exists():
         return []
     rows: list[dict] = []
@@ -308,6 +374,15 @@ def read_history() -> list[dict]:
 
 
 def _ranking_key(row: dict) -> tuple:
+    """Khóa sắp xếp để chọn run tốt nhất — dùng với ``min()``, không phải ``max()``.
+
+    Mọi thành phần đều theo hướng "nhỏ hơn = tốt hơn":
+    - ``-cv_f1_up_mean``: đảo dấu F1 nên F1 cao thành số nhỏ → thắng.
+    - ``cv_f1_up_std``: cùng F1 thì ưu tiên độ lệch giữa các fold nhỏ hơn (ổn định
+      hơn). ``None`` → ``inf`` để run thiếu std luôn xếp sau.
+    - ``run_id``: tie-break từ vựng, chỉ để kết quả tất định (cùng input → cùng
+      run thắng), không mang ý nghĩa chất lượng.
+    """
     std = row.get("cv_f1_up_std")
     return (
         -float(row["cv_f1_up_mean"]),
@@ -319,13 +394,39 @@ def _ranking_key(row: dict) -> tuple:
 def _eligible_policy_rows(
     rows: list[dict], fingerprint_hash: str | None = None
 ) -> list[dict]:
+    """Lọc ra các run được phép đưa vào ranking / chọn làm config chính thức.
+
+    Đây là cửa chất lượng duy nhất của lịch sử tuning: mọi hàm chọn "best" đều
+    phải đi qua đây. Một run bị loại nếu vướng bất kỳ điều kiện nào sau đây:
+
+    1. Không ``status == "ok"``, hoặc thiếu/NaN/inf mean-std → số liệu không dùng được.
+    2. ``policy_id`` khác policy hiện hành → run của luật thí nghiệm cũ (đổi
+       feature set, đổi horizon, ...) không so sánh được với run mới.
+    3. ``dataset_fingerprint`` khác (khi caller truyền ``fingerprint_hash``) → run
+       của phiên bản dữ liệu khác; F1 giữa hai dataset khác nhau là hai thang đo.
+    4. Không có ``content_fingerprint`` → run cũ trước khi thêm trường này, không
+       chứng minh được đã chạy trên nội dung dữ liệu nào.
+    5. Threshold ngoài (0,1) hoặc cờ ``threshold_constraint_passed`` sai.
+    6. Vi phạm lại chính ràng buộc threshold khi kiểm tra bằng số đã lưu:
+       ``precision >= oof_up_rate`` và ``predicted_up_ratio <= max``. Tính lại ở
+       đây để một dòng CSV bị sửa tay hoặc ghi lỗi vẫn không lọt qua.
+       ``1e-12`` là biên sai số float, tránh loại oan khi hai số gần bằng nhau.
+    7. Số fold trong các mảng JSON không đúng ``CV_N_SPLITS`` → provenance không
+       đầy đủ; pipeline sau này cần đúng số fold để tái dựng CV (xem
+       ``model_tuning._cv_from_selected``).
+    """
     eligible = []
     for row in rows:
-        mean = row.get("cv_f1_up_mean")
-        std = row.get("cv_f1_up_std")
+        # _to_float thay vì float(): read_history() đã ép số cho mọi dòng đọc từ
+        # CSV, nhưng hàm này cũng nhận dict dựng trực tiếp (test, caller khác).
+        # Một giá trị chuỗi như "n/a" từng làm float() nổ ValueError giữa vòng lặp
+        # → cả trang /tuning 500 chỉ vì một dòng lịch sử bẩn. Giá trị không đọc
+        # được nay bị loại như thiếu số, đúng ý điều kiện 1 ở docstring.
+        mean = _to_float(row.get("cv_f1_up_mean"))
+        std = _to_float(row.get("cv_f1_up_std"))
         if row.get("status") != "ok" or mean is None or std is None:
             continue
-        if not math.isfinite(float(mean)) or not math.isfinite(float(std)) or float(std) < 0:
+        if not math.isfinite(mean) or not math.isfinite(std) or std < 0:
             continue
         if row.get("policy_id") != EXPERIMENT_POLICY_ID:
             continue
@@ -357,7 +458,15 @@ def _eligible_policy_rows(
 
 
 def mark_best(rows: list[dict]) -> list[dict]:
-    """Flag current-policy best per model/content; legacy rows stay excluded."""
+    """Gắn cờ ``is_best`` cho run tốt nhất của từng (model, dataset fingerprint).
+
+    Nhóm theo cả fingerprint chứ không chỉ theo model: mỗi phiên bản dữ liệu có
+    "nhà vô địch" riêng, nên bảng lịch sử vẫn thấy được best của các dataset cũ.
+    Run legacy / không đủ điều kiện không bao giờ được gắn cờ (bị
+    ``_eligible_policy_rows`` chặn trước).
+
+    Hàm sửa ``rows`` tại chỗ rồi trả lại chính list đó — template dùng luôn.
+    """
     for row in rows:
         row["is_best"] = False
     groups: dict[tuple[str, str], list[dict]] = {}
@@ -377,6 +486,19 @@ def get_best_runs(rows: list[dict], fingerprint_hash: str) -> dict[str, dict]:
 
 
 def get_tuning_progress(rows: list[dict], fingerprint_hash: str) -> dict:
+    """Tóm tắt "đã tune đủ chưa" cho từng model, dùng để mở/khoá nút chạy pipeline.
+
+    Chỉ đếm run hợp lệ với dataset hiện tại (`_eligible_policy_rows` lọc theo
+    `policy_id` + `dataset_fingerprint`), nên khi dữ liệu mới về thì fingerprint
+    đổi và tiến độ tự reset về 0 — đúng ý: tham số tune trên dataset cũ không
+    còn bảo đảm gì trên dataset mới.
+
+    `valid_config_count` đếm số CẤU HÌNH THAM SỐ KHÁC NHAU, không phải số run:
+    khoá dedupe là `canonical_params_json` (sắp key + chuẩn hoá số) nên chạy lại
+    cùng một bộ tham số 5 lần vẫn tính là 1. Ngược lại `ready` chỉ cần ≥1 config,
+    còn `complete` yêu cầu CẢ `REQUIRED_MODEL_KEYS` đều ready — pipeline so sánh
+    LR/RF/GB nên thiếu một model là không chạy được.
+    """
     eligible = _eligible_policy_rows(rows, fingerprint_hash)
     best = get_best_runs(eligible, fingerprint_hash)
     models = {}
@@ -413,6 +535,17 @@ def find_run(run_id: str) -> dict | None:
 # Manual config
 # --------------------------------------------------------------------------- #
 def _default_manual_config() -> dict:
+    """Khung cấu hình thủ công rỗng, đã chốt sẵn phần CV/threshold.
+
+    ``selected_models`` để rỗng là đúng: pipeline KHÔNG tự chọn tham số, phải do
+    người dùng chốt từng model ở Tuning Lab (xem ``is_config_complete``).
+
+    Các giá trị còn lại chụp lại từ ``config/settings.py`` NGAY LÚC tạo config, để
+    file config tự mô tả được điều kiện CV đã dùng. Nhờ vậy nếu sau này ai đổi
+    ``CV_N_SPLITS``/``CV_GAP_SESSIONS``/``CV_START_DATE`` trong settings thì
+    ``is_config_complete`` sẽ so ra khác và coi config cũ là hết hạn, thay vì âm
+    thầm train với điều kiện khác lúc tuning.
+    """
     return {
         "schema_version": MANUAL_CONFIG_SCHEMA_VERSION,
         "policy_id": EXPERIMENT_POLICY_ID,
@@ -538,6 +671,28 @@ def is_config_complete(
     current_fingerprint_hash: str,
     rows: list[dict] | None = None,
 ) -> bool:
+    """Kiểm tra manual config còn dùng được không — mọi cửa ải fail đều trả False.
+
+    Đây là hàng rào chống chạy pipeline bằng cấu hình đã "mục". Thứ tự kiểm tra
+    từ rẻ đến đắt (đọc file lịch sử để cuối cùng):
+    1. `policy_id` + `schema_version`: config ghi bởi phiên bản luật khác thì các
+       field bên trong có thể mang nghĩa khác → loại thẳng, không cố migrate.
+    2. `cv_settings` phải khớp ĐÚNG hằng số CV đang hiệu lực (n_splits, gap,
+       start_date). Nếu code đổi gap mà config vẫn giữ gap cũ thì điểm CV đã
+       chọn tham số không còn so sánh được.
+    3. `dataset_fingerprint` phải khớp dataset hiện tại — tham số tune trên dữ
+       liệu khác coi như vô giá trị.
+    4. Với TỪNG model bắt buộc: phải là `selection_method == "manual"` (config
+       này là lựa chọn tay, không nhận run auto), `run_id` phải còn tồn tại
+       trong lịch sử đủ điều kiện, và tham số phải khớp qua
+       `canonical_params_json` (so chuỗi chuẩn hoá thay vì so dict thô, tránh
+       khác biệt do thứ tự key hay 5 vs 5.0), cuối cùng `decision_threshold`
+       phải trùng với threshold của chính run đó sau khi cùng đi qua `_to_float`
+       (so số, không so text — "0.50" và "0.5" là một).
+
+    Bất kỳ lệch nào → False, UI buộc người dùng chọn lại. Không tự sửa config vì
+    đoán sai ở đây nghĩa là chạy pipeline bằng tham số không ai kiểm chứng.
+    """
     if not config:
         return False
     if config.get("policy_id") != EXPERIMENT_POLICY_ID:
@@ -598,6 +753,21 @@ def read_evaluation_registry(*, path: Path = EVALUATION_REGISTRY_PATH) -> dict:
 def write_evaluation_entry(
     entry: dict, *, path: Path = EVALUATION_REGISTRY_PATH
 ) -> dict:
+    """Upsert một entry vào registry đánh giá, khoá theo `experiment_fingerprint`.
+
+    Fingerprint là khoá chính và bắt buộc: không có nó thì không thể biết snapshot
+    nào đã mở TEST, nên raise thay vì ghi một entry vô danh.
+
+    Merge kiểu 3 lớp `{**cũ, **mới, ...}`: giữ field cũ chưa được entry mới nhắc
+    tới (ví dụ `started_at` từ lượt trước vẫn còn khi lượt này chỉ báo
+    `evaluated`), rồi ép lại `policy_id` và `updated_at`. Nhờ vậy `run_pipeline`
+    gọi nhiều lần theo vòng đời started → evaluated → published mà không mất dữ
+    liệu các bước trước.
+
+    Ghi qua `.tmp` rồi `replace` để registry không bao giờ ở trạng thái JSON dở
+    dang — nếu tiến trình chết giữa lúc ghi, file cũ còn nguyên. `indent=2` +
+    `ensure_ascii=False` cho người đọc trực tiếp bằng mắt.
+    """
     fingerprint = str(entry.get("experiment_fingerprint") or "").strip()
     if not fingerprint:
         raise ValueError("Evaluation entry requires experiment_fingerprint.")
@@ -634,6 +804,24 @@ def has_evaluated_snapshot(
 # Pipeline lock (concurrency guard)
 # --------------------------------------------------------------------------- #
 def _pid_alive(pid) -> bool:
+    """Kiểm tra tiến trình còn sống, để phát hiện lock mồ côi (stale lock).
+
+    Cần thiết vì tiến trình pipeline có thể bị kill/crash mà không xoá được
+    ``pipeline.lock``; nếu chỉ nhìn sự tồn tại của file thì lock đó chặn mọi lần
+    chạy sau vĩnh viễn. Có PID còn sống hay không mới là câu trả lời thật.
+
+    Hai nhánh nền tảng:
+    - Windows: ``os.kill(pid, 0)`` không có nghĩa "thăm dò" như POSIX, nên phải
+      gọi Win32 API. ``OpenProcess`` thất bại → coi là đã chết;
+      ``GetExitCodeProcess`` trả ``STILL_ACTIVE`` (259) mới là đang chạy.
+      Dùng ``PROCESS_QUERY_LIMITED_INFORMATION`` (quyền tối thiểu) để mở được
+      handle cả khi tiến trình chạy ở mức quyền khác.
+    - POSIX: ``os.kill(pid, 0)`` chỉ kiểm tra sự tồn tại, không gửi signal thật.
+
+    ``except Exception: return False`` cố ý bao rộng: PID rác, kiểu dữ liệu sai,
+    hay bị từ chối quyền đều dẫn tới kết luận an toàn hơn là "không còn chạy" —
+    tức cho phép thu hồi lock, thay vì để hệ thống tự khoá chết.
+    """
     if not pid:
         return False
     try:

@@ -1,0 +1,883 @@
+/* page-signal.css — CSS riêng cho 2 trang tín hiệu: "Dự báo một mã" (index.html)
+   và "So sánh hai mã" (compare.html).
+
+   Nạp qua {% block page_styles %} nên đứng SAU app.css + ui-kit.css: chỉ thêm
+   lớp mới, không restyle lớp sẵn có của app.css.
+
+   Kỷ luật màu giữ nguyên "editorial data-terminal": chỉ dùng var(--token), màu
+   chỉ dành cho ngữ nghĩa tài chính (UP / NOT_UP / ngưỡng). Cần alpha thì
+   rgb(var(--up-rgb) / a) — không hardcode hex/rgb. */
+
+/* ============================================================
+   1. Thanh Điểm UP + vạch ngưỡng quyết định (index.html)
+   ============================================================ */
+
+/* Bọc ngoài .prob-bar để vạch ngưỡng vẽ được cao hơn thanh (bản thân .prob-bar
+   có overflow:hidden nên marker đặt bên trong sẽ bị cắt). */
+.prob-meter {
+    position: relative;
+    align-self: center;
+    padding-bottom: 17px;
+}
+
+/* Vạch dọc tại đúng vị trí ngưỡng; --at do Jinja đặt inline. */
+.prob-threshold {
+    position: absolute;
+    top: -5px;
+    bottom: 15px;
+    left: var(--at, 50%);
+    width: 0;
+    border-left: 2px dashed var(--warn);
+    pointer-events: none;
+}
+
+.prob-threshold-label {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--warn-ink);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* Ngưỡng nằm sát biên phải: neo label vào mép để không tràn khỏi thẻ. */
+.prob-threshold[data-edge="right"] .prob-threshold-label {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+.prob-threshold[data-edge="left"] .prob-threshold-label {
+    left: 0;
+    transform: none;
+}
+
+/* Dòng chú giải dưới thanh: nói bằng CHỮ khoảng cách còn lại tới ngưỡng, để
+   thông tin không chỉ nằm ở vạch và ở màu. */
+.threshold-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.threshold-legend strong {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.threshold-gap {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--paper-2);
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.threshold-gap-over {
+    border-color: var(--up-line);
+    background: var(--up-bg);
+    color: var(--up-ink);
+}
+
+.threshold-gap-under {
+    border-color: var(--warn-line);
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+}
+
+/* ============================================================
+   2. Hàng chip chỉ số bối cảnh (index.html)
+   ============================================================ */
+.signal-metrics {
+    margin: 0 0 var(--space-4);
+    gap: var(--space-2);
+}
+
+.signal-metrics .metric-chip {
+    min-width: 148px;
+    padding: var(--space-2) var(--space-3);
+}
+
+.metric-chip-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+/* .tip-mark của ui-kit cao 15px, kéo baseline của nhãn uppercase lên lệch → nắn lại. */
+.metric-chip-head .tip-mark {
+    vertical-align: 0;
+    margin-left: 2px;
+}
+
+.signal-metrics .delta {
+    padding: 1px 0 0;
+    background: none;
+    font-size: 14px;
+}
+
+/* .delta không nền: mũi tên phải to hơn chút để vẫn đọc được dấu. */
+.signal-metrics .delta::before {
+    font-size: 10px;
+}
+
+.signal-metrics .metric-chip-note {
+    color: var(--faint);
+    font-size: 10.5px;
+    line-height: 1.35;
+}
+
+/* ============================================================
+   3. Biểu đồ: chú giải dạng chữ (canvas rỗng với screen reader)
+   ============================================================ */
+.chart-fallback {
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+/* ============================================================
+   4. compare.html — nút chọn nhanh theo CẶP mã
+   ============================================================ */
+.pair-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.pair-pick-vs {
+    color: var(--faint);
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ============================================================
+   5. compare.html — thanh Điểm UP thu nhỏ trong bảng
+   ============================================================ */
+.mini-prob {
+    position: relative;
+    height: 7px;
+    max-width: 190px;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper-2);
+}
+
+.mini-prob-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--ink-soft);
+    transition: width var(--dur-slow) var(--ease);
+}
+
+.mini-prob[data-state="up"] .mini-prob-fill {
+    background: var(--up);
+}
+
+.mini-prob[data-state="not_up"] .mini-prob-fill {
+    background: var(--warn);
+}
+
+/* Vạch ngưỡng: vẽ tràn ra ngoài 1px trên/dưới để nhìn rõ trên thanh 7px. */
+.mini-prob-mark {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    left: var(--at, 50%);
+    width: 0;
+    border-left: 2px dashed var(--warn);
+}
+
+/* ============================================================
+   6. compare.html — đánh dấu "bên nào thuận lợi hơn"
+   Cố ý KHÔNG dùng màu UP: volatility thấp / thanh khoản cao không phải tín
+   hiệu tăng giá, tô xanh sẽ đọc thành khuyến nghị. Dùng mực trung tính + dấu ✓.
+   ============================================================ */
+.compare-better {
+    background: var(--paper-2);
+    box-shadow: inset 3px 0 0 var(--line-strong);
+    font-weight: 700;
+}
+
+.compare-better::before {
+    content: "\2713 ";
+    color: var(--ink-soft);
+    font-size: 11px;
+}
+
+.compare-note {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    white-space: normal;
+}
+
+.compare-note::before {
+    content: "";
+}
+
+/* ============================================================
+   7. compare.html — thẻ biểu đồ so sánh
+   ============================================================ */
+.compare-chart-card {
+    margin-top: var(--space-5);
+}
+
+.compare-chart-card .chart-wrap {
+    height: 340px;
+}
+
+.compare-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0 0 var(--space-3);
+}
+
+.compare-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.compare-chart-swatch {
+    flex: none;
+    width: 18px;
+    height: 0;
+    border-top-width: 3px;
+    border-top-style: solid;
+    border-radius: 2px;
+}
+
+.compare-chart-swatch[data-series="a"] {
+    border-top-color: var(--up);
+}
+
+.compare-chart-swatch[data-series="b"] {
+    border-top-color: var(--ink-soft);
+    border-top-style: dashed;
+}
+
+@media (max-width: 640px) {
+    .prob-meter {
+        padding-bottom: 15px;
+    }
+
+    .signal-metrics .metric-chip {
+        min-width: 0;
+        flex: 1 1 132px;
+    }
+
+    .compare-chart-card .chart-wrap {
+        height: 280px;
+    }
+}
+
+/* Vạch ngưỡng là DỮ LIỆU, không phải trang trí → giữ. Chỉ tắt phần nội suy. */
+@media (prefers-reduced-motion: reduce) {
+    .mini-prob-fill {
+        transition: none;
+    }
+}
+
+/* ============================================================
+   6. Mật độ gọn cho 2 trang tín hiệu
+   ============================================================
+   app.css chia khoảng trắng cho trang nhiều nội dung: .app-body 40/56/72,
+   .app-topbar 26+22, h1 34px, .workspace 34px. Trang Dự báo ở trạng thái rỗng
+   chỉ có 1 form + 1 khối gợi ý, nên chỗ trắng đó đẩy nội dung xuống quá sâu.
+
+   Khối này siết padding/margin/font-size, gác sau class page-* của <body> nên
+   chỉ Dự báo + So sánh đổi; 5 trang còn lại giữ nguyên. Không đụng màu, token,
+   thứ tự DOM hay vùng bấm nhỏ hơn 40px.
+
+   LƯU Ý cascade: các rule dưới đây đặc hiệu hơn @media (max-width: 760px) của
+   app.css (0,2,0 vs 0,1,0) nên thắng cả trên màn nhỏ → phải tự lặp lại phần
+   mobile ở cuối mục này, nếu không điện thoại sẽ ăn padding ngang 40px. */
+
+.page-prediction .app-body,
+.page-compare .app-body {
+    padding: 22px 40px 40px;
+}
+
+.page-prediction .app-topbar,
+.page-compare .app-topbar {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+}
+
+.page-prediction h1,
+.page-compare h1 {
+    font-size: 25px;
+}
+
+.page-prediction .subtitle,
+.page-compare .subtitle {
+    margin-top: 6px;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.page-prediction .dataset-status,
+.page-compare .dataset-status {
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 7px 12px;
+    font-size: 12px;
+}
+
+/* ---- Tab chế độ ---- */
+.page-prediction .signal-tabs,
+.page-compare .signal-tabs {
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.page-prediction .signal-tab,
+.page-compare .signal-tab {
+    padding: 9px 14px;
+}
+
+.page-prediction .signal-tab-title,
+.page-compare .signal-tab-title {
+    font-size: 13.5px;
+}
+
+.page-prediction .signal-tab-sub,
+.page-compare .signal-tab-sub {
+    font-size: 11.5px;
+}
+
+/* ---- Thẻ chính + form ---- */
+/* .workspace chỉ có ở index.html; compare.html đặt form trực tiếp trên trang
+   (.compare-form / .compare-results) nên siết margin của chính hai khối đó. */
+.page-prediction .workspace {
+    padding: 20px 22px;
+}
+
+.page-compare .compare-form-grid {
+    gap: 12px;
+}
+
+.page-compare .compare-actions {
+    margin-top: 12px;
+}
+
+.page-compare .compare-results {
+    margin-top: 16px;
+}
+
+.signal-workspace .predict-panel label {
+    margin-bottom: 7px;
+    font-size: 13px;
+}
+
+/* 40px vẫn thoả vùng bấm tối thiểu (WCAG 2.5.8 cần 24px) — không hạ thêm. */
+.page-prediction .predict-panel input,
+.page-compare .compare-form input {
+    min-height: 40px;
+    padding: 9px 12px;
+    font-size: 14px;
+}
+
+.page-prediction .predict-panel button,
+.page-compare .compare-form button {
+    min-height: 40px;
+    padding: 9px 20px;
+}
+
+.signal-workspace .model-chip {
+    margin-top: 12px;
+    padding: 5px 11px;
+    font-size: 12.5px;
+}
+
+/* ---- Trạng thái rỗng ---- */
+.page-prediction .empty-state,
+.page-compare .empty-state {
+    margin-top: 14px;
+    padding-top: 14px;
+}
+
+.page-prediction .quick-picks,
+.page-compare .quick-picks {
+    margin-top: 12px;
+}
+
+/* index.html đã bỏ câu hướng dẫn nên .quick-picks là con đầu của .empty-state
+   → không cần margin đẩy xuống. compare.html vẫn còn câu hint ở trên. */
+.empty-state > .quick-picks:first-child {
+    margin-top: 0;
+}
+
+/* ---- "Cách đọc kết quả" giờ là <details>: đóng lại còn một dòng ---- */
+.reading-guide {
+    margin-top: 14px;
+    padding: 10px 14px;
+}
+
+/* Mũi tên tự vẽ, cùng cách làm với .history-detail-summary của tuning-lab.css:
+   marker mặc định mỗi trình duyệt một kiểu và không ăn màu token. */
+.reading-guide > summary.section-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    cursor: pointer;
+    color: var(--ink-soft);
+    list-style: none;
+}
+
+.reading-guide > summary.section-label::-webkit-details-marker {
+    display: none;
+}
+
+.reading-guide > summary.section-label::marker {
+    content: "";
+}
+
+.reading-guide > summary.section-label::before {
+    content: "\25B8"; /* tam giác phải */
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.reading-guide[open] > summary.section-label::before {
+    content: "\25BE"; /* tam giác xuống */
+}
+
+.reading-guide > summary.section-label:hover {
+    color: var(--ink);
+}
+
+.reading-guide[open] > summary.section-label {
+    margin-bottom: 12px;
+}
+
+.reading-guide > summary.section-label:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+    border-radius: var(--r-sm);
+}
+
+.reading-guide-list {
+    gap: 12px 16px;
+}
+
+.reading-guide-list li {
+    gap: 9px;
+}
+
+.reading-guide-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+}
+
+.page-prediction .disclaimer,
+.page-compare .disclaimer {
+    margin-top: 14px;
+}
+
+/* ---- Trạng thái có kết quả (chỉ index.html dùng .signal-workspace) ---- */
+.signal-workspace .alert {
+    margin-top: 12px;
+}
+
+.signal-workspace .forecast-title {
+    margin: 16px 0 12px;
+    padding-top: 14px;
+    font-size: 17px;
+}
+
+.signal-workspace .verdict-card,
+.signal-workspace .context-card {
+    margin-bottom: 12px;
+    padding: 16px 18px;
+}
+
+.signal-workspace .verdict-title {
+    font-size: 22px;
+}
+
+.signal-workspace .verdict-hint {
+    margin: 6px 0 14px;
+    font-size: 13.5px;
+}
+
+.signal-workspace .context-list > div {
+    grid-template-columns: 200px 1fr;
+    padding: 8px 0;
+}
+
+.signal-workspace .chart-card {
+    margin: 12px 0;
+    padding: 16px 18px;
+}
+
+.signal-workspace .chart-heading {
+    margin-bottom: 12px;
+}
+
+.signal-workspace .chart-wrap {
+    height: 290px;
+}
+
+.signal-workspace .summary-line {
+    margin: 14px 0 0;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Bắt buộc: xem ghi chú cascade ở đầu mục 6. */
+@media (max-width: 760px) {
+    .page-prediction .app-body,
+    .page-compare .app-body {
+        padding: 16px 16px 36px;
+    }
+
+    .page-prediction h1,
+    .page-compare h1 {
+        font-size: 22px;
+    }
+
+    .page-prediction .workspace {
+        padding: 16px;
+    }
+
+    .signal-workspace .chart-wrap {
+        height: 250px;
+    }
+}
+
+/* ============================================================
+   7. Bố cục 2 cột trang Dự báo + cột phải bổ trợ
+   ============================================================
+   Vấn đề: ở trạng thái chưa nhập mã, trang chỉ có 1 form + 1 hàng chip nên
+   phần dưới viewport trống hẳn một khoảng lớn. Thay vì nhồi thêm nội dung vào
+   cột đơn, chia 2 cột: trái giữ đúng vai trò cũ (form → kết quả), phải chứa
+   thứ đọc được ngay khi chưa có input.
+
+   Quy ước: .signal-layout.is-focused là trạng thái ĐÃ có kết quả — Jinja không
+   render cột phải nữa, layout tự thu về 1 cột để kết quả chiếm hết bề ngang. */
+.signal-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    gap: var(--space-4);
+}
+
+.signal-layout.is-focused {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* KHÔNG sticky cột trái: sau khi dồn Offline + "Cách đọc kết quả" xuống dưới
+   form, cột trái cao xấp xỉ cột phải nên sticky vô nghĩa, mà lại làm khối trái
+   nhảy khi cuộn. */
+
+/* Hai khối bổ trợ nằm dưới form ở cột trái — chính là phần bù chiều cao để 2 cột
+   không lệch ~800px như khi mọi thứ dồn hết sang phải. */
+.signal-primer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+/* Chú thích nguồn số: cùng ngữ điệu "im lặng" với .aside-card-quiet bên phải. */
+.primer-note {
+    padding: 14px 16px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+}
+
+.signal-primer > .reading-guide {
+    margin-top: 0;
+}
+
+.signal-aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.aside-card {
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+}
+
+/* Khối giải thích chế độ Offline: là chú thích, không phải số liệu → hạ nền về
+   giấy để không tranh thứ bậc với 2 thẻ số ở trên. */
+.aside-card-quiet {
+    background: var(--paper);
+}
+
+.aside-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.aside-head .section-label {
+    margin: 0;
+}
+
+.aside-link {
+    flex: none;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.aside-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+}
+
+.aside-link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+}
+
+.aside-note {
+    margin: var(--space-2) 0 0;
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.55;
+}
+
+/* ---- Tín hiệu nổi bật ---- */
+.top-signal-list {
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Grid 3 cột + hàng 2 cho thanh nền: mã | điểm | giá, thanh trải hết bề ngang.
+   Cột điểm/giá cố định px để số thẳng hàng dọc giữa các dòng. */
+.top-signal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 52px 62px;
+    align-items: center;
+    gap: 2px var(--space-2);
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.top-signal:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.top-signal-symbol {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+}
+
+.top-signal-symbol:hover {
+    color: var(--up-ink);
+    text-decoration: underline;
+}
+
+.top-signal-symbol:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+}
+
+.top-signal-score {
+    color: var(--up-ink);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.top-signal-price {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* Thanh trải cả 3 cột của hàng dưới — hình ảnh của con số đã in, aria-hidden. */
+.top-signal-bar {
+    grid-column: 1 / -1;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--line-soft);
+    overflow: hidden;
+}
+
+.top-signal-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--up);
+}
+
+/* ---- Sức khỏe model ---- */
+.aside-model-name {
+    margin: var(--space-2) 0 0;
+    color: var(--ink);
+    font-size: 14.5px;
+    font-weight: 700;
+}
+
+.aside-facts {
+    margin: var(--space-3) 0 0;
+}
+
+.aside-facts > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.aside-facts > div:last-child {
+    border-bottom: 0;
+}
+
+.aside-facts dt {
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.aside-facts dd {
+    margin: 0;
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.aside-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.aside-metrics li {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 9px;
+    background: var(--paper);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+}
+
+.aside-metric-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--faint);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.aside-metric-value {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cảnh báo baseline: viền trái + nền warn, đọc được không chỉ nhờ màu vì câu
+   chữ tự nói rõ "chưa vượt baseline". */
+.aside-warn {
+    margin: var(--space-3) 0 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--warn);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+/* Guide ở cuối kết quả: tách khỏi câu tóm tắt phía trên. */
+.result-panel .reading-guide {
+    margin-top: var(--space-4);
+}
+
+/* Dưới 1100px cột 320px làm cột trái hẹp quá (form + biểu đồ đều cần bề ngang)
+   → xếp dọc, cột phải rơi xuống dưới cột trái. */
+@media (max-width: 1100px) {
+    .signal-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Lặp lại ở cuối file vì .aside-metrics ở trên đặc hiệu hơn @media 760px của
+   app.css — cùng lý do đã ghi ở đầu section 6. */
+@media (max-width: 760px) {
+    .aside-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+    }
+}

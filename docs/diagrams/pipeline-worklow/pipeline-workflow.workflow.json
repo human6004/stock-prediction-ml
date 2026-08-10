@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HOSE Stock Prediction ML — Pipeline Workflow",
+    "subtitle": "Đọc từ trên xuống theo phase; trong mỗi phase đọc từ trái sang phải",
+    "output": "pipeline-workflow.html",
+    "viewBox": [720, 1040]
+  },
+  "lanes": [
+    { "id": "refresh", "label": "Refresh data · tuần tự, lỗi dừng chuỗi" },
+    { "id": "dataset", "label": "Feature dataset · build trước, split sau" },
+    { "id": "tuning", "label": "Tuning Lab · purged CV chỉ trên TRAIN" },
+    { "id": "prepare", "label": "Official pipeline · re-derive và provenance guards" },
+    { "id": "evaluate", "label": "Train và đánh giá · VALIDATION trước TEST" },
+    { "id": "publish", "label": "Publish · registry, reports, atomic release" },
+    { "id": "inference", "label": "Inference · dùng artifact đã publish" }
+  ],
+  "nodes": [
+    { "id": "fetch", "lane": "refresh", "col": 0, "type": "cloud", "label": "Fetch HOSE", "sublabel": "fetch_hose_data", "tag": "vnstock KBS" },
+    { "id": "raw", "lane": "refresh", "col": 2, "type": "database", "label": "Raw CSV", "sublabel": "atomic merge + dedupe", "width": 110 },
+    { "id": "clean", "lane": "refresh", "col": 4, "type": "backend", "label": "Làm sạch", "sublabel": "preprocess_data", "tag": "eligible symbols", "width": 120 },
+
+    { "id": "features", "lane": "dataset", "col": 0, "type": "backend", "label": "Đặc trưng", "sublabel": "build_features · 20 feature", "width": 92 },
+    { "id": "labels", "lane": "dataset", "col": 2, "type": "database", "label": "Gán nhãn", "sublabel": "t+5 · tăng >1%", "width": 100 },
+    { "id": "split", "lane": "dataset", "col": 4, "type": "backend", "label": "Rolling split", "sublabel": "TRAIN · VAL · TEST", "tag": "purge label_end", "width": 120 },
+
+    { "id": "tuning_ui", "lane": "tuning", "col": 0, "type": "frontend", "label": "Web /tuning", "sublabel": "user nhập params" },
+    { "id": "cv", "lane": "tuning", "col": 2, "type": "backend", "label": "Purged CV", "sublabel": "4 fold · gap 5", "width": 100 },
+    { "id": "history", "lane": "tuning", "col": 3, "type": "database", "label": "Tuning history", "sublabel": "run ok / error", "width": 92 },
+    { "id": "manual", "lane": "tuning", "col": 5, "type": "security", "label": "Manual config", "sublabel": "user chọn 3 model", "tag": "schema v4", "width": 105 },
+
+    { "id": "rederive", "lane": "prepare", "col": 0, "type": "backend", "label": "Re-derive", "sublabel": "raw → clean → split" },
+    { "id": "fingerprint", "lane": "prepare", "col": 2, "type": "security", "label": "Fingerprint", "sublabel": "scope + content hash", "width": 100 },
+    { "id": "gate", "lane": "prepare", "col": 3, "type": "security", "label": "Config gate", "sublabel": "snapshot + policy", "width": 100 },
+    { "id": "write_check", "lane": "prepare", "col": 5, "type": "security", "label": "Ghi + recheck", "sublabel": "write disk, hash lại", "tag": "raise nếu lệch", "width": 105 },
+
+    { "id": "fit", "lane": "evaluate", "col": 0, "type": "backend", "label": "Fit 3 model", "sublabel": "full TRAIN" },
+    { "id": "validation", "lane": "evaluate", "col": 2, "type": "backend", "label": "Chọn trên VAL", "sublabel": "F1_UP → Recall_UP", "width": 100 },
+    { "id": "started", "lane": "evaluate", "col": 3, "type": "security", "label": "Registry", "sublabel": "started · trước TEST", "width": 100 },
+    { "id": "test", "lane": "evaluate", "col": 5, "type": "messagebus", "label": "Refit + TEST", "sublabel": "TRAIN+VAL → TEST", "tag": "baseline chỉ warning", "width": 105 },
+
+    { "id": "evaluated", "lane": "publish", "col": 0, "type": "database", "label": "Registry eval", "sublabel": "ghi TEST metrics" },
+    { "id": "reports", "lane": "publish", "col": 2, "type": "database", "label": "Reports", "sublabel": "CSV · PNG · summary", "width": 100 },
+    { "id": "release", "lane": "publish", "col": 3, "type": "backend", "label": "Atomic release", "sublabel": "model + metadata", "width": 100 },
+    { "id": "artifact", "lane": "publish", "col": 5, "type": "database", "label": "Final artifact", "sublabel": "published", "tag": "final_model.pkl", "width": 105 },
+
+    { "id": "load", "lane": "inference", "col": 0, "type": "database", "label": "Load inputs", "sublabel": "clean CSV + artifact" },
+    { "id": "rebuild", "lane": "inference", "col": 2, "type": "backend", "label": "Rebuild feature", "sublabel": "latest symbol", "width": 100 },
+    { "id": "threshold", "lane": "inference", "col": 3, "type": "security", "label": "Apply threshold", "sublabel": "OOF decision", "width": 100 },
+    { "id": "output", "lane": "inference", "col": 5, "type": "frontend", "label": "UI / CLI output", "sublabel": "UP / NOT_UP + score", "width": 105 }
+  ],
+  "edges": [
+    { "from": "fetch", "to": "raw", "variant": "emphasis" },
+    { "from": "raw", "to": "clean", "variant": "emphasis" },
+    { "from": "clean", "to": "features", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[500, 166], [88, 166]] },
+
+    { "from": "features", "to": "labels", "variant": "default" },
+    { "from": "labels", "to": "split", "variant": "emphasis" },
+    { "from": "split", "to": "tuning_ui", "label": "TRAIN", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[500, 290], [88, 290]], "labelAt": [294, 285] },
+
+    { "from": "tuning_ui", "to": "cv", "variant": "emphasis" },
+    { "from": "cv", "to": "history", "variant": "dashed" },
+    { "from": "history", "to": "manual", "label": "user chọn", "variant": "security", "labelAt": [525, 357] },
+    { "from": "manual", "to": "rederive", "variant": "security", "fromSide": "bottom", "toSide": "top", "via": [[625, 414], [88, 414]] },
+
+    { "from": "rederive", "to": "fingerprint", "variant": "emphasis" },
+    { "from": "fingerprint", "to": "gate", "variant": "security" },
+    { "from": "gate", "to": "write_check", "label": "pass", "variant": "security", "labelAt": [525, 481] },
+    { "from": "write_check", "to": "fit", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[625, 538], [88, 538]] },
+
+    { "from": "fit", "to": "validation", "variant": "emphasis" },
+    { "from": "validation", "to": "started", "variant": "security" },
+    { "from": "started", "to": "test", "variant": "emphasis" },
+    { "from": "test", "to": "evaluated", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "via": [[625, 662], [88, 662]] },
+
+    { "from": "evaluated", "to": "reports", "variant": "default" },
+    { "from": "reports", "to": "release", "variant": "emphasis" },
+    { "from": "release", "to": "artifact", "variant": "emphasis" },
+    { "from": "artifact", "to": "load", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[625, 786], [88, 786]] },
+
+    { "from": "load", "to": "rebuild", "variant": "emphasis" },
+    { "from": "rebuild", "to": "threshold", "variant": "security" },
+    { "from": "threshold", "to": "output", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Cách đọc",
+      "items": [
+        "Đọc các phase từ trên xuống",
+        "Trong mỗi phase đọc node từ trái sang phải",
+        "Mũi tên vòng qua khoảng trống đưa luồng xuống phase kế tiếp"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guard quan trọng",
+      "items": [
+        "CV chỉ dùng TRAIN; manual_config do user chọn",
+        "VALIDATION fail thì dừng trước TEST",
+        "Registry started ghi trước TEST; evaluated ghi sau TEST"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Đầu ra",
+      "items": [
+        "Final model + metadata được release cùng nhau",
+        "Reports ghi metrics và provenance",
+        "Inference dùng clean data mới nhất + artifact đã publish"
+      ]
+    }
+  ]
+}

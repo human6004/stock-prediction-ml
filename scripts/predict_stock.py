@@ -15,11 +15,15 @@ from services.prediction_service import predict_symbol  # noqa: E402
 
 
 def main() -> None:
+    """Đọc ``--symbol`` từ dòng lệnh rồi in kết quả dự báo của model đã publish."""
     parser = argparse.ArgumentParser(description="Predict HOSE stock direction")
     parser.add_argument("--symbol", required=True, help="Stock symbol, e.g. FPT")
     args = parser.parse_args()
 
     # predict_symbol dùng dữ liệu offline mới nhất, tính feature rồi áp threshold.
+    # Lưu ý: nhãn UP/NOT_UP KHÔNG lấy từ ngưỡng 0.5 mặc định mà từ
+    # decision_threshold đã chọn bằng OOF lúc train (lưu trong artifact), nên
+    # probability_up có thể < 50% mà vẫn ra UP, hoặc ngược lại.
     result = predict_symbol(args.symbol)
 
     print(f"Symbol: {result['symbol']}")

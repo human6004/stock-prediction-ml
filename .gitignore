@@ -22,6 +22,15 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Scratch dir cho các lần build/QA báo cáo tạm, không phải nguồn
+.tmpwork/
+
+# Ảnh chụp màn hình rời khi kiểm tra UI
+/scr_*.png
+
+# Bản sao thủ công do Explorer sinh ra
+* - Copy.*
+
 # Generated pipeline outputs kept out unless intentionally committed
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
@@ -34,3 +43,13 @@ experiments/archive/releases/*/stock_prediction.db
 experiments/pipeline.lock
 experiments/last_pipeline_run.log
 experiments/*_auto_*.log
+
+# Flask dev server logs (runtime noise)
+flask-run.log
+flask-run.err.log
+
+# One-off manual backups
+*.bak_*
+
+# Test-run redirect output (runtime noise)
+pytest_*.txt

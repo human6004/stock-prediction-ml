@@ -20,6 +20,33 @@ from services.pipeline_utils import atomic_dataframe_to_csv
 
 
 def compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
+    """RSI(14) theo trung bình cộng đơn giản (SMA) của lãi/lỗ trong cửa sổ.
+
+    Ý nghĩa: RSI đo "trong 14 phiên gần nhất, phần tăng chiếm bao nhiêu so với
+    tổng biến động". Gần 100 = gần như phiên nào cũng tăng (quá mua), gần 0 =
+    phiên nào cũng giảm (quá bán), 50 = cân bằng.
+
+    Cách chạy từng dòng:
+      delta         : chênh lệch giá đóng cửa so với phiên trước (có thể âm).
+      gain          : chỉ giữ phần tăng (âm -> 0) rồi lấy trung bình 14 phiên.
+      loss          : chỉ giữ phần giảm, đổi dấu thành số dương (nên `-delta`
+                      với `clip(upper=0)`), rồi trung bình 14 phiên.
+      rs            : tỷ lệ lãi/lỗ. `loss.replace(0, np.nan)` để tránh chia 0 —
+                      pandas sẽ cho NaN thay vì inf, ta xử lý NaN ngay dưới.
+      rsi           : công thức chuẩn 100 - 100/(1+RS).
+
+    Hai dòng `.where` cuối là xử lý hai ca biên mà công thức gốc không định
+    nghĩa được (nếu bỏ đi thì cột rsi14 sẽ có NaN và các dòng đó bị dropna,
+    tức là mất dữ liệu một cách âm thầm):
+      1) loss == 0 (14 phiên không có phiên nào giảm) -> RS = vô cực -> RSI = 100.
+      2) gain == 0 VÀ loss == 0 (giá đứng yên suốt 14 phiên, hay gặp ở mã thanh
+         khoản kém) -> không có xu hướng nào -> quy ước RSI = 50 (trung tính).
+    Thứ tự quan trọng: ca (2) là tập con của ca (1) nên phải gán sau, nếu không
+    giá đứng yên sẽ bị gán 100 (quá mua) — sai hoàn toàn về ý nghĩa.
+
+    `min_periods=window` bắt buộc đủ 14 phiên mới ra số; 13 phiên đầu của mỗi
+    symbol là NaN và sẽ bị loại ở `build_features`.
+    """
     delta = close.diff()
     gain = delta.clip(lower=0).rolling(window=window, min_periods=window).mean()
     loss = (-delta.clip(upper=0)).rolling(window=window, min_periods=window).mean()
@@ -31,7 +58,18 @@ def compute_rsi(close: pd.Series, window: int = 14) -> pd.Series:
 
 
 def build_features(clean_df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Tính 20 feature chỉ từ dòng hiện tại và quá khứ của từng symbol."""
+    """Tính 20 feature chỉ từ dòng hiện tại và quá khứ của từng symbol.
+
+    Vì sao phải `groupby("symbol")` rồi mới rolling: mọi phép `pct_change`,
+    `rolling`, `diff` đều đọc các dòng liền trước trong Series. Nếu chạy trên
+    cả bảng gộp thì dòng đầu của mã B sẽ lấy giá cuối của mã A làm "phiên
+    trước" — feature bị trộn giữa hai mã, một dạng rò rỉ dữ liệu. Tách nhóm
+    rồi `concat` lại đảm bảo mỗi cửa sổ chỉ nằm trong một mã.
+
+    Toàn bộ feature ở đây chỉ dùng dòng hiện tại và quá khứ (không có `shift(-n)`
+    hay `.max()` toàn cục), nên tại thời điểm dự báo phiên t ta thực sự có đủ
+    mọi giá trị này — không look-ahead.
+    """
     frames = []
     for _, group in clean_df.groupby("symbol", sort=False):
         g = group.sort_values("trading_date").copy()
@@ -105,11 +143,27 @@ def create_labels(
     if prices.duplicated(["symbol", "trading_date"]).any():
         raise ValueError("Clean data contains duplicate symbol/trading_date rows.")
 
+    # --- Bước 1: dựng "lịch thị trường chung" và ánh xạ phiên t -> phiên t+5 ---
+    # Không dùng `close.shift(-5)` theo từng mã, vì mã nghỉ giao dịch vài phiên
+    # sẽ khiến shift(-5) nhảy xa hơn 5 phiên thị trường thật (mỗi mã có mốc t+5
+    # khác nhau -> nhãn không so sánh được với nhau, và CV theo ngày sẽ sai).
+    # Thay vào đó: lấy tập ngày giao dịch của TOÀN sàn, sắp tăng dần, rồi
+    # shift(-horizon) trên chính danh sách ngày đó. Kết quả `future_by_date` là
+    # từ điển {ngày t: ngày t+5 của sàn}, dùng chung cho mọi mã.
     market_dates = pd.Series(sorted(prices["trading_date"].unique()))
     future_by_date = dict(zip(market_dates, market_dates.shift(-horizon)))
     labels = prices.rename(columns={"close": "close_at_label_start"})
+    # 5 phiên cuối dataset không có t+5 -> label_end_date = NaN (bị bỏ ở dropna).
     labels["label_end_date"] = labels["trading_date"].map(future_by_date)
 
+    # --- Bước 2: self-join lấy giá đóng cửa TẠI ĐÚNG phiên t+5 của chính mã đó ---
+    # Mẹo: đổi tên `trading_date` -> `label_end_date` để join chính bảng giá với
+    # bản thân nó theo (symbol, ngày-đích). `how="left"` nên nếu mã đó không có
+    # giao dịch đúng phiên t+5 thì future_close_5d = NaN, dòng bị loại ở dưới —
+    # cố tình KHÔNG lấy giá gần nhất thay thế, vì đó sẽ là nhãn sai kỳ hạn.
+    # `validate="many_to_one"` là chốt an toàn: bên phải phải duy nhất theo
+    # (symbol, ngày) — nếu raw còn trùng dòng, pandas raise ngay thay vì nhân
+    # đôi số dòng một cách âm thầm.
     future_prices = prices.rename(
         columns={"trading_date": "label_end_date", "close": "future_close_5d"}
     )
@@ -208,10 +262,21 @@ def protocol_time_split(
     validation_end = pd.Timestamp(validation_end_date)
     test_end = pd.Timestamp(test_end_date)
 
+    # --- Ba mask: điều kiện lọc dòng cho từng split ---
+    # Điểm cốt lõi: TRAIN lọc theo `label_end_date` (ngày nhãn KẾT THÚC), không
+    # theo `trading_date`. Lý do: một dòng ngày 28/06 có nhãn nhìn tới 05/07.
+    # Nếu chỉ cắt theo trading_date <= 30/06 thì model đã "biết" giá tới 05/07
+    # trong khi VALIDATION bắt đầu 01/07 -> rò rỉ tương lai. Ràng buộc
+    # `label_end_date <= train_end` loại đúng những dòng biên đó (gọi là purge).
     train_mask = label_end_dates <= train_end
+    # VALIDATION: feature phải nằm sau mốc TRAIN, và nhãn cũng phải đóng trước
+    # mốc VALIDATION (purge lần hai, cùng lý do như trên với TEST).
     validation_mask = (trading_dates > train_end) & (
         label_end_dates <= validation_end
     )
+    # TEST lọc theo trading_date thuần: đây là tập đánh giá cuối, ta muốn giữ
+    # đủ mọi phiên trong cửa sổ TEST, kể cả dòng có nhãn vượt ra sau test_end
+    # (không có split nào nằm sau TEST nên không thể rò rỉ sang đâu nữa).
     test_mask = (trading_dates > validation_end) & (trading_dates <= test_end)
 
     train = frame.loc[train_mask].copy()
@@ -223,12 +288,19 @@ def protocol_time_split(
             f"(train={len(train)}, validation={len(validation)}, test={len(test)})."
         )
 
+    # --- Đếm số dòng bị "purge" (hy sinh) ở mỗi vùng đệm, chỉ để báo cáo ---
+    # Dòng có trading_date còn trong vùng TRAIN nhưng bị train_mask loại,
+    # tức nhãn của nó lấn qua mốc TRAIN. Đây là "cái giá" của việc chống rò rỉ:
+    # khoảng 5 phiên cuối mỗi vùng bị bỏ đi, không rơi vào split nào cả.
     train_validation_purge = (~train_mask) & (trading_dates <= train_end)
+    # Tương tự ở biên VALIDATION -> TEST.
     validation_test_purge = (
         (trading_dates > train_end)
         & (trading_dates <= validation_end)
         & (label_end_dates > validation_end)
     )
+    # Dòng sau mốc TEST: không dùng để train/đánh giá, nhưng vẫn hữu ích cho
+    # suy luận thực tế (dự báo phiên mới nhất) nên chỉ đếm để biết còn bao nhiêu.
     post_test_rows = trading_dates > test_end
     report = {
         "split_method": "rolling_dates_with_label_purge",
@@ -258,6 +330,24 @@ def write_split_summary(
     test: pd.DataFrame,
     validation: pd.DataFrame | None = None,
 ) -> None:
+    """Xuất `split_summary.csv` — bằng chứng kiểm tra rò rỉ dữ liệu giữa các split.
+
+    Điểm quan trọng: mỗi split cố tình ghi cột ``label_end_date`` KHÁC nhau, không
+    phải sơ suất.
+    - TRAIN/VALIDATION ghi ``label_end_max``: mốc muộn nhất mà nhãn của split này
+      "nhìn thấy" tương lai.
+    - TEST ghi ``label_end_min``: mốc sớm nhất TEST cần biết.
+
+    Đặt cạnh nhau, người đọc so trực tiếp ``label_end_max`` của TRAIN với
+    ``date_min`` của TEST: nếu nhãn TRAIN kết thúc sau khi TEST bắt đầu thì đã rò
+    rỉ. Ghi cả hai cột cho mọi split sẽ khiến bảng rộng mà mất đúng phép so này.
+
+    Vì ``rows`` là list các dict khác key nhau, ``pd.DataFrame`` tự điền NaN vào ô
+    thiếu — nên CSV có cả hai cột và mỗi hàng chỉ có ô của mình.
+
+    ``validation=None`` là nhánh cho protocol cũ hai-split; khi đó bảng chỉ có
+    train/test.
+    """
     rows = [
         {
             "split": "train",

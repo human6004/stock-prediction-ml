@@ -1,19 +1,25 @@
 [1/3] Fetch OHLCV tu vnstock...
-Fetch OHLCV: 2025-10-09 -> 2026-07-21 (400 ma, sleep=3.5s)
-📦 Vnai 2.5.0 is available
+Fetch OHLCV: 2025-10-09 -> 2026-07-31 (400 ma, sleep=3.5s)
+[1/400] AAA: da cap nhat
+[2/400] AAM: da cap nhat
+[3/400] AAT: da cap nhat
+[4/400] ABR: da cap nhat
+[5/400] ABS: da cap nhat
+[6/400] ABT: da cap nhat
+[7/400] ACB: da cap nhat
+[8/400] ACC: da cap nhat
+[9/400] ACG: da cap nhat
+[10/400] ACL: da cap nhat
+📦 Vnstock 4.0.5 is available
+Current: 4.0.4 (Python 3.12)
+Update: pip install vnstock --upgrade
+Release: https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban
+📦 Vnai 2.5.6 is available
 Current: 2.4.8 (Python 3.12)
 Update: pip install vnai --upgrade
 Release: https://pypi.org/project/vnai/#history
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃                                                                                 ┃
-┃  ⚠️ THÔNG BÁO QUAN TRỌNG                                                        ┃
-┃                                                                                 ┃
-┃  Phát hành vnstock 4.0.1 cung cấp sửa lỗi quan trọng và bổ sung giao diện API   ┃
-┃  thống nhất (Unified UI), tăng tính ổn định của code.                           ┃
-┃  Cập nhật: pip install vnstock -U                                               ┃
-┃  AI Agent Guide: https://github.com/vnstock-hq/vnstock-agent-guide/             ┃
-┃                                                                                 ┃
-┃  ────────────────────────────────────────────────────────────────────────────── ┃
 ┃                                                                                 ┃
 ┃  🚀 VNSTOCK INSIDERS PROGRAM - NÂNG TẦM TRẢI NGHIỆM CỦA BẠN! 🚀                 ┃
 ┃                                                                                 ┃
@@ -23,249 +29,519 @@ Release: https://pypi.org/project/vnai/#history
 ┃  🔓 Mở rộng khả năng sử dụng API tối đa                                         ┃
 ┃  ⚡ Tăng tốc tải dữ liệu từ 5-8 lần                                              ┃
 ┃  📈 Tăng giới hạn truy cập API lên đến 5 lần                                    ┃
-┃  🤖 Dùng AI Agent viết code hiệu quả với tài liệu Agent Guide                    ┃
+┃  🤖 Dùng AI Agent viết code hiệu quả với tài liệu Agent Guide                   ┃
 ┃                                                                                 ┃
-┃  🔗 Tham gia ngay: https://vnstocks.com/insiders-program#tiers                  ┃
+┃  🔗 Tham gia ngay: https://vnstocks.com/insiders-program.                       ┃
 ┃                                                                                 ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-[1/400] AAA: 2 dong
-[2/400] AAM: 1 dong
-[3/400] AAT: 1 dong
-[4/400] ABR: LOI - RetryError[<Future at 0x2296ee20530 state=finished raised ValueError>]
-[5/400] ABS: 1 dong
-[6/400] ABT: 1 dong
-[7/400] ACB: 1 dong
-[8/400] ACC: 1 dong
-[9/400] ACG: 1 dong
-[10/400] ACL: 1 dong
-[11/400] ADG: 1 dong
-[12/400] ADP: 1 dong
-[13/400] ADS: 1 dong
-[14/400] AFX: 1 dong
-[15/400] AGG: 1 dong
-[16/400] AGR: 1 dong
-[17/400] ANT: 1 dong
-[18/400] ANV: 1 dong
-[19/400] APG: 1 dong
-[20/400] APH: 1 dong
-[21/400] ASG: 1 dong
-[22/400] ASM: 1 dong
-[23/400] ASP: 1 dong
-[24/400] AST: 1 dong
-[25/400] BAF: 1 dong
-[26/400] BCE: 1 dong
-[27/400] BCG: LOI - RetryError[<Future at 0x2296eacd760 state=finished raised ValueError>]
-[28/400] BCM: 1 dong
-[29/400] BFC: 1 dong
-[30/400] BHN: 1 dong
-[31/400] BIC: 1 dong
-[32/400] BID: 1 dong
-[33/400] BKG: 1 dong
-[34/400] BMC: 1 dong
-[35/400] BMI: 1 dong
-[36/400] BMP: 1 dong
-[37/400] BRC: 1 dong
-[38/400] BSI: 1 dong
-[39/400] BSR: 1 dong
-[40/400] BTP: 1 dong
-[41/400] BTT: LOI - RetryError[<Future at 0x2296f2ae0c0 state=finished raised ValueError>]
-[42/400] BVH: 1 dong
-[43/400] BWE: 1 dong
-[44/400] C32: LOI - RetryError[<Future at 0x2296effd370 state=finished raised ValueError>]
-[45/400] C47: 1 dong
-[46/400] CCC: 1 dong
-[47/400] CCI: 1 dong
-[48/400] CCL: 1 dong
-[49/400] CDC: 1 dong
-[50/400] CHP: 1 dong
-[51/400] CIG: 1 dong
-[52/400] CII: 1 dong
-[53/400] CKG: 1 dong
-[54/400] CLC: 1 dong
-[55/400] CLL: 1 dong
-[56/400] CLW: LOI - RetryError[<Future at 0x2296f2cbe30 state=finished raised ValueError>]
-[57/400] CMG: 1 dong
-[58/400] CMV: LOI - RetryError[<Future at 0x2296f2cb8c0 state=finished raised ValueError>]
-[59/400] CMX: 1 dong
-[60/400] CNG: 1 dong
-[61/400] COM: 1 dong
-[62/400] CRC: 1 dong
-[63/400] CRE: 1 dong
-[64/400] CRV: LOI - RetryError[<Future at 0x2296f2ad6a0 state=finished raised ValueError>]
-[65/400] CSM: 1 dong
-[66/400] CSV: 1 dong
-[67/400] CTD: 1 dong
-[68/400] CTF: 1 dong
-[69/400] CTG: 1 dong
-[70/400] CTI: 1 dong
-[71/400] CTR: 1 dong
-[72/400] CTS: 1 dong
-[73/400] CVT: LOI - RetryError[<Future at 0x2296f2de6f0 state=finished raised ValueError>]
-[74/400] D2D: 1 dong
-[75/400] DAH: 1 dong
-[76/400] DAT: LOI - RetryError[<Future at 0x2296f2ad670 state=finished raised ValueError>]
-[77/400] DBC: 1 dong
-[78/400] DBD: 1 dong
-[79/400] DBT: 1 dong
-[80/400] DC4: 1 dong
-[81/400] DCL: 1 dong
-[82/400] DCM: 1 dong
-[83/400] DGC: 1 dong
-[84/400] DGW: 1 dong
-[85/400] DHA: 1 dong
-[86/400] DHC: 1 dong
-[87/400] DHG: 1 dong
-[88/400] DHM: 1 dong
-[89/400] DIG: 1 dong
-[90/400] DLG: 1 dong
-[91/400] DMC: 1 dong
-[92/400] DPG: 1 dong
-[93/400] DPM: 1 dong
-[94/400] DPR: 1 dong
-[95/400] DQC: 1 dong
-[96/400] DRC: 1 dong
-[97/400] DRH: 1 dong
-[98/400] DRL: 1 dong
-[99/400] DSC: 1 dong
-[100/400] DSE: 1 dong
-[101/400] DSN: 1 dong
-[102/400] DTA: 1 dong
-[103/400] DTL: 1 dong
-[104/400] DTT: 1 dong
-[105/400] DVP: 1 dong
-[106/400] DXG: 1 dong
-[107/400] DXS: 1 dong
-[108/400] DXV: 1 dong
-[109/400] EIB: 1 dong
-[110/400] ELC: 1 dong
-[111/400] EVE: 1 dong
-[112/400] EVF: 1 dong
-[113/400] EVG: 1 dong
-[114/400] FCM: 1 dong
-[115/400] FCN: 1 dong
-[116/400] FDC: LOI - RetryError[<Future at 0x2296f23d9d0 state=finished raised ValueError>]
-[117/400] FIR: 1 dong
-[118/400] FIT: 1 dong
-[119/400] FMC: 1 dong
-[120/400] FPT: 1 dong
-[121/400] FRT: 1 dong
-[122/400] FTS: 1 dong
-[123/400] GAS: 1 dong
-[124/400] GDT: 1 dong
-[125/400] GEE: 1 dong
-[126/400] GEG: 1 dong
-[127/400] GEX: 1 dong
-[128/400] GHC: 1 dong
-[129/400] GIL: 1 dong
-[130/400] GMD: 1 dong
-[131/400] GMH: LOI - RetryError[<Future at 0x2296f2c8a10 state=finished raised ValueError>]
-[132/400] GSP: 1 dong
-[133/400] GTA: LOI - RetryError[<Future at 0x2296a3e85c0 state=finished raised ValueError>]
-[134/400] GVR: 1 dong
-[135/400] HAG: 1 dong
-[136/400] HAH: 1 dong
-[137/400] HAP: 1 dong
-[138/400] HAR: 1 dong
-[139/400] HAS: 1 dong
-[140/400] HAX: 1 dong
-[141/400] HCD: 1 dong
-[142/400] HCM: 1 dong
-[143/400] HDB: 1 dong
-[144/400] HDC: 1 dong
-[145/400] HDG: 1 dong
-[146/400] HHP: 1 dong
-[147/400] HHS: 1 dong
-[148/400] HHV: 1 dong
-[149/400] HID: 1 dong
-[150/400] HII: 1 dong
-[151/400] HMC: 1 dong
-[152/400] HNA: LOI - RetryError[<Future at 0x2296c894d10 state=finished raised ValueError>]
-[153/400] HPG: 1 dong
-[154/400] HPX: 1 dong
-[155/400] HQC: 1 dong
-[156/400] HRC: 1 dong
-[157/400] HSG: 1 dong
-[158/400] HSL: 1 dong
-[159/400] HT1: 1 dong
-[160/400] HTG: 1 dong
-[161/400] HTI: 1 dong
-[162/400] HTL: 1 dong
-[163/400] HTN: 1 dong
-[164/400] HTV: LOI - RetryError[<Future at 0x2296f27bce0 state=finished raised ValueError>]
-[165/400] HU1: 1 dong
-[166/400] HUB: 1 dong
-[167/400] HVH: 1 dong
-[168/400] HVN: 1 dong
-[169/400] ICT: 2 dong
-[170/400] IDI: 1 dong
-[171/400] IJC: 1 dong
-[172/400] ILB: 1 dong
-[173/400] IMP: 1 dong
-[174/400] ITC: 1 dong
-[175/400] ITD: 1 dong
-[176/400] JVC: 1 dong
-[177/400] KBC: 1 dong
-[178/400] KDC: 1 dong
-[179/400] KDH: 1 dong
-[180/400] KHG: 1 dong
-[181/400] KHP: 1 dong
-[182/400] KLB: 1 dong
-[183/400] KMR: 1 dong
-[184/400] KOS: 1 dong
-[185/400] KSB: 1 dong
-[186/400] L10: 1 dong
-[187/400] LAF: 1 dong
-[188/400] LBM: 1 dong
-[189/400] LCG: 1 dong
-[190/400] LDG: 1 dong
-[191/400] LGC: LOI - RetryError[<Future at 0x2296f2fc0b0 state=finished raised ValueError>]
-[192/400] LGL: 1 dong
-[193/400] LHG: 1 dong
-[194/400] LIX: 1 dong
-[195/400] LM8: LOI - RetryError[<Future at 0x2296f2fc050 state=finished raised ValueError>]
-[196/400] LPB: 1 dong
-[197/400] LSS: 1 dong
-[198/400] MBB: 1 dong
-[199/400] MCH: 1 dong
-[200/400] MCM: 1 dong
-[201/400] MCP: 1 dong
-[202/400] MDG: 1 dong
-[203/400] MHC: 1 dong
-[204/400] MIG: 1 dong
-[205/400] MSB: 1 dong
-[206/400] MSH: 1 dong
-[207/400] MSN: 1 dong
-[208/400] MWG: 1 dong
-[209/400] NAB: 1 dong
-[210/400] NAF: 1 dong
-[211/400] NAV: LOI - RetryError[<Future at 0x2296c8a8560 state=finished raised ValueError>]
-[212/400] NBB: 1 dong
-[213/400] NCT: 1 dong
-[214/400] NHA: 1 dong
-[215/400] NHH: 1 dong
-[216/400] NHT: 1 dong
-[217/400] NKG: 1 dong
-[218/400] NLG: 1 dong
-[219/400] NNC: 1 dong
-[220/400] NO1: 1 dong
-[221/400] NSC: 1 dong
-[222/400] NT2: 1 dong
-[223/400] NTC: 1 dong
-[224/400] NTL: 1 dong
-[225/400] NVL: 1 dong
-[226/400] NVT: LOI - RetryError[<Future at 0x2296c8b91c0 state=finished raised ValueError>]
-[227/400] OCB: 1 dong
-[228/400] OGC: 1 dong
-[229/400] OPC: 1 dong
-[230/400] ORS: 1 dong
-[231/400] PAC: 1 dong
-[232/400] PAN: 1 dong
-[233/400] PC1: 1 dong
-[234/400] PDN: 1 dong
-[235/400] PDR: 1 dong
-[236/400] PDV: 1 dong
-[237/400] PET: 1 dong
-[238/400] PGC: 1 dong
-[239/400] PGD: 1 dong
-[240/400] PGI: 1 dong
-[241/400] PGV: 1 dong
+[11/400] ADG: 0 dong
+[12/400] ADP: da cap nhat
+[13/400] ADS: da cap nhat
+[14/400] AFX: da cap nhat
+[15/400] AGG: da cap nhat
+[16/400] AGR: da cap nhat
+[17/400] ANT: da cap nhat
+[18/400] ANV: da cap nhat
+[19/400] APG: da cap nhat
+[20/400] APH: da cap nhat
+[21/400] ASG: da cap nhat
+[22/400] ASM: da cap nhat
+[23/400] ASP: da cap nhat
+[24/400] AST: da cap nhat
+[25/400] BAF: da cap nhat
+[26/400] BCE: da cap nhat
+[27/400] BCG: 0 dong
+[28/400] BCM: da cap nhat
+[29/400] BFC: da cap nhat
+[30/400] BHN: da cap nhat
+[31/400] BIC: da cap nhat
+[32/400] BID: da cap nhat
+[33/400] BKG: da cap nhat
+[34/400] BMC: da cap nhat
+[35/400] BMI: da cap nhat
+[36/400] BMP: da cap nhat
+[37/400] BRC: da cap nhat
+[38/400] BSI: da cap nhat
+[39/400] BSR: da cap nhat
+[40/400] BTP: da cap nhat
+[41/400] BTT: 0 dong
+[42/400] BVH: da cap nhat
+[43/400] BWE: da cap nhat
+[44/400] C32: da cap nhat
+[45/400] C47: da cap nhat
+[46/400] CCC: 0 dong
+[47/400] CCI: da cap nhat
+[48/400] CCL: da cap nhat
+[49/400] CDC: da cap nhat
+[50/400] CHP: da cap nhat
+[51/400] CIG: da cap nhat
+[52/400] CII: da cap nhat
+[53/400] CKG: da cap nhat
+[54/400] CLC: 0 dong
+[55/400] CLL: da cap nhat
+[56/400] CLW: 0 dong
+[57/400] CMG: da cap nhat
+[58/400] CMV: da cap nhat
+[59/400] CMX: da cap nhat
+[60/400] CNG: da cap nhat
+[61/400] COM: 0 dong
+[62/400] CRC: da cap nhat
+[63/400] CRE: da cap nhat
+[64/400] CRV: 0 dong
+[65/400] CSM: da cap nhat
+[66/400] CSV: da cap nhat
+[67/400] CTD: da cap nhat
+[68/400] CTF: da cap nhat
+[69/400] CTG: da cap nhat
+[70/400] CTI: da cap nhat
+[71/400] CTR: da cap nhat
+[72/400] CTS: da cap nhat
+[73/400] CVT: 0 dong
+[74/400] D2D: da cap nhat
+[75/400] DAH: da cap nhat
+[76/400] DAT: da cap nhat
+[77/400] DBC: da cap nhat
+[78/400] DBD: da cap nhat
+[79/400] DBT: da cap nhat
+[80/400] DC4: da cap nhat
+[81/400] DCL: da cap nhat
+[82/400] DCM: da cap nhat
+[83/400] DGC: da cap nhat
+[84/400] DGW: da cap nhat
+[85/400] DHA: da cap nhat
+[86/400] DHC: da cap nhat
+[87/400] DHG: da cap nhat
+[88/400] DHM: da cap nhat
+[89/400] DIG: da cap nhat
+[90/400] DLG: da cap nhat
+[91/400] DMC: 0 dong
+[92/400] DPG: da cap nhat
+[93/400] DPM: da cap nhat
+[94/400] DPR: da cap nhat
+[95/400] DQC: da cap nhat
+[96/400] DRC: da cap nhat
+[97/400] DRH: da cap nhat
+[98/400] DRL: da cap nhat
+[99/400] DSC: da cap nhat
+[100/400] DSE: da cap nhat
+[101/400] DSN: da cap nhat
+[102/400] DTA: da cap nhat
+[103/400] DTL: da cap nhat
+[104/400] DTT: 0 dong
+[105/400] DVP: da cap nhat
+[106/400] DXG: da cap nhat
+[107/400] DXS: da cap nhat
+[108/400] DXV: 0 dong
+[109/400] EIB: da cap nhat
+[110/400] ELC: da cap nhat
+[111/400] EVE: da cap nhat
+[112/400] EVF: da cap nhat
+[113/400] EVG: da cap nhat
+[114/400] FCM: da cap nhat
+[115/400] FCN: da cap nhat
+[116/400] FDC: 0 dong
+[117/400] FIR: da cap nhat
+[118/400] FIT: da cap nhat
+[119/400] FMC: da cap nhat
+[120/400] FPT: da cap nhat
+[121/400] FRT: da cap nhat
+[122/400] FTS: da cap nhat
+[123/400] GAS: da cap nhat
+[124/400] GDT: da cap nhat
+[125/400] GEE: da cap nhat
+[126/400] GEG: da cap nhat
+[127/400] GEX: da cap nhat
+[128/400] GHC: da cap nhat
+[129/400] GIL: da cap nhat
+[130/400] GMD: da cap nhat
+[131/400] GMH: da cap nhat
+[132/400] GSP: da cap nhat
+[133/400] GTA: 0 dong
+[134/400] GVR: da cap nhat
+[135/400] HAG: da cap nhat
+[136/400] HAH: da cap nhat
+[137/400] HAP: da cap nhat
+[138/400] HAR: da cap nhat
+[139/400] HAS: da cap nhat
+[140/400] HAX: da cap nhat
+[141/400] HCD: da cap nhat
+[142/400] HCM: da cap nhat
+[143/400] HDB: da cap nhat
+[144/400] HDC: da cap nhat
+[145/400] HDG: da cap nhat
+[146/400] HHP: da cap nhat
+[147/400] HHS: da cap nhat
+[148/400] HHV: da cap nhat
+[149/400] HID: da cap nhat
+[150/400] HII: da cap nhat
+[151/400] HMC: da cap nhat
+[152/400] HNA: da cap nhat
+[153/400] HPG: da cap nhat
+[154/400] HPX: da cap nhat
+[155/400] HQC: da cap nhat
+[156/400] HRC: da cap nhat
+[157/400] HSG: da cap nhat
+[158/400] HSL: da cap nhat
+[159/400] HT1: da cap nhat
+[160/400] HTG: da cap nhat
+[161/400] HTI: da cap nhat
+[162/400] HTL: da cap nhat
+[163/400] HTN: da cap nhat
+
+⚠️ 
+============================================================
+⚠️  GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded)
+============================================================
+
+📌 Bạn đã đạt giới hạn tối đa số lượt yêu cầu API trong 1 phút (minute).
+   (You have reached the maximum API request limit for this period)
+
+📊 Chi tiết (Details):
+   • Gói hiện tại: Khách (Guest)
+   • Giới hạn: 20 requests/phút
+   • Đã sử dụng: 20/20
+   • Chờ 53 giây để tiếp tục (Wait to retry)
+
+💡 Giải pháp (Solutions):
+   1️⃣ Chờ 53 giây rồi thử lại
+      (Wait and retry)
+   2️⃣ Tham gia chương trình tài trợ dự án (Sponsor) để sử dụng không gián đoạn.
+      Lưu ý: vnstock là công cụ mã nguồn mở giúp tự động hoá kết nối với
+      các API công khai mà bạn vốn đã có quyền truy cập hợp lệ, không
+      phải nhà cung cấp dữ liệu. Việc tài trợ giúp duy trì
+      nghiên cứu - phát triển công cụ và hạ tầng công nghệ phục vụ cộng đồng.
+
+🚀 Nâng cấp (Upgrade):
+   • Phiên bản cộng đồng (60 request/phút - Community):
+     Đăng ký API key miễn phí: https://vnstocks.com/login
+   • Gói thành viên tài trợ (180-600 request/phút - Sponsor):
+     Tham gia: https://vnstocks.com/insiders-program
+     Sau khi tham gia tài trợ, cài bộ thư viện riêng vnstock_data theo hướng dẫn https://vnstocks.com/onboard-member
+
+============================================================
+
+
+  Rate limit HTV, cho 65s...
+[164/400] HTV: 0 dong
+[165/400] HU1: 0 dong
+[166/400] HUB: da cap nhat
+[167/400] HVH: da cap nhat
+[168/400] HVN: da cap nhat
+[169/400] ICT: da cap nhat
+[170/400] IDI: da cap nhat
+[171/400] IJC: da cap nhat
+[172/400] ILB: da cap nhat
+[173/400] IMP: da cap nhat
+[174/400] ITC: da cap nhat
+[175/400] ITD: da cap nhat
+[176/400] JVC: da cap nhat
+[177/400] KBC: da cap nhat
+[178/400] KDC: da cap nhat
+[179/400] KDH: da cap nhat
+[180/400] KHG: da cap nhat
+[181/400] KHP: da cap nhat
+[182/400] KLB: da cap nhat
+[183/400] KMR: da cap nhat
+[184/400] KOS: da cap nhat
+[185/400] KSB: da cap nhat
+[186/400] L10: da cap nhat
+[187/400] LAF: da cap nhat
+[188/400] LBM: da cap nhat
+[189/400] LCG: da cap nhat
+[190/400] LDG: da cap nhat
+[191/400] LGC: 0 dong
+[192/400] LGL: da cap nhat
+[193/400] LHG: da cap nhat
+[194/400] LIX: da cap nhat
+[195/400] LM8: 0 dong
+[196/400] LPB: da cap nhat
+[197/400] LSS: da cap nhat
+[198/400] MBB: da cap nhat
+[199/400] MCH: da cap nhat
+[200/400] MCM: da cap nhat
+[201/400] MCP: da cap nhat
+[202/400] MDG: da cap nhat
+[203/400] MHC: da cap nhat
+[204/400] MIG: da cap nhat
+[205/400] MSB: da cap nhat
+[206/400] MSH: da cap nhat
+[207/400] MSN: da cap nhat
+[208/400] MWG: da cap nhat
+[209/400] NAB: da cap nhat
+[210/400] NAF: da cap nhat
+[211/400] NAV: da cap nhat
+[212/400] NBB: da cap nhat
+[213/400] NCT: da cap nhat
+[214/400] NHA: da cap nhat
+[215/400] NHH: da cap nhat
+[216/400] NHT: da cap nhat
+[217/400] NKG: da cap nhat
+[218/400] NLG: da cap nhat
+[219/400] NNC: da cap nhat
+[220/400] NO1: da cap nhat
+[221/400] NSC: da cap nhat
+[222/400] NT2: da cap nhat
+[223/400] NTC: da cap nhat
+[224/400] NTL: da cap nhat
+[225/400] NVL: da cap nhat
+[226/400] NVT: da cap nhat
+[227/400] OCB: da cap nhat
+[228/400] OGC: da cap nhat
+[229/400] OPC: da cap nhat
+[230/400] ORS: da cap nhat
+[231/400] PAC: da cap nhat
+[232/400] PAN: da cap nhat
+[233/400] PC1: da cap nhat
+[234/400] PDN: da cap nhat
+[235/400] PDR: da cap nhat
+[236/400] PDV: da cap nhat
+[237/400] PET: da cap nhat
+[238/400] PGC: da cap nhat
+[239/400] PGD: da cap nhat
+[240/400] PGI: da cap nhat
+[241/400] PGV: da cap nhat
+[242/400] PHC: da cap nhat
+[243/400] PHR: da cap nhat
+[244/400] PIT: da cap nhat
+[245/400] PJT: da cap nhat
+[246/400] PLP: da cap nhat
+[247/400] PLX: da cap nhat
+[248/400] PMG: da cap nhat
+[249/400] PNC: 0 dong
+[250/400] PNJ: da cap nhat
+[251/400] POW: da cap nhat
+[252/400] PPC: da cap nhat
+[253/400] PTB: da cap nhat
+[254/400] PTC: da cap nhat
+[255/400] PTL: da cap nhat
+[256/400] PVD: da cap nhat
+[257/400] PVP: da cap nhat
+[258/400] PVT: da cap nhat
+[259/400] QCG: da cap nhat
+[260/400] QNP: da cap nhat
+[261/400] RAL: da cap nhat
+[262/400] REE: da cap nhat
+[263/400] RYG: da cap nhat
+[264/400] S4A: 0 dong
+[265/400] SAB: da cap nhat
+[266/400] SAM: da cap nhat
+[267/400] SAV: da cap nhat
+[268/400] SBA: da cap nhat
+[269/400] SBG: da cap nhat
+[270/400] SBT: da cap nhat
+[271/400] SBV: da cap nhat
+
+⚠️ 
+============================================================
+⚠️  GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded)
+============================================================
+
+📌 Bạn đã đạt giới hạn tối đa số lượt yêu cầu API trong 1 phút (minute).
+   (You have reached the maximum API request limit for this period)
+
+📊 Chi tiết (Details):
+   • Gói hiện tại: Khách (Guest)
+   • Giới hạn: 20 requests/phút
+   • Đã sử dụng: 20/20
+   • Chờ 49 giây để tiếp tục (Wait to retry)
+
+💡 Giải pháp (Solutions):
+   1️⃣ Chờ 49 giây rồi thử lại
+      (Wait and retry)
+   2️⃣ Tham gia chương trình tài trợ dự án (Sponsor) để sử dụng không gián đoạn.
+      Lưu ý: vnstock là công cụ mã nguồn mở giúp tự động hoá kết nối với
+      các API công khai mà bạn vốn đã có quyền truy cập hợp lệ, không
+      phải nhà cung cấp dữ liệu. Việc tài trợ giúp duy trì
+      nghiên cứu - phát triển công cụ và hạ tầng công nghệ phục vụ cộng đồng.
+
+🚀 Nâng cấp (Upgrade):
+   • Phiên bản cộng đồng (60 request/phút - Community):
+     Đăng ký API key miễn phí: https://vnstocks.com/login
+   • Gói thành viên tài trợ (180-600 request/phút - Sponsor):
+     Tham gia: https://vnstocks.com/insiders-program
+     Sau khi tham gia tài trợ, cài bộ thư viện riêng vnstock_data theo hướng dẫn https://vnstocks.com/onboard-member
+
+============================================================
+
+
+  Rate limit SC5, cho 65s...
+[272/400] SC5: 0 dong
+[273/400] SCR: da cap nhat
+[274/400] SCS: da cap nhat
+[275/400] SFC: 0 dong
+[276/400] SFG: da cap nhat
+[277/400] SFI: da cap nhat
+[278/400] SGN: da cap nhat
+[279/400] SGR: da cap nhat
+[280/400] SGT: da cap nhat
+[281/400] SHA: da cap nhat
+[282/400] SHB: da cap nhat
+[283/400] SHI: da cap nhat
+[284/400] SHP: da cap nhat
+[285/400] SIP: da cap nhat
+[286/400] SJD: da cap nhat
+[287/400] SJS: da cap nhat
+[288/400] SKG: da cap nhat
+[289/400] SMA: 0 dong
+[290/400] SMB: da cap nhat
+[291/400] SMC: da cap nhat
+[292/400] SPM: da cap nhat
+[293/400] SRC: da cap nhat
+[294/400] SRF: da cap nhat
+[295/400] SSB: da cap nhat
+[296/400] SSC: da cap nhat
+[297/400] SSI: da cap nhat
+[298/400] ST8: da cap nhat
+[299/400] STB: da cap nhat
+[300/400] STG: da cap nhat
+[301/400] STK: da cap nhat
+[302/400] SVC: 0 dong
+[303/400] SVD: da cap nhat
+[304/400] SVT: da cap nhat
+[305/400] SZC: da cap nhat
+[306/400] SZL: da cap nhat
+[307/400] TAL: da cap nhat
+[308/400] TBC: da cap nhat
+[309/400] TCB: da cap nhat
+[310/400] TCD: da cap nhat
+[311/400] TCH: da cap nhat
+[312/400] TCI: da cap nhat
+[313/400] TCL: da cap nhat
+[314/400] TCM: da cap nhat
+[315/400] TCO: da cap nhat
+[316/400] TCR: 0 dong
+[317/400] TCT: da cap nhat
+[318/400] TCX: da cap nhat
+[319/400] TDC: da cap nhat
+[320/400] TDG: da cap nhat
+[321/400] TDH: da cap nhat
+[322/400] TDM: da cap nhat
+[323/400] TDP: da cap nhat
+[324/400] TDW: da cap nhat
+[325/400] TEG: da cap nhat
+[326/400] THG: da cap nhat
+[327/400] TIP: da cap nhat
+[328/400] TIX: 0 dong
+[329/400] TLD: da cap nhat
+[330/400] TLG: da cap nhat
+[331/400] TLH: da cap nhat
+[332/400] TMP: da cap nhat
+[333/400] TMS: da cap nhat
+[334/400] TMT: da cap nhat
+[335/400] TN1: da cap nhat
+
+⚠️ 
+============================================================
+⚠️  GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded)
+============================================================
+
+📌 Bạn đã đạt giới hạn tối đa số lượt yêu cầu API trong 1 phút (minute).
+   (You have reached the maximum API request limit for this period)
+
+📊 Chi tiết (Details):
+   • Gói hiện tại: Khách (Guest)
+   • Giới hạn: 20 requests/phút
+   • Đã sử dụng: 20/20
+   • Chờ 44 giây để tiếp tục (Wait to retry)
+
+💡 Giải pháp (Solutions):
+   1️⃣ Chờ 44 giây rồi thử lại
+      (Wait and retry)
+   2️⃣ Tham gia chương trình tài trợ dự án (Sponsor) để sử dụng không gián đoạn.
+      Lưu ý: vnstock là công cụ mã nguồn mở giúp tự động hoá kết nối với
+      các API công khai mà bạn vốn đã có quyền truy cập hợp lệ, không
+      phải nhà cung cấp dữ liệu. Việc tài trợ giúp duy trì
+      nghiên cứu - phát triển công cụ và hạ tầng công nghệ phục vụ cộng đồng.
+
+🚀 Nâng cấp (Upgrade):
+   • Phiên bản cộng đồng (60 request/phút - Community):
+     Đăng ký API key miễn phí: https://vnstocks.com/login
+   • Gói thành viên tài trợ (180-600 request/phút - Sponsor):
+     Tham gia: https://vnstocks.com/insiders-program
+     Sau khi tham gia tài trợ, cài bộ thư viện riêng vnstock_data theo hướng dẫn https://vnstocks.com/onboard-member
+
+============================================================
+
+
+  Rate limit TNC, cho 65s...
+[336/400] TNC: 0 dong
+[337/400] TNH: da cap nhat
+[338/400] TNI: da cap nhat
+[339/400] TNT: da cap nhat
+[340/400] TPB: da cap nhat
+[341/400] TPC: 0 dong
+[342/400] TRA: da cap nhat
+[343/400] TRC: da cap nhat
+[344/400] TSA: da cap nhat
+[345/400] TSC: da cap nhat
+[346/400] TTA: da cap nhat
+[347/400] TTE: 0 dong
+[348/400] TTF: da cap nhat
+[349/400] TV2: da cap nhat
+[350/400] TVB: da cap nhat
+[351/400] TVS: da cap nhat
+[352/400] TVT: da cap nhat
+[353/400] TYA: da cap nhat
+[354/400] UIC: da cap nhat
+[355/400] VAB: da cap nhat
+[356/400] VCA: da cap nhat
+[357/400] VCB: da cap nhat
+[358/400] VCF: da cap nhat
+[359/400] VCG: da cap nhat
+[360/400] VCI: da cap nhat
+[361/400] VCK: da cap nhat
+[362/400] VDP: da cap nhat
+[363/400] VDS: da cap nhat
+[364/400] VFG: da cap nhat
+[365/400] VGC: da cap nhat
+[366/400] VHC: da cap nhat
+[367/400] VHM: da cap nhat
+[368/400] VIB: da cap nhat
+[369/400] VIC: da cap nhat
+[370/400] VID: da cap nhat
+[371/400] VIP: da cap nhat
+[372/400] VIX: da cap nhat
+[373/400] VJC: da cap nhat
+[374/400] VMD: da cap nhat
+[375/400] VND: da cap nhat
+[376/400] VNE: da cap nhat
+[377/400] VNG: da cap nhat
+[378/400] VNL: da cap nhat
+[379/400] VNM: da cap nhat
+[380/400] VNS: da cap nhat
+[381/400] VOS: da cap nhat
+[382/400] VPB: da cap nhat
+[383/400] VPD: da cap nhat
+[384/400] VPG: da cap nhat
+[385/400] VPH: da cap nhat
+[386/400] VPI: da cap nhat
+[387/400] VPL: da cap nhat
+[388/400] VPS: da cap nhat
+[389/400] VPX: da cap nhat
+[390/400] VRC: da cap nhat
+[391/400] VRE: da cap nhat
+[392/400] VSC: da cap nhat
+[393/400] VSH: da cap nhat
+[394/400] VSI: da cap nhat
+[395/400] VTB: da cap nhat
+[396/400] VTO: da cap nhat
+[397/400] VTP: da cap nhat
+[398/400] VVS: da cap nhat
+[399/400] YBM: da cap nhat
+[400/400] YEG: da cap nhat
+Fetch report: D:\study\niên luận\stock-prediction-ml\reports\fetch_report.json
+Hoan tat: +0 dong | OK 400 | Loi 0 | date_max=2026-07-31
+
+[2/3] Preprocess raw data...
+Preprocess done.
+Rows cleaned: 557962
+Eligible symbols: 396
+Rows for training: 557322
+
+[3/3] Build features + ml_dataset.csv...
+Build features done.
+Feature rows: 520210
+ML dataset rows: 513971
+Train rows: 422448, Validation rows: 66880, Test rows: 20965
+
+Refresh data completed.

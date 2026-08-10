@@ -272,6 +272,95 @@ def _read_report_rows(path: Path) -> list[dict]:
     return rows.to_dict("records")
 
 
+def _read_model_metadata() -> dict:
+    """Đọc ``model_metadata.json``, fail an toàn về ``{}``.
+
+    Thiếu file hoặc JSON vỡ đều trả ``{}`` thay vì raise: metadata chỉ dùng để
+    HIỂN THỊ (tên model, ngày train, metric), thiếu thì để trống chứ không được
+    làm sập trang.
+    """
+    if not MODEL_METADATA_PATH.exists():
+        return {}
+    try:
+        return json.loads(MODEL_METADATA_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _model_health_summary() -> dict:
+    """Sức khỏe model đang publish, dạng gọn cho cột phải trang Dự báo.
+
+    Dùng ĐÚNG cổng chặn policy của ``load_evaluation_sections``: artifact không
+    thuộc ``EXPERIMENT_POLICY_ID`` thì **không** in metric TEST. Số liệu đó sinh
+    bằng giao thức cũ (mốc split khác, cách chọn threshold khác); đặt nó cạnh
+    model đang chạy sẽ khiến người đọc tưởng đây là chất lượng của policy hiện
+    hành. Legacy chỉ còn tên model + ngày dữ liệu train + một dòng dẫn sang trang
+    Đánh giá.
+
+    ``final_model_evaluation.csv`` có cả dòng baseline (``row_type`` là
+    ``baseline``) nên phải lọc ``row_type == "final"``, không lấy dòng đầu.
+    """
+    metadata = _read_model_metadata()
+    is_current_policy = metadata.get("policy_id") == EXPERIMENT_POLICY_ID
+    health = {
+        "model_name": metadata.get("model_name") or "",
+        "train_through_date": metadata.get("train_through_date")
+        or metadata.get("validation_end_date"),
+        "decision_threshold": metadata.get("decision_threshold"),
+        "is_current_policy": is_current_policy,
+        "baseline_warning": metadata.get("baseline_warning"),
+        "metrics": [],
+    }
+    if not is_current_policy:
+        return health
+
+    final_rows = [
+        row
+        for row in _read_report_rows(FINAL_MODEL_EVALUATION_PATH)
+        if row.get("row_type") == "final"
+    ]
+    if not final_rows:
+        return health
+    row = final_rows[0]
+    health["metrics"] = [
+        {
+            "label": "Accuracy",
+            "value": row.get("accuracy"),
+            "hint": "Tỉ lệ đoán đúng trên toàn bộ tập TEST, tính cả UP và NOT_UP.",
+        },
+        {
+            "label": "F1 (UP)",
+            "value": row.get("f1_up"),
+            "hint": "Điểm cân bằng giữa precision và recall của riêng nhãn UP.",
+        },
+        {
+            "label": "Precision (UP)",
+            "value": row.get("precision_up"),
+            "hint": "Trong các mã model gọi UP, bao nhiêu phần thực sự tăng vượt ngưỡng.",
+        },
+    ]
+    return health
+
+
+def _top_signals(limit: int = 5) -> list[dict]:
+    """Các mã điểm UP cao nhất, dùng lại đúng cache inference của trang Xếp hạng.
+
+    Không thêm pipeline: ``predict_all_symbols`` đã cache theo chữ ký data +
+    model nên gọi ở đây trùng cache với ``/screener``.
+
+    Bọc ``except`` rộng có chủ ý: khối này chỉ là phần bổ trợ ở cột phải, thiếu
+    artifact hay dataset thì trả rỗng và trang vẫn dự báo được — không được để
+    nó làm 500 cả trang chính.
+    """
+    try:
+        rows = predict_all_symbols()
+    except Exception:  # noqa: BLE001
+        return []
+    scored = [row for row in rows if row.get("probability_up") is not None]
+    scored.sort(key=lambda row: row["probability_up"], reverse=True)
+    return scored[:limit]
+
+
 def load_evaluation_sections() -> dict:
     """Gom dữ liệu trang Đánh giá, tách rõ report "policy hiện hành" vs "legacy".
 
@@ -289,12 +378,7 @@ def load_evaluation_sections() -> dict:
     Metadata đọc lỗi (thiếu file, JSON vỡ) → ``metadata = {}`` → ``policy_id`` là
     ``None`` → coi như legacy. Fail an toàn, không raise ra 500.
     """
-    metadata = {}
-    if MODEL_METADATA_PATH.exists():
-        try:
-            metadata = json.loads(MODEL_METADATA_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            metadata = {}
+    metadata = _read_model_metadata()
     policy_id = metadata.get("policy_id")
     is_current_policy = policy_id == EXPERIMENT_POLICY_ID
     return {
@@ -356,7 +440,14 @@ def index():
     selected_model = load_selected_model_from_report()
     return render_template(
         "index.html",
-        **_template_context(selected_model=selected_model, active_page="prediction"),
+        **_template_context(
+            selected_model=selected_model,
+            active_page="prediction",
+            # Cột phải trạng thái rỗng: tín hiệu nổi bật + sức khỏe model. Chỉ tính ở
+            # GET "/" — POST /predict đã có kết quả nên cột phải không render.
+            top_signals=_top_signals(),
+            model_health=_model_health_summary(),
+        ),
     )
 
 
@@ -505,6 +596,11 @@ def predict():
                     error=str(exc),
                     submitted_symbol=symbol,
                     selected_model=load_selected_model_from_report(),
+                    # Nhập sai mã vẫn là trạng thái "chưa có kết quả" → template
+                    # render cột phải. Không truyền context thì cột đó rỗng ruột,
+                    # chỉ còn khung — tệ hơn cả lúc chưa bấm gì.
+                    top_signals=_top_signals(),
+                    model_health=_model_health_summary(),
                 ),
             ),
             400,

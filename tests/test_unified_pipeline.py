@@ -74,6 +74,68 @@ class ValidationGateTests(unittest.TestCase):
 
 
 class FetchWindowTests(unittest.TestCase):
+    def test_empty_provider_data_is_not_a_failed_symbol(self):
+        wrapped_error = RuntimeError("RetryError")
+        wrapped_error.__cause__ = ValueError(
+            "Dữ liệu trống cho mã BCG với interval 1D."
+        )
+
+        with patch("vnstock.api.quote.Quote") as quote:
+            quote.return_value.history.side_effect = wrapped_error
+            result = fetch_hose_data.fetch_symbol_history(
+                "BCG", "2025-10-09", "2026-07-31"
+            )
+
+        self.assertTrue(result.empty)
+
+    def test_real_provider_error_still_fails_after_retries(self):
+        with (
+            patch("vnstock.api.quote.Quote") as quote,
+            patch.object(fetch_hose_data, "FETCH_MAX_RETRIES", 2),
+            patch.object(fetch_hose_data.time, "sleep"),
+        ):
+            quote.return_value.history.side_effect = ValueError("Sai schema")
+            with self.assertRaisesRegex(RuntimeError, "Sai schema"):
+                fetch_hose_data.fetch_symbol_history(
+                    "AAA", "2026-07-31", "2026-07-31"
+                )
+
+    def test_rate_limit_system_exit_waits_then_retries(self):
+        row = pd.DataFrame(
+            {
+                "ticker": ["AAA"],
+                "time": ["2026-07-31"],
+                "open": [10],
+                "high": [11],
+                "low": [9],
+                "close": [10.5],
+                "volume": [100],
+            }
+        )
+        with (
+            patch("vnstock.api.quote.Quote") as quote,
+            patch.object(fetch_hose_data, "FETCH_MAX_RETRIES", 2),
+            patch.object(fetch_hose_data.time, "sleep") as sleep,
+        ):
+            quote.return_value.history.side_effect = [
+                SystemExit("Rate limit exceeded. 20/20. Process terminated."),
+                row,
+            ]
+            result = fetch_hose_data.fetch_symbol_history(
+                "AAA", "2026-07-31", "2026-07-31"
+            )
+
+        self.assertEqual(len(result), 1)
+        sleep.assert_called_once_with(65)
+
+    def test_unrelated_system_exit_is_not_swallowed(self):
+        with patch("vnstock.api.quote.Quote") as quote:
+            quote.return_value.history.side_effect = SystemExit("manual stop")
+            with self.assertRaisesRegex(SystemExit, "manual stop"):
+                fetch_hose_data.fetch_symbol_history(
+                    "AAA", "2026-07-31", "2026-07-31"
+                )
+
     def test_fetch_window_is_resolved_per_symbol(self):
         existing = pd.DataFrame(
             {

@@ -14,9 +14,16 @@ from services.preprocessing import clean_data, dataset_check, write_clean_output
 
 
 def main() -> None:
-    # Logic thật nằm trong services.preprocessing; script chỉ nối các bước IO.
+    """Làm sạch dữ liệu raw và ghi bản clean + báo cáo chất lượng theo mã.
+
+    Logic thật nằm trong services.preprocessing; script chỉ nối các bước IO.
+    """
     raw_df, report = dataset_check()
     cleaned_all, cleaned_for_training, symbol_stats, clean_report = clean_data(raw_df)
+    # Chỉ ``cleaned_all`` được ghi ra file. ``cleaned_for_training`` (đã lọc bớt
+    # theo MIN_TRADING_DAYS / MIN_AVERAGE_VOLUME) là input của bước build_features
+    # và được tính LẠI từ file clean ở script đó — cố ý không ghi ra đĩa để chỉ
+    # có một nguồn dữ liệu sạch duy nhất, tránh hai file lệch nhau.
     write_clean_outputs(cleaned_all, symbol_stats)
     print("Preprocess done.")
     print(f"Rows cleaned: {clean_report['rows_after_cleaning']}")

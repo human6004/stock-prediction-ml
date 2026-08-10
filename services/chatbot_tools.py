@@ -10,28 +10,24 @@ import pandas as pd
 
 from config.settings import (
     CLEANED_DATA_PATH,
-    CV_GAP_SESSIONS,
-    CV_N_SPLITS,
     ELIGIBLE_SYMBOLS_PATH,
     EXPERIMENT_POLICY_ID,
     FEATURE_COLUMNS,
     FEATURE_IMPORTANCE_PATH,
     MODEL_DEFINITIONS,
-    MODEL_METADATA_PATH,
     PIPELINE_SUMMARY_PATH,
-    PREDICTION_HORIZON,
     TUNING_SCORING,
-    UP_THRESHOLD,
 )
 from services import experiment_state, prediction_service
 
 
 PROJECT_TOPICS = {
     "overview",
-    "model",
     "dataset",
     "features",
-    "method",
+    "model",
+    "evaluation",
+    "inference",
     "limitations",
 }
 
@@ -89,7 +85,7 @@ def _load_scope(metadata: dict) -> tuple[set[str], bool]:
     return scope, True
 
 
-def _load_runtime_state() -> dict:
+def _load_runtime_state(*, include_scope: bool = True) -> dict:
     def unavailable(message: str) -> dict:
         return {"error": {"code": "model_unavailable", "message": message}}
 
@@ -99,12 +95,10 @@ def _load_runtime_state() -> dict:
         artifact = prediction_service.load_model_artifact()
         if not isinstance(artifact, dict) or artifact.get("model") is None:
             return unavailable("Model chưa sẵn sàng.")
-        if _read_json(MODEL_METADATA_PATH) is None:
-            return unavailable("Metadata model chưa sẵn sàng.")
         metadata = prediction_service.load_metadata(artifact)
         if not isinstance(metadata, dict):
             return unavailable("Metadata model chưa sẵn sàng.")
-        scope, legacy_scope = _load_scope(metadata)
+        scope, legacy_scope = _load_scope(metadata) if include_scope else (set(), False)
     except Exception:
         return unavailable("Model hoặc metadata chưa sẵn sàng.")
 
@@ -175,7 +169,7 @@ def _stock_signal(arguments: dict, state: dict) -> dict:
     if outside:
         message = f"Mã {', '.join(outside)} nằm ngoài phạm vi model đang phục vụ."
         return {
-            "data": {"focus": arguments["focus"], "unsupported_symbols": outside},
+            "data": {"unsupported_symbols": outside},
             "sources": [],
             "warnings": [*state["warnings"], {"code": "symbol_out_of_scope", "message": message}],
             "data_as_of": None,
@@ -198,10 +192,18 @@ def _stock_signal(arguments: dict, state: dict) -> dict:
             },
         }
 
+    dates = [row.get("reference_date") for row in rows if row.get("reference_date")]
+    same_date = len(dates) == len(rows) and len(set(dates)) == 1
+    if len(rows) > 1 and same_date:
+        rows.sort(
+            key=lambda row: (
+                _number(row.get("probability_up")) is None,
+                -(_number(row.get("probability_up")) or 0),
+                str(row.get("symbol") or "").strip().upper(),
+            )
+        )
     payload = [_signal_payload(row, state["metadata"]) for row in rows]
-    dates = [row.get("reference_date") for row in payload if row.get("reference_date")]
-    same_date = len(dates) == len(payload) and len(set(dates)) == 1
-    data = {"focus": arguments["focus"], "signals": payload}
+    data = {"signals": payload}
     warnings = list(state["warnings"])
     for row in payload:
         if row["is_stale"]:
@@ -212,27 +214,13 @@ def _stock_signal(arguments: dict, state: dict) -> dict:
                 }
             )
 
-    if len(payload) == 2 and not same_date:
-        data["comparison"] = {"available": False, "reason": "different_reference_dates"}
+    if len(payload) > 1 and not same_date:
         warnings.append(
             {
                 "code": "different_reference_dates",
-                "message": "Hai mã khác ngày tham chiếu nên không tính chênh lệch Điểm UP.",
+                "message": "Các mã khác ngày tham chiếu nên giữ thứ tự yêu cầu và không so sánh trực tiếp.",
             }
         )
-    elif len(payload) == 2:
-        first_score = _number(rows[0].get("probability_up"))
-        second_score = _number(rows[1].get("probability_up"))
-        if first_score is not None and second_score is not None:
-            same_score = first_score == second_score
-            higher_index = 0 if first_score > second_score else 1
-            lower_index = 1 - higher_index
-            data["comparison"] = {
-                "higher_up_score_symbol": None if same_score else payload[higher_index]["symbol"],
-                "lower_up_score_symbol": None if same_score else payload[lower_index]["symbol"],
-                "same_up_score": same_score,
-                "up_score_gap_percent_points": round(abs(first_score - second_score) * 100, 2),
-            }
 
     data_as_of = dates[0] if same_date and dates else None
     return {
@@ -325,9 +313,9 @@ def _stock_ranking(arguments: dict, state: dict) -> dict:
 
 
 def _project_info(topic: str, state: dict) -> dict:
-    metadata = state["metadata"]
-    summary = state["summary"]
-    warnings = list(state["warnings"])
+    metadata = state.get("metadata") or {}
+    summary = state.get("summary") or {}
+    warnings = list(state.get("warnings") or [])
     data_as_of = None
 
     if topic == "overview":
@@ -341,45 +329,18 @@ def _project_info(topic: str, state: dict) -> dict:
             },
         }
         sources = [{"kind": "project_contract", "topic": topic}]
-    elif topic == "model":
-        horizon = metadata.get("prediction_horizon") or PREDICTION_HORIZON
-        threshold = metadata.get("up_threshold", UP_THRESHOLD)
-        threshold_percent = _percent(threshold)
-        baselines = metadata.get("final_test_baselines")
-        always_up = next(
-            (
-                row.get("f1_up")
-                for row in baselines
-                if isinstance(row, dict) and row.get("model_name") == "Always UP"
-            ),
-            None,
-        ) if isinstance(baselines, list) else None
+    elif topic == "limitations":
         data = {
             "topic": topic,
-            "model_name": metadata.get("model_name"),
-            "target": (
-                f"Giá đóng cửa tăng hơn {threshold_percent:g}% sau {horizon} phiên"
-                if threshold_percent is not None
-                else None
-            ),
-            "prediction_horizon": horizon,
-            "decision_threshold_percent": _percent(metadata.get("decision_threshold")),
-            "train_through_date": metadata.get("train_through_date"),
-            "training_symbol_count": len(state["scope"]),
-            "baseline_passed": metadata.get("baseline_passed"),
-            "always_up_baseline_f1_up_percent": _percent(always_up),
-            "validation_selection_metrics_percent": {
-                key: _percent(value)
-                for key, value in (metadata.get("validation_selection_metrics") or {}).items()
-                if _number(value) is not None
-            },
-            "final_test_metrics_percent": {
-                key: _percent(value)
-                for key, value in (metadata.get("final_test_metrics") or {}).items()
-                if _number(value) is not None
+            "title": "Giới hạn hệ thống",
+            "facts": {
+                "realtime_data": False,
+                "news": False,
+                "fundamentals": False,
+                "investment_advice": False,
             },
         }
-        sources = [{"kind": "model_metadata"}]
+        sources = [{"kind": "project_contract", "topic": topic}]
     elif topic == "dataset":
         try:
             rows = pd.read_csv(CLEANED_DATA_PATH, usecols=["symbol", "trading_date"])
@@ -393,7 +354,7 @@ def _project_info(topic: str, state: dict) -> dict:
                 "sources": [],
                 "warnings": warnings,
                 "data_as_of": None,
-                "model_trained_through": state["model_trained_through"],
+                "model_trained_through": None,
                 "error": {
                     "code": "report_unavailable",
                     "message": "Thông tin dataset offline chưa sẵn sàng.",
@@ -406,7 +367,7 @@ def _project_info(topic: str, state: dict) -> dict:
             warnings.append(
                 {
                     "code": "data_ahead_of_report",
-                    "message": "Ngày dữ liệu live khác ngày trong pipeline report.",
+                    "message": "Ngày dữ liệu clean khác ngày trong pipeline report.",
                 }
             )
         data_as_of = date_max
@@ -415,10 +376,14 @@ def _project_info(topic: str, state: dict) -> dict:
             "offline": True,
             "date_min": date_min,
             "date_max": date_max,
+            "clean_row_count": int(len(rows)),
             "clean_symbol_count": int(rows["symbol"].nunique()),
-            "training_symbol_count": len(state["scope"]),
+            "training_symbol_count": (summary.get("clean_report") or {}).get("eligible_symbols"),
             "feature_count": (summary.get("feature_report") or {}).get("feature_count")
             or len(FEATURE_COLUMNS),
+            "split_report": summary.get("split_report")
+            if isinstance(summary.get("split_report"), dict)
+            else {},
         }
         sources = [{"kind": "dataset_info", "as_of": date_max}]
     elif topic == "features":
@@ -435,7 +400,7 @@ def _project_info(topic: str, state: dict) -> dict:
                 "sources": [],
                 "warnings": warnings,
                 "data_as_of": None,
-                "model_trained_through": state["model_trained_through"],
+                "model_trained_through": None,
                 "error": {
                     "code": "report_unavailable",
                     "message": "Feature importance chưa sẵn sàng.",
@@ -444,62 +409,87 @@ def _project_info(topic: str, state: dict) -> dict:
         data = {
             "topic": topic,
             "scope": "global_model_importance",
-            "feature_order": metadata.get("feature_order", FEATURE_COLUMNS),
+            "feature_order": list(FEATURE_COLUMNS),
             "global_importance": [
                 {"feature": str(row.feature), "importance": _number(row.importance, 4)}
                 for row in rows.itertuples(index=False)
             ],
         }
         sources = [{"kind": "feature_importance"}]
-    elif topic == "method":
+    elif topic == "model":
+        horizon = metadata.get("prediction_horizon")
+        threshold_percent = _percent(metadata.get("up_threshold"))
+        selection = metadata.get("selection") or summary.get("selection_report") or {}
         data = {
             "topic": topic,
-            "sections": {
-                "target": {
-                    "title": "Target UP/NOT_UP sau số phiên cố định",
-                    "facts": {
-                        "prediction_horizon_sessions": PREDICTION_HORIZON,
-                        "up_threshold_percent": _percent(UP_THRESHOLD),
-                    },
-                },
-                "data_split": {
-                    "title": "Chia TRAIN/VALIDATION/TEST theo thời gian, có gap",
-                    "facts": {"cv_gap_sessions": CV_GAP_SESSIONS},
-                },
-                "training": {
-                    "title": "So sánh candidate rồi chọn theo metric validation",
-                    "facts": {
-                        "candidate_models": [MODEL_DEFINITIONS[key] for key in sorted(MODEL_DEFINITIONS)],
-                        "cv_n_splits": CV_N_SPLITS,
-                        "selection_metric": TUNING_SCORING,
-                    },
-                },
-                "inference": {
-                    "title": "Đọc artifact đã publish và suy luận offline",
-                    "facts": {"triggers_training": False},
-                },
-            },
+            "model_name": metadata.get("model_name"),
+            "target": (
+                f"Giá đóng cửa tăng hơn {threshold_percent:g}% sau {horizon} phiên"
+                if threshold_percent is not None and horizon is not None
+                else None
+            ),
+            "prediction_horizon": horizon,
+            "decision_threshold_percent": _percent(metadata.get("decision_threshold")),
+            "train_through_date": metadata.get("train_through_date"),
+            "training_symbol_count": metadata.get("training_symbol_count"),
+            "best_params": metadata.get("best_params"),
+            "candidate_models": [MODEL_DEFINITIONS[key] for key in sorted(MODEL_DEFINITIONS)],
+            "selection_metric": TUNING_SCORING,
+            "selection_split": selection.get("selection_split"),
         }
-        sources = [{"kind": "project_contract", "topic": topic}]
+        sources = [{"kind": "model_metadata"}]
+    elif topic == "evaluation":
+        baselines = metadata.get("final_test_baselines")
+        baseline_rows = []
+        if isinstance(baselines, list):
+            for row in baselines:
+                if not isinstance(row, dict):
+                    continue
+                metrics = {
+                    key: _percent(value)
+                    for key, value in row.items()
+                    if key in {"accuracy", "precision_up", "recall_up", "f1_up"}
+                    and _number(value) is not None
+                }
+                baseline_rows.append(
+                    {"model_name": row.get("model_name"), "metrics_percent": metrics}
+                )
+        data = {
+            "topic": topic,
+            "validation_selection_metrics_percent": {
+                key: _percent(value)
+                for key, value in (metadata.get("validation_selection_metrics") or {}).items()
+                if _number(value) is not None
+            },
+            "final_test_metrics_percent": {
+                key: _percent(value)
+                for key, value in (metadata.get("final_test_metrics") or {}).items()
+                if _number(value) is not None
+            },
+            "final_test_baselines": baseline_rows,
+            "baseline_passed": metadata.get("baseline_passed"),
+            "baseline_warning": metadata.get("baseline_warning"),
+        }
+        sources = [{"kind": "model_metadata", "section": topic}]
     else:
         data = {
             "topic": topic,
-            "title": "Giới hạn hệ thống",
+            "flow": ["predict_proba", "score", "decision_threshold", "UP / NOT_UP"],
             "facts": {
-                "realtime_data": False,
-                "news": False,
-                "fundamentals": False,
-                "investment_advice": False,
+                "triggers_training": False,
+                "prediction_horizon_sessions": metadata.get("prediction_horizon"),
+                "decision_threshold_percent": _percent(metadata.get("decision_threshold")),
+                "labels": ["UP", "NOT_UP"],
             },
         }
-        sources = [{"kind": "project_contract", "topic": topic}]
+        sources = [{"kind": "model_metadata", "section": topic}]
 
     return {
         "data": data,
         "sources": sources,
         "warnings": warnings,
         "data_as_of": data_as_of,
-        "model_trained_through": state["model_trained_through"],
+        "model_trained_through": state.get("model_trained_through"),
         "error": None,
     }
 
@@ -510,7 +500,29 @@ def execute_action(action: str, arguments: dict) -> dict:
     if action == "PROJECT_INFO" and arguments.get("topic") not in PROJECT_TOPICS:
         raise ValueError("Unsupported project topic")
 
-    state = _load_runtime_state()
+    if action == "PROJECT_INFO":
+        topic = arguments["topic"]
+        if topic in {"overview", "limitations"}:
+            return _project_info(topic, {})
+        if topic in {"dataset", "features"}:
+            if experiment_state.is_pipeline_running():
+                return {
+                    "data": {},
+                    "sources": [],
+                    "warnings": [],
+                    "data_as_of": None,
+                    "model_trained_through": None,
+                    "error": {
+                        "code": "report_unavailable",
+                        "message": "Pipeline đang ghi report; thông tin tạm thời chưa sẵn sàng.",
+                    },
+                }
+            return _project_info(
+                topic,
+                {"summary": _read_json(PIPELINE_SUMMARY_PATH) or {}},
+            )
+
+    state = _load_runtime_state(include_scope=action != "PROJECT_INFO")
     if state.get("error"):
         return {
             "data": {},

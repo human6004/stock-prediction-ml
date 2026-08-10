@@ -44,6 +44,25 @@ _JOB_STATE = {"status": "idle"}
 
 
 def _validate_cv_provenance(cv: dict) -> None:
+    """Chặn ngay tại nguồn những kết quả CV không đủ tư cách ghi vào lịch sử.
+
+    Đây là cửa kiểm tra ĐẦU VÀO (trước khi ``append_history`` ghi dòng "ok"),
+    song sinh với ``experiment_state._eligible_policy_rows`` là cửa ĐẦU RA (lọc
+    lại lúc đọc). Cùng một bộ ràng buộc được kiểm hai lần ở hai thời điểm: ở đây
+    để CSV không bao giờ chứa dòng "ok" rác, ở kia để CSV có bị sửa tay/hỏng thì
+    ranking vẫn không lấy dòng đó.
+
+    Bốn thứ bị soi:
+    - Đủ ``CV_N_SPLITS`` phần tử cho mọi mảng fold. Thiếu một fold nghĩa là CV bị
+      cắt giữa đường; ``model_tuning._cv_from_selected`` sau này cần đúng số fold
+      để tái dựng lại CV mà không phải chạy lại.
+    - ``decision_threshold`` nằm trong (0,1) — 0 hoặc 1 là ngưỡng suy biến
+      (dự báo UP hết / NOT_UP hết).
+    - ``oof_predicted_up_ratio`` không vượt trần: model không được "bắn UP bừa"
+      để ăn recall.
+    - ``oof_precision_up >= oof_up_rate``: precision phải cao hơn tỷ lệ UP tự
+      nhiên của dữ liệu, tức model thật sự khá hơn đoán ngẫu nhiên theo tỷ lệ nền.
+    """
     required_fold_fields = (
         "f1_up_folds",
         "precision_up_folds",
@@ -88,6 +107,16 @@ def load_train() -> pd.DataFrame:
 # Server-side validation
 # --------------------------------------------------------------------------- #
 def _check_bounds(name: str, value: float, spec: dict) -> None:
+    """Kiểm tra value nằm trong khoảng của ``TUNABLE_PARAM_SCHEMA``; sai thì raise.
+
+    Phải phân biệt biên đóng/mở vì có tham số không nhận chính giá trị biên: ví dụ
+    ``C`` của Logistic Regression phải > 0 (C = 0 làm sklearn lỗi), trong khi
+    ``max_depth`` thì >= 1 là hợp lệ. Vì vậy schema có ``inclusive_min`` /
+    ``inclusive_max``, mặc định True (biên đóng) cho trường hợp thường gặp.
+
+    Raise ``ValueError`` với thông báo tiếng Việt kèm đúng con số biên, để form
+    Tuning Lab hiển thị lại nguyên văn cho người dùng sửa.
+    """
     minimum = spec.get("min")
     if minimum is not None:
         if spec.get("inclusive_min", True):
@@ -152,6 +181,10 @@ def validate_params(model_key: str, raw_form: dict) -> dict:
                 raise ValueError(f"{name} chi nhan: {', '.join(spec['choices'])}.")
             params[name] = text
         elif field_type == "str_or_float":
+            # Kiểu lai, sinh ra vì sklearn nhận cả hai dạng cho cùng một tham số:
+            # max_features="sqrt" (chuỗi tên công thức) hoặc max_features=0.5 (tỷ
+            # lệ số cột). Thử khớp danh sách choices trước; không khớp thì hiểu là
+            # người dùng nhập số và ép về float kèm kiểm biên.
             text = "" if raw is None else str(raw).strip()
             if text in spec.get("choices", []):
                 params[name] = text
@@ -182,6 +215,18 @@ def evaluate_single_config(
 
     On CV failure, an error row is recorded in history and the exception is
     re-raised so the route can show a clear message (the app never crashes).
+
+    Vì sao ghi history CẢ KHI LỖI rồi mới ``raise``: lịch sử tuning là sổ ghi thí
+    nghiệm, không phải danh sách kết quả tốt. Một config nổ (ví dụ solver không
+    hợp với dữ liệu, hoặc CV không tìm được threshold thỏa ràng buộc) là thông tin
+    đáng lưu — nếu không, người dùng sẽ thử lại chính config đó nhiều lần mà không
+    biết là đã thử. Dòng lỗi mang ``status="error"`` nên ``_eligible_policy_rows``
+    tự động bỏ qua, không thể lọt vào ranking.
+
+    Thứ tự bắt buộc: ``run_cv_metrics`` xong thì ``_validate_cv_provenance`` phải
+    chạy TRƯỚC khi ghi dòng ``status="ok"``. Nếu đảo lại, một CV đủ số nhưng thiếu
+    provenance vẫn được ghi "ok" và sẽ làm ``_cv_from_selected`` nổ về sau — nổ ở
+    lúc chạy pipeline chính thức, xa chỗ gây lỗi.
     """
     model_id = MODEL_KEY_TO_ID[model_key]
     fingerprint = fingerprint or compute_dataset_fingerprint()
@@ -280,6 +325,17 @@ def evaluate_single_config(
 
 
 def _run_tuning_job(job_id: str, model_key: str, params: dict, note: str) -> None:
+    """Thân của background thread: chạy CV rồi ghi kết quả vào ``_JOB_STATE``.
+
+    Bắt ``Exception`` trần là có chủ ý: đây là top-level của một thread. Nếu để
+    exception thoát ra, thread chết im lặng và trang /tuning sẽ treo mãi ở trạng
+    thái "running" — không có ai join nó để thấy lỗi. Bắt lại rồi chuyển thành
+    ``status="error"`` là cách duy nhất để lỗi hiển thị được trên UI.
+
+    Chỉ giữ lock ở bước GHI state, không giữ suốt lúc chạy CV (CV mất vài chục
+    giây tới vài phút). Nếu giữ lock cả lúc chạy, mọi lần polling ``/tuning/status``
+    đều bị block → UI đứng.
+    """
     global _JOB_STATE
     try:
         train = load_train()
@@ -292,7 +348,20 @@ def _run_tuning_job(job_id: str, model_key: str, params: dict, note: str) -> Non
 
 
 def start_tuning_job(model_key: str, params: dict, note: str = "") -> str | None:
-    """Start one CV job in-process; return None while another job is active."""
+    """Start one CV job in-process; return None while another job is active.
+
+    Vì sao cần thread: một lần CV mất hàng chục giây tới vài phút. Nếu chạy ngay
+    trong request handler thì browser treo và có thể timeout. Nên route chỉ đẩy
+    job vào thread rồi trả job_id; UI poll trạng thái qua ``get_tuning_job_state``.
+
+    Chỉ cho phép MỘT job tại một thời điểm: CV dùng gần hết CPU (RandomForest
+    n_jobs=-1), hai job song song sẽ tranh core và làm ``train_seconds`` ghi vào
+    history mất ý nghĩa so sánh. ``return None`` (không raise) để route hiển thị
+    "đang có job khác chạy" thay vì trả lỗi 500.
+
+    ``dict(params)`` khi truyền vào thread: copy để caller có sửa dict sau đó
+    cũng không ảnh hưởng job đang chạy.
+    """
     global _JOB_STATE, _JOB_THREAD
     params = validate_params(model_key, params)
     with _JOB_LOCK:

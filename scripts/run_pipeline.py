@@ -66,7 +66,16 @@ def print_report(title: str, items: list[tuple[str, object]]) -> None:
 
 
 def _normalize_fingerprint_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
-    """Mirror numeric parsing after ml_dataset.csv is written and read."""
+    """Mirror numeric parsing after ml_dataset.csv is written and read.
+
+    Vì sao cần bước "làm bẩn" dữ liệu trước khi hash: fingerprint trong bộ nhớ
+    được tính trên DataFrame vừa build, còn fingerprint kiểm tra lại (và mọi lần
+    tính sau này ở Tuning Lab) đọc từ ``ml_dataset.csv``. Đi qua CSV, float bị
+    làm tròn theo repr văn bản → hai fingerprint sẽ KHÁC nhau dù nội dung logic
+    y hệt. Ở đây ta ép mọi cột số qua ``astype(str)`` rồi ``to_numeric`` để mô
+    phỏng đúng vòng ghi-đọc đó, nhờ vậy fingerprint trước và sau khi ghi file
+    khớp nhau và cổng kiểm tra ở ``_run_pipeline`` mới có ý nghĩa.
+    """
     normalized = dataset.copy()
     numeric_columns = normalized.select_dtypes(include="number").columns
     normalized[numeric_columns] = normalized[numeric_columns].apply(
@@ -76,6 +85,14 @@ def _normalize_fingerprint_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
 
 
 def _guard_unevaluated_snapshot(fingerprint_hash: str | None) -> None:
+    """Chặn chạy TEST lần thứ hai trên cùng một snapshot dữ liệu.
+
+    Giao thức của project: mỗi snapshot dữ liệu chỉ được "mở" TEST đúng MỘT lần.
+    Chạy lại nhiều lần rồi giữ kết quả đẹp nhất chính là rò rỉ thông tin TEST vào
+    quyết định chọn model, làm số liệu báo cáo mất giá trị. Registry ở
+    ``experiments/evaluation_registry.json`` ghi nhớ fingerprint đã đánh giá, nên
+    lần chạy sau trên đúng snapshot đó bị dừng ngay.
+    """
     if fingerprint_hash and has_evaluated_snapshot(fingerprint_hash):
         raise RuntimeError(
             "Snapshot dữ liệu này đã được đánh giá trên TEST "
@@ -84,9 +101,19 @@ def _guard_unevaluated_snapshot(fingerprint_hash: str | None) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Điểm vào pipeline chính thức: giữ lock độc quyền rồi gọi ``_run_pipeline``.
+
+    Cố tình KHÔNG nhận tham số dòng lệnh: mọi cấu hình phải đến từ
+    ``config/settings.py`` và ``experiments/manual_config.json``, để lần chạy nào
+    cũng tái lập được từ file trong repo chứ không phụ thuộc câu lệnh ai đó gõ.
+    """
     args = sys.argv[1:] if argv is None else argv
     if args:
         raise ValueError("Official pipeline không nhận tham số dòng lệnh.")
+    # Lock file (experiments/pipeline.lock) chống hai tiến trình cùng ghi artifact:
+    # web UI có thể bấm "chạy pipeline" trong khi một lần chạy CLI đang dở, hai bên
+    # ghi chồng model/report sẽ tạo release trộn lẫn. Không lấy được lock → thoát
+    # với exit code 1 để caller (subprocess của Flask) biết là bị chặn.
     owner_token = acquire_pipeline_lock()
     if owner_token is None:
         print("Pipeline đang chạy ở tiến trình khác (experiments/pipeline.lock). Thoát.")
@@ -98,6 +125,33 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _run_pipeline() -> None:
+    """Toàn bộ pipeline chính thức, theo đúng thứ tự bắt buộc của giao thức.
+
+    Các mốc quan trọng và LÝ DO thứ tự không đổi được:
+
+    1. Build dữ liệu trong bộ nhớ (clean → feature → label → split) TRƯỚC khi ghi
+       bất cứ file nào. Nếu có lỗi ở giữa, output cũ trên đĩa vẫn nguyên vẹn.
+    2. Tính fingerprint và ``_guard_unevaluated_snapshot`` NGAY, trước khi train:
+       snapshot đã đánh giá TEST rồi thì dừng sớm, không tốn thời gian train.
+    3. ``is_config_complete``: bắt buộc phải có cấu hình CV do người dùng chốt ở
+       Tuning Lab cho đủ LR/RF/GB và ĐÚNG content fingerprint hiện tại. Đây là
+       thiết kế "manual tuning": pipeline không tự dò tham số.
+    4. Ghi output, rồi tính LẠI fingerprint từ file vừa ghi và so ``content_hash``.
+       Khác nhau = dữ liệu trên đĩa không phải dữ liệu vừa train → dừng, vì mọi
+       gate provenance sau này dựa trên file.
+    5. Train (CV theo config) → đánh giá VALIDATION (kèm baseline) → chọn model.
+       TEST chưa hề được nhìn tới ở bước này.
+    6. Ghi registry ``status="started"`` NGAY TRƯỚC khi chạm TEST và bật
+       ``evaluation_started``: nếu tiến trình chết giữa lúc đánh giá, snapshot vẫn
+       bị đánh dấu là "đã mở TEST", không thể âm thầm chạy lại.
+    7. Refit winner trên TRAIN+VALIDATION rồi đánh giá TEST đúng một lần.
+    8. Publish: ``atomic_model_release`` đổi model + metadata cùng lúc, sau đó ghi
+       ``pipeline_summary.json``, cuối cùng registry ``status="published"``.
+
+    Nhánh ``except``: chỉ ghi ``release_failed`` khi TEST đã được mở
+    (``evaluation_started``) — lỗi trước đó không "tiêu" snapshot nên không cần
+    ghi gì, người dùng sửa rồi chạy lại được.
+    """
     print("Starting HOSE stock prediction pipeline...")
     evaluation_fingerprint: str | None = None
     evaluation_started = False

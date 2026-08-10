@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Sequence — Runtime prediction đọc artifact đã publish</h1>
       </div>
-      <p class="subtitle">Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · không retrain, Flask không tự load model</p>
+      <p class="subtitle">Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · load in-process mỗi request cho /predict và /compare · chỉ /screener cache theo mtime · không retrain</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 960 780" role="img" aria-label="Sequence — Runtime prediction đọc artifact đã publish — Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · không retrain, Flask không tự load model (sequence diagram)">
+      <svg viewBox="0 0 960 780" role="img" aria-label="Sequence — Runtime prediction đọc artifact đã publish — Browser/CLI → Flask → prediction_service → metadata + clean data + final_model → UP/NOT_UP · load in-process mỗi request cho /predict và /compare · chỉ /screener cache theo mtime · không retrain (sequence diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -549,7 +549,7 @@
         <path d="M 69 182 L 163 182" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="6" y="162" width="220" height="16" rx="3" class="c-mask"/>
         <text x="116" y="172" class="t-backend" font-size="9" text-anchor="middle">GET/POST /predict · /compare · /screener</text>
-        <text x="81" y="200" class="t-dim" font-size="7">Flask chỉ định tuyến; không tự load model hay đọc pkl</text>
+        <text x="81" y="200" class="t-dim" font-size="7">Flask định tuyến, không gọi fit; lỗi artifact bị catch và render lại trang với HTTP 400</text>
 
         <path d="M 177 216 L 271 216" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="116.6" y="196" width="214.8" height="16" rx="3" class="c-mask"/>
@@ -558,7 +558,7 @@
         <path d="M 285 268 L 595 268" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <rect x="379.4" y="248" width="121.2" height="16" rx="3" class="c-mask"/>
         <text x="440" y="258" class="t-backend" font-size="9" text-anchor="middle">load_model_artifact()</text>
-        <text x="297" y="286" class="t-dim" font-size="7">joblib.load final_model.pkl, cache theo model signature</text>
+        <text x="297" y="286" class="t-dim" font-size="7">joblib.load final_model.pkl in-process; /predict và /compare load lại mỗi request, chỉ /screener dùng lru_cache</text>
 
         <path d="M 595 302 L 285 302" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="379.4" y="282" width="121.2" height="16" rx="3" class="c-mask"/>
@@ -576,7 +576,7 @@
         <path d="M 285 422 L 487 422" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <rect x="346.2" y="402" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
         <text x="386" y="412" class="t-backend" font-size="9" text-anchor="middle">đọc clean.csv</text>
-        <text x="297" y="440" class="t-dim" font-size="7">lấy latest feature row / symbol trong scope; cache theo dataset signature</text>
+        <text x="297" y="440" class="t-dim" font-size="7">build_features trên full history của symbol rồi lấy row mới nhất; thiếu clean.csv thì fallback dataset_check + clean_data từ raw</text>
 
         <path d="M 487 476 L 285 476" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="226.6" y="456" width="318.8" height="16" rx="3" class="c-mask"/>
@@ -652,12 +652,12 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Flask không tự load model</h3>
+          <h3>Load in-process, chỉ screener có cache</h3>
         </div>
         <ul>
-          <li>&bull; Mọi route dự báo (/predict, /compare, /screener) chỉ gọi prediction_service, không đọc pkl trực tiếp</li>
-          <li>&bull; prediction_service là nơi duy nhất joblib.load final_model.pkl và đọc metadata + clean.csv</li>
-          <li>&bull; predict_all_symbols cache theo dataset signature + model signature để không load lại mỗi request</li>
+          <li>&bull; Mọi route dự báo (/predict, /compare, /screener) chỉ gọi prediction_service, không tự đọc pkl — nhưng model vẫn nạp trong tiến trình Flask</li>
+          <li>&bull; /predict và /compare KHÔNG cache: mỗi request đọc lại clean.csv, chạy build_features và joblib.load pkl</li>
+          <li>&bull; predict_all_symbols (/screener) dùng lru_cache(maxsize=1) khoá theo dataset signature + model signature (size, mtime_ns) — không TTL</li>
         </ul>
       </div>
 

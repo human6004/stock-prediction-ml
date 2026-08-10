@@ -223,6 +223,42 @@ class PredictionServiceTests(unittest.TestCase):
         model.predict_proba.assert_called_once()
         self.assertEqual(len(model.predict_proba.call_args.args[0]), 2)
 
+    def test_batch_accepts_five_unique_symbols_after_deduplication(self):
+        symbols = ("FPT", "VNM", "HPG", "MWG", "SSI")
+        clean = make_clean_data()
+        template = clean[clean["symbol"] == "FPT"]
+        clean = pd.concat(
+            [
+                clean,
+                *[
+                    template.assign(symbol=symbol)
+                    for symbol in symbols
+                    if symbol not in {"FPT", "VNM"}
+                ],
+            ],
+            ignore_index=True,
+        )
+        model = FakeProbabilityModel((0.8, 0.7, 0.6, 0.5, 0.4))
+        artifact = make_artifact(model)
+        with (
+            patch.object(prediction_service, "_load_clean_data", return_value=clean),
+            patch.object(
+                prediction_service,
+                "build_features",
+                return_value=(make_features(symbols), {}),
+            ),
+            patch.object(prediction_service, "load_model_artifact", return_value=artifact),
+            patch.object(prediction_service, "load_metadata", return_value=make_metadata()),
+            patch.object(prediction_service, "date", FrozenDate, create=True),
+        ):
+            results = prediction_service.predict_symbols(
+                ["FPT", "fpt", "VNM", "HPG", "MWG", "SSI"]
+            )
+
+        self.assertEqual([result["symbol"] for result in results], list(symbols))
+        model.predict_proba.assert_called_once()
+        self.assertEqual(len(model.predict_proba.call_args.args[0]), 5)
+
     def test_inference_uses_threshold_from_artifact_metadata(self):
         features = make_features()
         model = FakeProbabilityModel((0.5, 0.4999))
@@ -343,8 +379,13 @@ class PredictionServiceTests(unittest.TestCase):
         self.assertEqual(result["reference_date"], "2026-07-09")
         self.assertIs(result["is_stale"], True)
 
-    def test_validation_rejects_empty_items_and_more_than_two_symbols(self):
-        invalid_inputs = ([], [""], ["FPT", " "], ["FPT", "VNM", "HPG"])
+    def test_validation_rejects_empty_items_and_more_than_five_symbols(self):
+        invalid_inputs = (
+            [],
+            [""],
+            ["FPT", " "],
+            ["FPT", "VNM", "HPG", "MWG", "SSI", "VCB"],
+        )
         for symbols in invalid_inputs:
             with self.subTest(symbols=symbols), self.assertRaises(ValueError):
                 prediction_service.predict_symbols(symbols)
@@ -402,6 +443,61 @@ class PredictionServiceTests(unittest.TestCase):
         self.assertEqual([result["prediction"] for result in results], ["UP", "NOT_UP"])
         self.assertEqual([result["probability_up"] for result in results], [None, None])
         self.assertNotIn("giảm", results[1]["prediction_short_vi"].lower())
+
+    def test_cached_all_symbol_inference_batches_and_returns_copies(self):
+        model = FakeProbabilityModel((0.8, 0.4))
+        artifact = make_artifact(model)
+        metadata = {
+            **make_metadata(),
+            "policy_id": "legacy",
+            "baseline_passed": False,
+            "baseline_warning": None,
+        }
+        prediction_service._predict_all_symbols_cached.cache_clear()
+        with (
+            patch.object(prediction_service, "_load_clean_data", return_value=make_clean_data()),
+            patch.object(
+                prediction_service,
+                "build_features",
+                return_value=(make_features(), {}),
+            ),
+            patch.object(prediction_service, "load_model_artifact", return_value=artifact),
+            patch.object(prediction_service, "load_metadata", return_value=metadata),
+            patch.object(prediction_service, "_dataset_signature", return_value=("data",)),
+            patch.object(prediction_service, "_model_signature", return_value=("model",)),
+        ):
+            first = prediction_service.predict_all_symbols()
+            first[0]["symbol"] = "CHANGED"
+            second = prediction_service.predict_all_symbols()
+
+        self.assertEqual([row["symbol"] for row in second], ["FPT", "VNM"])
+        self.assertEqual([row["prediction"] for row in second], ["UP", "NOT_UP"])
+        self.assertTrue(all(row["baseline_warning"] for row in second))
+        model.predict_proba.assert_called_once()
+        prediction_service._predict_all_symbols_cached.cache_clear()
+
+    def test_data_and_model_signatures_cover_clean_raw_and_missing_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clean = root / "clean.csv"
+            raw = root / "raw.csv"
+            model = root / "model.pkl"
+            clean.write_text("clean", encoding="utf-8")
+            raw.write_text("raw", encoding="utf-8")
+            model.write_text("model", encoding="utf-8")
+            with (
+                patch.object(prediction_service, "CLEANED_DATA_PATH", clean),
+                patch.object(prediction_service, "RAW_DATA_PATH", raw),
+                patch.object(prediction_service, "FINAL_MODEL_PATH", model),
+            ):
+                self.assertEqual(prediction_service._dataset_signature()[0], str(clean))
+                self.assertNotEqual(prediction_service._model_signature(), (0, 0))
+                clean.unlink()
+                self.assertEqual(prediction_service._dataset_signature()[0], str(raw))
+                raw.unlink()
+                model.unlink()
+                self.assertEqual(prediction_service._dataset_signature(), ("missing", 0, 0))
+                self.assertEqual(prediction_service._model_signature(), (0, 0))
 
 
 class PredictionRouteTests(unittest.TestCase):

@@ -3,18 +3,18 @@
   "diagram_type": "sequence",
   "meta": {
     "title": "Chatbot — Một LLM Decision, Một Action Cố Định",
-    "subtitle": "User → Flask API → JSON decision → dispatcher → data/ML → deterministic formatter",
+    "subtitle": "/chat hoặc dock → JSON 2-key → validate → dispatcher → data/ML → formatter",
     "output": "docs/diagrams/luuDo/06-sequence-chatbot-action-decision.html",
     "viewBox": [920, 900]
   },
   "participants": [
-    { "id": "user", "type": "external", "label": "User", "sublabel": "trang /chat" },
+    { "id": "user", "type": "external", "label": "User", "sublabel": "/chat hoặc dock" },
     { "id": "flask", "type": "frontend", "label": "Flask API", "sublabel": "POST /api/chat" },
     { "id": "service", "type": "backend", "label": "Chat Service", "sublabel": "orchestration" },
-    { "id": "llm", "type": "external", "label": "LLM", "sublabel": "JSON decision" },
-    { "id": "validate", "type": "security", "label": "Validator", "sublabel": "action + args" },
+    { "id": "llm", "type": "external", "label": "LLM", "sublabel": "action decision" },
+    { "id": "validate", "type": "security", "label": "Validator", "sublabel": "exact schema" },
     { "id": "dispatch", "type": "backend", "label": "Dispatcher", "sublabel": "fixed branch" },
-    { "id": "tools", "type": "database", "label": "Data Tools", "sublabel": "read-only" },
+    { "id": "tools", "type": "database", "label": "Domain Tools", "sublabel": "scope + facts" },
     { "id": "ml", "type": "backend", "label": "ML Service", "sublabel": "prediction" }
   ],
   "segments": [
@@ -24,23 +24,23 @@
     { "from": 675, "to": 775, "label": "04 / RESPONSE" }
   ],
   "messages": [
-    { "from": "user", "to": "flask", "y": 185, "label": "message + history", "variant": "emphasis", "note": "message tối đa 1000 ký tự; history tối đa 6 message đã validate" },
+    { "from": "user", "to": "flask", "y": 185, "label": "message + history", "variant": "emphasis", "note": "cùng API · message ≤1000 · history ≤3 cặp" },
     { "from": "flask", "to": "service", "y": 225, "label": "chat(message, history)", "variant": "emphasis" },
 
-    { "from": "service", "to": "llm", "y": 290, "label": "system + whitelist + history", "variant": "emphasis", "note": "một call; không tools, tool_choice, response_format, CSV, report, code hoặc artifact" },
-    { "from": "llm", "to": "service", "y": 335, "label": "3-key JSON decision", "variant": "return", "note": "GENERAL_CHAT · STOCK_SIGNAL · STOCK_RANKING · PROJECT_INFO · OUT_OF_SCOPE" },
-    { "from": "service", "to": "validate", "y": 380, "label": "validate action + arguments", "variant": "security", "note": "exact keys, type/range, symbol uppercase/unique; JSON sai trả 502, không retry" },
+    { "from": "service", "to": "llm", "y": 290, "label": "prompt + whitelist + history", "variant": "emphasis", "note": "1 call · không tools/retry/router" },
+    { "from": "llm", "to": "service", "y": 335, "label": "{action, arguments}", "variant": "return", "note": "5 action whitelist" },
+    { "from": "service", "to": "validate", "y": 380, "label": "validate exact 2-key schema", "variant": "security", "note": "fixed kind · 1–5 symbols · 7 topics · sai → 502" },
     { "from": "validate", "to": "service", "y": 420, "label": "normalized decision", "variant": "return" },
 
-    { "from": "service", "to": "dispatch", "y": 475, "label": "execute data action", "variant": "emphasis", "note": "GENERAL_CHAT và OUT_OF_SCOPE bỏ qua dispatcher" },
-    { "from": "dispatch", "to": "tools", "y": 515, "label": "one fixed branch", "variant": "default", "note": "readiness + symbol scope trước inference" },
-    { "from": "tools", "to": "ml", "y": 555, "label": "predict symbols / ranking", "variant": "emphasis", "note": "chỉ STOCK_SIGNAL và STOCK_RANKING; PROJECT_INFO đọc metadata/report/config" },
-    { "from": "ml", "to": "tools", "y": 595, "label": "signal rows", "variant": "return" },
-    { "from": "tools", "to": "dispatch", "y": 635, "label": "domain result", "variant": "return", "note": "data + sources + warnings + hai mốc ngày; symbol ngoài scope là response 200" },
+    { "from": "service", "to": "dispatch", "y": 475, "label": "execute data action", "variant": "emphasis", "note": "GENERAL_CHAT / OUT_OF_SCOPE bỏ qua tools" },
+    { "from": "dispatch", "to": "tools", "y": 515, "label": "one fixed branch", "variant": "default", "note": "kiểm toàn bộ symbol scope trước ML" },
+    { "from": "tools", "to": "ml", "y": 555, "label": "predict symbols / ranking", "variant": "emphasis", "note": "PROJECT_INFO đọc static/report/metadata" },
+    { "from": "ml", "to": "tools", "y": 595, "label": "trusted signal rows", "variant": "return" },
+    { "from": "tools", "to": "dispatch", "y": 635, "label": "domain result", "variant": "return", "note": "mã lỗi → liệt kê tất cả + dừng" },
 
     { "from": "dispatch", "to": "service", "y": 700, "label": "action result", "variant": "return" },
-    { "from": "service", "to": "flask", "y": 735, "label": "deterministic answer", "variant": "return", "note": "không gọi LLM lần hai; số lấy trực tiếp từ domain result" },
-    { "from": "flask", "to": "user", "y": 770, "label": "5-field JSON + safe render", "variant": "return", "note": "answer, sources, warnings, data_as_of, model_trained_through; browser dùng textContent" }
+    { "from": "service", "to": "flask", "y": 735, "label": "deterministic answer", "variant": "return", "note": "không LLM lần hai · chỉ facts backend" },
+    { "from": "flask", "to": "user", "y": 770, "label": "5-field JSON + textContent", "variant": "return", "note": "answer · sources · warnings · dates" }
   ],
   "activations": [
     { "participant": "flask", "from": 180, "to": 776, "type": "frontend" },
@@ -56,18 +56,18 @@
       "dot": "violet",
       "title": "LLM quyết định ít",
       "items": [
-        "LLM hiểu câu tự nhiên và chọn đúng một action; GENERAL_CHAT có direct_answer ngắn",
-        "Thiếu mã hoặc tiêu chí: GENERAL_CHAT hỏi lại một câu ngắn",
-        "LLM không chọn function, model ML, threshold, file hoặc nguồn dữ liệu"
+        "LLM chỉ hiểu câu tự nhiên rồi chọn action + arguments đúng schema",
+        "GENERAL_CHAT dùng fixed kind; STOCK_SIGNAL nhận 1–5 mã, không focus",
+        "PROJECT_INFO có 7 topic; LLM không chọn model, threshold hoặc nguồn"
       ]
     },
     {
       "dot": "emerald",
       "title": "Backend kiểm soát",
       "items": [
-        "Decision sai schema bị chặn trước dispatcher; không retry hoặc fallback router",
-        "Dispatcher chỉ gọi handler cố định; prediction_service là nơi duy nhất inference",
-        "Formatter deterministic nên không cần grounding regex"
+        "Decision sai schema bị chặn; không retry, fallback router hoặc LLM lần hai",
+        "Scope validation tập trung trước prediction; một mã lỗi làm dừng cả request",
+        "Formatter deterministic chỉ dùng dữ liệu, metric và artifact thật"
       ]
     },
     {
@@ -76,7 +76,7 @@
       "items": [
         "Dữ liệu offline; không realtime, news, fundamentals hoặc lời khuyên mua/bán",
         "Không RAG, embedding, Vector DB, agent loop, LangChain hoặc chat database",
-        "Một UI /chat; transcript sessionStorage và chỉ gửi 6 message cuối"
+        "Hai UI dùng chung API và transcript tab; gửi tối đa 3 cặp history"
       ]
     }
   ]

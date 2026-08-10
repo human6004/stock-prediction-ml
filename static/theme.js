@@ -49,8 +49,35 @@
         btn.setAttribute("aria-pressed", dark ? "true" : "false");
     }
 
+    // Giảm xóc lúc đổi theme: bật class .theme-transition ~320ms để màu chạy
+    // mượt thay vì nháy một nhịp. CHỈ dùng cho lần đổi do người dùng bấm —
+    // applyTheme() trong <head> vẫn tức thời để không FOUC. window.UIKit có thể
+    // chưa tồn tại (theme.js nạp ở <head>, ui-kit.js nạp cuối body) nên phải dò.
+    var dampTimer = null;
+
+    function reducedMotion() {
+        var kit = window.UIKit;
+        if (kit && typeof kit.prefersReducedMotion === "function") {
+            return kit.prefersReducedMotion();
+        }
+        return !!(window.matchMedia
+            && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    }
+
+    function dampTransition() {
+        if (reducedMotion()) { return; }
+        var root = document.documentElement;
+        root.classList.add("theme-transition");
+        if (dampTimer) { window.clearTimeout(dampTimer); }
+        dampTimer = window.setTimeout(function () {
+            root.classList.remove("theme-transition");
+            dampTimer = null;
+        }, 320);
+    }
+
     function toggle() {
         var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        dampTransition();
         applyTheme(next);
         try { localStorage.setItem(KEY, next); } catch (e) {}
         syncButton();
@@ -80,9 +107,10 @@
         function setOpen(open) {
             shell.classList.toggle("nav-open", open);
             toggle.setAttribute("aria-expanded", open ? "true" : "false");
-            toggle.setAttribute(
-                "aria-label", open ? "Đóng menu điều hướng" : "Mở menu điều hướng"
-            );
+            // KHÔNG ghi lại aria-label ở đây: nhãn phải luôn chứa chữ nhìn thấy
+            // ("Menu") theo WCAG 2.5.3 Label in Name, còn đóng/mở đã do
+            // aria-expanded truyền tải. title thì tự do vì không phải tên khả cận.
+            toggle.setAttribute("title", open ? "Đóng menu" : "Mở menu");
         }
 
         toggle.addEventListener("click", function () {

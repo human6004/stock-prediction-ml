@@ -18,10 +18,11 @@ Bộ sơ đồ mô tả hệ thống dự đoán cổ phiếu HOSE: pipeline ML 
 
 ## Runtime Chatbot Action Decision
 
-- [06 - Sequence chatbot Action Decision](06-sequence-chatbot-action-decision.html) — `/chat` → Flask `/api/chat` → đúng một LLM call trả JSON decision → validate 5 action → fixed dispatcher → read-only data/ML handler → deterministic formatter. Không có call LLM thứ hai; provider không nhận CSV/report/code/artifact. Chỉ trang `/chat` giữ transcript tab và gửi 6 message cuối.
+- [06 - Sequence chatbot Action Decision](06-sequence-chatbot-action-decision.html) — `/chat` hoặc floating dock → Flask `/api/chat` → đúng một LLM call trả `{action, arguments}` → validate exact 2-key contract và 5 action → fixed dispatcher → centralized symbol scope check → read-only data/ML handler → deterministic formatter. `GENERAL_CHAT` dùng fixed kind; `STOCK_SIGNAL` nhận 1–5 mã, không `focus`; `PROJECT_INFO` có 7 topic. Hai UI dùng chung API, transcript tab và tối đa 3 cặp history.
+- [Kiến trúc chatbot canonical](../../CHATBOT_ARCHITECTURE.md) — contract, scenario matrix, readiness, API và phần giải thích bảo vệ niên luận. Các mô tả chatbot khác trong report/slide/SCI cũ là **LEGACY/STALE**.
 
 ## Nguyên tắc
 
 - Sửa JSON nguồn trước, render lại HTML bằng renderer Archify đúng mode (architecture / dataflow / workflow / sequence / lifecycle).
-- Không thêm component không tồn tại trong code. Chatbot không dùng RAG, Vector DB, embedding, LangChain, agent loop hoặc chat database.
+- Không thêm component không tồn tại trong code. Chatbot không dùng keyword router, RAG, Vector DB, embedding, LangChain, agent loop hoặc chat database.
 - Khi thuật ngữ/flow đổi, chỉ giữ một sơ đồ chatbot canonical và sửa đồng thời mọi inbound reference cùng `meta.output` trong JSON nguồn.

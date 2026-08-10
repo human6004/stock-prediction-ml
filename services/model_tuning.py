@@ -51,6 +51,15 @@ REQUIRED_MODEL_KEYS = ["logistic_regression", "random_forest", "gradient_boostin
 
 
 def _proba_up(model, X) -> np.ndarray:
+    """Lấy cột xác suất của lớp UP (=1) trong output ``predict_proba``.
+
+    Vì sao không hardcode ``proba[:, 1]``: sklearn xếp cột theo thứ tự
+    ``model.classes_`` (đã sort). Nếu một fold CV nào đó chỉ chứa duy nhất
+    lớp 0 thì ``classes_ == [0]`` và ``proba`` chỉ có 1 cột — lấy cứng index 1
+    sẽ IndexError; còn nếu nhãn được mã hóa khác (vd. [-1, 1]) thì index 1 lại
+    là lớp khác. Tra vị trí của giá trị 1 trong ``classes_`` là cách duy nhất
+    luôn trả về đúng P(UP).
+    """
     proba = model.predict_proba(X)
     classes = list(model.classes_)
     return proba[:, classes.index(1)]
@@ -62,7 +71,35 @@ def predict_with_threshold(model, X, threshold: float = DECISION_THRESHOLD) -> n
 
 
 def select_oof_threshold(y_true, probabilities) -> dict:
-    """Choose one deterministic F1 threshold without collapsing to always-UP."""
+    """Chọn MỘT ngưỡng quyết định (decision threshold) từ xác suất OOF.
+
+    Bài toán: mặc định sklearn cắt ở 0.5, nhưng lớp UP ở đây là lớp thiểu số
+    nên 0.5 gần như không bao giờ tối ưu. Hàm này quét ngưỡng trong
+    [THRESHOLD_MIN, THRESHOLD_MAX] theo bước THRESHOLD_STEP và chọn ngưỡng
+    F1_UP cao nhất — nhưng chỉ trong số ngưỡng vượt được 2 rào chắn.
+
+    Hai rào chắn (vì sao cần):
+    1. ``predicted_up_ratio <= THRESHOLD_MAX_PREDICTED_UP_RATIO`` — chặn kiểu
+       "gian lận" kinh điển: hạ ngưỡng xuống rất thấp để dự đoán UP cho gần
+       như mọi dòng. Khi đó recall_up ≈ 1 và F1_UP trông đẹp, nhưng model
+       thực chất không phân biệt được gì (đúng bằng baseline Always UP).
+    2. ``precision >= up_rate`` — precision phải ít nhất bằng tỷ lệ UP tự
+       nhiên của dữ liệu (``up_rate``). Đoán bừa UP cho ngẫu nhiên một số
+       dòng cũng đã đạt precision ≈ up_rate; nên dưới mức đó là model tệ hơn
+       cả đoán bừa và không được phép chọn.
+
+    ``+ 1e-12``: bù sai số dấu phẩy động, để một ngưỡng đúng-bằng-giới-hạn
+    (vd. precision bằng chằn chặn up_rate) không bị loại oan vì lệch bit.
+
+    ``THRESHOLD_MAX + THRESHOLD_STEP / 2`` trong ``np.arange``: arange loại
+    trừ điểm cuối, cộng nửa bước để THRESHOLD_MAX chắc chắn được quét, đồng
+    thời không kéo thêm một bước dư (cộng đủ 1 bước sẽ sinh ngưỡng ngoài dải).
+
+    Tie-break xác định (deterministic): sort theo (F1, precision, threshold)
+    giảm dần theo F1 rồi precision, cuối cùng ưu tiên threshold LỚN hơn. Nhờ
+    khóa thứ ba này, hai lần chạy trên cùng dữ liệu luôn ra cùng một ngưỡng —
+    điều kiện để fingerprint/CV provenance ở Tuning Lab còn ý nghĩa.
+    """
     y_true = np.asarray(y_true, dtype=int)
     probabilities = np.asarray(probabilities, dtype=float)
     if len(y_true) == 0 or len(y_true) != len(probabilities):
@@ -73,8 +110,11 @@ def select_oof_threshold(y_true, probabilities) -> dict:
     for threshold in np.arange(
         THRESHOLD_MIN, THRESHOLD_MAX + THRESHOLD_STEP / 2, THRESHOLD_STEP
     ):
+        # arange trên float tích lũy sai số (0.35000000000000003); round 2 chữ số
+        # để ngưỡng ghi ra report/artifact là số "đẹp" và so sánh được bằng ==.
         threshold = round(float(threshold), 2)
         predicted = (probabilities >= threshold).astype(int)
+        # Trung bình của vector 0/1 = tỷ lệ dòng bị dự đoán UP.
         predicted_up_ratio = float(np.mean(predicted))
         precision = float(
             precision_score(y_true, predicted, pos_label=1, zero_division=0)
@@ -93,8 +133,11 @@ def select_oof_threshold(y_true, probabilities) -> dict:
                 )
             )
     if not candidates:
+        # Không có ngưỡng nào hợp lệ = cấu hình này không dùng được. Cố tình
+        # raise thay vì fallback 0.5, để cấu hình xấu không lọt vào pipeline.
         raise ValueError("No OOF threshold satisfies precision and UP-ratio constraints.")
 
+    # max trên tuple = so sánh theo thứ tự phần tử: F1 → precision → threshold.
     f1_up, precision_up, threshold, predicted_up_ratio, recall_up = max(
         candidates, key=lambda item: (item[0], item[1], item[2])
     )
@@ -157,7 +200,25 @@ def build_estimator(model_id: int, params: dict):
 def run_cv_metrics(
     estimator, train: pd.DataFrame, model_id: int | None = None
 ) -> dict:
-    """Run recent purged CV, choose one threshold from pooled OOF probabilities."""
+    """Chạy purged CV trên TRAIN, chọn 1 ngưỡng từ xác suất OOF gộp.
+
+    Trình tự (thứ tự này quan trọng):
+    1. Sort panel xác định → fit từng fold → thu (y_val, P(UP)) của MỌI fold.
+    2. Gộp toàn bộ fold lại thành một mảng OOF duy nhất, chọn 1 ngưỡng chung.
+    3. Mới dùng ngưỡng đó tính lại F1/precision/recall trên từng fold.
+
+    Vì sao gộp rồi mới chọn ngưỡng, thay vì chọn ngưỡng tối ưu riêng từng
+    fold: chọn riêng từng fold nghĩa là mỗi fold được tự chỉnh cho vừa dữ
+    liệu validation của chính nó → điểm CV bị thổi phồng, và cũng không trả
+    về được MỘT ngưỡng để đem đi production. Gộp OOF cho ra một ngưỡng duy
+    nhất, và điểm từng fold trở thành đánh giá trung thực của ngưỡng đó.
+
+    ``model_id == 4`` (Gradient Boosting) được xử lý riêng: LR có
+    ``class_weight="balanced"``, RF có ``balanced_subsample``, nhưng
+    GradientBoostingClassifier KHÔNG có tham số class_weight. Cách duy nhất
+    cân bằng lớp cho GB là truyền ``sample_weight`` vào ``fit``. Thiếu dòng
+    này GB sẽ bị lớp NOT_UP áp đảo và gần như không bao giờ dự đoán UP.
+    """
     required = {*FEATURE_COLUMNS, "symbol", "trading_date", "label_end_date", "target"}
     if missing := required - set(train.columns):
         raise ValueError(f"TRAIN missing CV columns: {sorted(missing)}")
@@ -194,10 +255,15 @@ def run_cv_metrics(
             }
         )
 
+    # Nối nhãn của mọi fold thành 1 mảng, xác suất của mọi fold thành 1 mảng.
+    # Mỗi dòng TRAIN nằm trong validation của đúng 1 fold, nên mảng gộp này là
+    # dự đoán out-of-fold (OOF): không dòng nào được model của chính nó chấm.
     threshold_metrics = select_oof_threshold(
         np.concatenate([item[0] for item in fold_outputs]),
         np.concatenate([item[1] for item in fold_outputs]),
     )
+    # Một ngưỡng chung, áp lại cho từng fold → mean/std phản ánh độ ổn định
+    # của ngưỡng đó qua thời gian, không phải độ ổn định của việc tự chỉnh ngưỡng.
     threshold = threshold_metrics["decision_threshold"]
     f1_folds, precision_folds, recall_folds = [], [], []
     for y_val, probabilities in fold_outputs:
@@ -222,7 +288,18 @@ def run_cv_metrics(
 
 
 def _cv_from_selected(choice: dict) -> dict:
-    """Restore the exact CV result already paid for in Tuning Lab."""
+    """Dựng lại nguyên kết quả CV đã trả giá tính toán ở Tuning Lab.
+
+    Pipeline chính KHÔNG chạy lại CV. Người dùng đã chạy CV trong Tuning Lab
+    và chốt cấu hình; hàm này chỉ đọc lại số cũ từ ``manual_config.json``.
+    Lợi ích: pipeline nhanh hơn nhiều, và số CV trong báo cáo khớp chính xác
+    số người dùng thấy khi chọn (không lệch do random state hay dữ liệu mới).
+
+    Khối kiểm tra ``required`` là chốt an toàn cho việc tái dùng đó: nếu bản
+    ghi cũ thiếu field, hoặc số fold lưu được khác ``CV_N_SPLITS`` hiện hành
+    (ví dụ config tạo từ thời cấu hình CV khác), ta raise thay vì im lặng
+    xuất báo cáo với provenance khuyết.
+    """
     cv = {
         "f1_up_mean": choice.get("cv_f1_up_mean"),
         "f1_up_std": choice.get("cv_f1_up_std"),
@@ -286,6 +363,14 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
             f"Thieu cau hinh cho: {', '.join(missing)}. Hay chot du 3 model trong Tuning Lab."
         )
 
+    # Ba cửa kiểm tra dưới đây bảo đảm "cấu hình đã chốt" và "dữ liệu đang
+    # train" là cùng một thế giới:
+    #   policy_id            → cùng luật thí nghiệm (horizon, ngưỡng, cách split)
+    #   dataset_fingerprint  → cùng phạm vi dữ liệu (số dòng/mã/khoảng ngày)
+    #   content_fingerprint  → cùng NỘI DUNG dữ liệu (giá trị từng ô)
+    # Thiếu cửa content: fetch lại dữ liệu, nhà cung cấp sửa giá cũ nhưng số
+    # dòng không đổi → fingerprint phạm vi vẫn khớp, và ta sẽ dùng số CV của
+    # dữ liệu đã lỗi thời mà không hay biết.
     current = compute_dataset_fingerprint()
     if config.get("policy_id") != EXPERIMENT_POLICY_ID:
         raise ValueError("manual_config.json không thuộc experiment policy hiện hành.")
@@ -399,6 +484,21 @@ def _make_artifact(
     best_params: dict,
     decision_threshold: float,
 ) -> dict:
+    """Đóng gói model đã fit kèm ĐỦ metadata để tầng serving tự kiểm tra được.
+
+    Artifact không chỉ chứa model — nó chứa cả hợp đồng suy luận, vì file .pkl
+    sống lâu hơn code sinh ra nó:
+    - ``feature_columns``/``feature_order``: cùng một ``FEATURE_COLUMNS`` nhưng lưu
+      hai key để tương thích artifact cũ; serving so thứ tự này với dataset hiện
+      tại, lệch thì từ chối dự báo (cột đúng tên nhưng sai thứ tự sẽ cho ra số
+      trông-vẫn-hợp-lý mà hoàn toàn sai).
+    - ``decision_threshold``: ngưỡng chọn từ OOF, KHÔNG phải 0.5. Không lưu kèm
+      thì lúc dự báo phải đoán ngưỡng → sai toàn bộ nhãn UP/NOT_UP.
+    - ``up_threshold`` + ``prediction_horizon``: định nghĩa nhãn (tăng ≥1% sau 5
+      phiên). Đây là ý nghĩa của con số model xuất ra, đổi thì artifact vô nghĩa.
+    - ``cv_config`` + ``cv_f1_up`` + ``best_params``: dấu vết tái lập, cho phép
+      truy lại run tuning nào sinh ra model này.
+    """
     return {
         "model": model,
         "model_id": model_id,

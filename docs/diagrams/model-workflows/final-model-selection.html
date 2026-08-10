@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Final Model Selection - Protocol v3</h1>
       </div>
-      <p class="subtitle">CV chooses configs, VALIDATION chooses family, TEST reports once at per-model threshold</p>
+      <p class="subtitle">CV picks configs, VALIDATION picks the family, TEST is opened once at the artifact threshold</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 776" role="img" aria-label="Final Model Selection - Protocol v3 — CV chooses configs, VALIDATION chooses family, TEST reports once at per-model threshold (workflow diagram)">
+      <svg viewBox="0 0 720 900" role="img" aria-label="Final Model Selection - Protocol v3 — CV picks configs, VALIDATION picks the family, TEST is opened once at the artifact threshold (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -526,102 +526,137 @@
 
         <!-- Swimlanes -->
         <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / TRAIN tuning</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / 1. Pinned configs</text>
 
         <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Full TRAIN candidates</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / 2. Gates before fit</text>
 
         <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / VALIDATION selection</text>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / 3. Fit on TRAIN</text>
 
         <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / Final TEST</text>
+        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / 4. VALIDATION picks</text>
 
         <rect x="40" y="548" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="570" class="t-dim" font-size="10" font-weight="600">05 / Release and inference</text>
+        <text x="54" y="570" class="t-dim" font-size="10" font-weight="600">05 / 5. Refit, TEST once</text>
+
+        <rect x="40" y="672" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="694" class="t-dim" font-size="10" font-weight="600">06 / 6. Release, serve</text>
 
         <!-- Edge paths -->
-        <path d="M 88 145 L 88 166 L 88 166 L 88 217" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 300 145 L 300 166 L 300 166 L 300 217" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 625 145 L 625 166 L 625 166 L 625 217" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 88 269 L 88 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 300 269 L 300 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 119 L 238 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 362 119 L 573 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 625 145 L 625 166 L 300 166 L 300 209" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 243 L 223 243" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 377 243 L 573 243" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path d="M 625 269 L 625 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 573 367 L 377 367" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 300 401 L 300 414 L 88 414 L 88 465" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 491 L 239 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 361 491 L 573 491" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 134 367 L 223 367" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 377 367 L 573 367" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 300 401 L 300 414 L 300 414 L 300 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 491 L 223 491" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 377 491 L 573 491" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path d="M 300 525 L 300 538 L 300 538 L 300 581" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 366 615 L 573 615" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 615 L 223 615" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 377 615 L 573 615" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 641 L 625 662 L 430 662 L 430 705" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 266 739 L 353 739" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 507 739 L 573 739" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
         <rect x="42" y="93" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="42" y="93" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Chosen LR</text>
-        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">user-picked CV run</text>
+        <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pinned LR</text>
+        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">params + threshold</text>
 
-        <rect x="254" y="93" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="254" y="93" width="92" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="300" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Chosen RF</text>
-        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">user-picked CV run</text>
+        <rect x="238" y="93" width="124" height="52" rx="6" class="c-mask"/>
+        <rect x="238" y="93" width="124" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="300" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pinned RF</text>
+        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">params + threshold</text>
 
-        <rect x="579" y="93" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="579" y="93" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Chosen GB</text>
-        <text x="625" y="131" class="t-muted" font-size="8" text-anchor="middle">user-picked CV run</text>
+        <rect x="573" y="93" width="104" height="52" rx="6" class="c-mask"/>
+        <rect x="573" y="93" width="104" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="625" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pinned GB</text>
+        <text x="625" y="131" class="t-muted" font-size="8" text-anchor="middle">params + threshold</text>
 
         <rect x="42" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="217" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LR candidate</text>
-        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">fit all TRAIN</text>
+        <rect x="42" y="217" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">pipeline.lock</text>
+        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">single run</text>
 
-        <rect x="254" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="254" y="217" width="92" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="300" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">RF candidate</text>
-        <text x="300" y="255" class="t-muted" font-size="8" text-anchor="middle">fit all TRAIN</text>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fingerprint gates</text>
+        <text x="300" y="247" class="t-muted" font-size="8" text-anchor="middle">policy + dataset + content</text>
+        <text x="300" y="265" class="t-security" font-size="7" text-anchor="middle">abort on mismatch</text>
 
-        <rect x="579" y="217" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="579" y="217" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">GB candidate</text>
-        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">fit all TRAIN</text>
+        <rect x="573" y="217" width="104" height="52" rx="6" class="c-mask"/>
+        <rect x="573" y="217" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Snapshot guard</text>
+        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">TEST not opened yet</text>
+
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="88" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Replay CV</text>
+        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">no re-CV here</text>
 
         <rect x="223" y="333" width="154" height="68" rx="6" class="c-mask"/>
-        <rect x="223" y="333" width="154" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Compare on VALIDATION</text>
-        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">F1, Recall, simplicity LR→RF→GB</text>
-        <text x="300" y="389" class="t-frontend" font-size="7" text-anchor="middle">each at own threshold</text>
+        <rect x="223" y="333" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit LR / RF / GB</text>
+        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">full TRAIN, own threshold</text>
+        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">GB balanced weights</text>
 
         <rect x="573" y="341" width="104" height="52" rx="6" class="c-mask"/>
         <rect x="573" y="341" width="104" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="625" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Val baselines</text>
-        <text x="625" y="379" class="t-muted" font-size="8" text-anchor="middle">always-UP / NOT_UP</text>
+        <text x="625" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">20 features</text>
+        <text x="625" y="379" class="t-muted" font-size="8" text-anchor="middle">fixed order</text>
 
         <rect x="42" y="465" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="42" y="465" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="88" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fresh refit</text>
-        <text x="88" y="503" class="t-muted" font-size="8" text-anchor="middle">TRAIN + VALIDATION</text>
+        <rect x="42" y="465" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="88" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Val baselines</text>
+        <text x="88" y="503" class="t-muted" font-size="8" text-anchor="middle">always UP / NOT_UP</text>
 
-        <rect x="239" y="457" width="122" height="68" rx="6" class="c-mask"/>
-        <rect x="239" y="457" width="122" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="300" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TEST exactly once</text>
-        <text x="300" y="495" class="t-muted" font-size="8" text-anchor="middle">at artifact threshold</text>
-        <text x="300" y="513" class="t-security" font-size="7" text-anchor="middle">locked</text>
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="300" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rank on VALIDATION</text>
+        <text x="300" y="495" class="t-muted" font-size="8" text-anchor="middle">F1_UP, Recall_UP, LR&lt;RF&lt;GB</text>
+        <text x="300" y="513" class="t-frontend" font-size="7" text-anchor="middle">each at own threshold</text>
 
         <rect x="573" y="465" width="104" height="52" rx="6" class="c-mask"/>
-        <rect x="573" y="465" width="104" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="625" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TEST baselines</text>
-        <text x="625" y="503" class="t-muted" font-size="8" text-anchor="middle">pass flag</text>
+        <rect x="573" y="465" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="625" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Abort run</text>
+        <text x="625" y="503" class="t-muted" font-size="8" text-anchor="middle">no TEST touched</text>
 
-        <rect x="234" y="581" width="132" height="68" rx="6" class="c-mask"/>
-        <rect x="234" y="581" width="132" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="300" y="602" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Atomic promotion</text>
-        <text x="300" y="619" class="t-muted" font-size="8" text-anchor="middle">exact tested artifact</text>
-        <text x="300" y="637" class="t-database" font-size="7" text-anchor="middle">no post-TEST refit</text>
+        <rect x="42" y="589" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="589" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="610" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Registry</text>
+        <text x="88" y="627" class="t-muted" font-size="8" text-anchor="middle">started</text>
+
+        <rect x="223" y="581" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="581" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="602" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fresh refit of winner</text>
+        <text x="300" y="619" class="t-muted" font-size="8" text-anchor="middle">TRAIN + VALIDATION</text>
+        <text x="300" y="637" class="t-backend" font-size="7" text-anchor="middle">same threshold</text>
 
         <rect x="573" y="589" width="104" height="52" rx="6" class="c-mask"/>
-        <rect x="573" y="589" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="625" y="610" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">UI / CLI</text>
-        <text x="625" y="627" class="t-muted" font-size="8" text-anchor="middle">score &gt;= threshold is UP</text>
+        <rect x="573" y="589" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="625" y="610" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">TEST once</text>
+        <text x="625" y="627" class="t-muted" font-size="8" text-anchor="middle">warn on baseline</text>
+
+        <rect x="174" y="713" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="174" y="713" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="220" y="734" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Reports</text>
+        <text x="220" y="751" class="t-muted" font-size="8" text-anchor="middle">written first</text>
+
+        <rect x="353" y="705" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="353" y="705" width="154" height="68" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="430" y="726" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Atomic release</text>
+        <text x="430" y="743" class="t-muted" font-size="8" text-anchor="middle">pkl + metadata together</text>
+        <text x="430" y="761" class="t-cloud" font-size="7" text-anchor="middle">registry: published</text>
+
+        <rect x="573" y="713" width="104" height="52" rx="6" class="c-mask"/>
+        <rect x="573" y="713" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="625" y="734" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">UI / CLI</text>
+        <text x="625" y="751" class="t-muted" font-size="8" text-anchor="middle">P(UP) &gt;= threshold</text>
 
         <!-- Edge labels -->
 
@@ -634,21 +669,28 @@
 
 
 
+        <rect x="446" y="471" width="58" height="14" rx="3" class="c-mask"/>
+        <text x="475" y="481" class="t-security" font-size="8" text-anchor="middle">not better</text>
+        <rect x="280.6" y="538" width="38.8" height="14" rx="3" class="c-mask"/>
+        <text x="300" y="548" class="t-backend" font-size="8" text-anchor="middle">winner</text>
+
+
+
 
 
 
         <!-- Legend -->
-        <text x="175" y="676" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <rect x="175" y="688" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="195" y="696" class="t-muted" font-size="7">User UI</text>
-        <rect x="260" y="688" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="280" y="696" class="t-muted" font-size="7">Agent logic</text>
-        <rect x="370" y="688" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="390" y="696" class="t-muted" font-size="7">Policy</text>
-        <rect x="455" y="688" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="475" y="696" class="t-muted" font-size="7">Tool action</text>
-        <rect x="565" y="688" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="585" y="696" class="t-muted" font-size="7">Context / trace</text>
+        <text x="175" y="800" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <rect x="175" y="812" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="195" y="820" class="t-muted" font-size="7">User UI</text>
+        <rect x="260" y="812" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="280" y="820" class="t-muted" font-size="7">Agent logic</text>
+        <rect x="370" y="812" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="390" y="820" class="t-muted" font-size="7">Policy</text>
+        <rect x="455" y="812" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+        <text x="475" y="820" class="t-muted" font-size="7">Tool action</text>
+        <rect x="565" y="812" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="585" y="820" class="t-muted" font-size="7">Context / trace</text>
       </svg>
     </div>
 
@@ -660,21 +702,45 @@
           <h3>Selection boundary</h3>
         </div>
         <ul>
-          <li>&bull; CV selects one config inside each family</li>
-          <li>&bull; VALIDATION selects the family</li>
-          <li>&bull; TEST never participates in ranking</li>
+          <li>&bull; CV picks one config inside each family</li>
+          <li>&bull; VALIDATION picks the family, TEST never ranks</li>
+          <li>&bull; No refit and no threshold tuning after TEST</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Release rules</h3>
+          <h3>Baselines are asymmetric</h3>
         </div>
         <ul>
-          <li>&bull; Winner is fit fresh on TRAIN plus VALIDATION</li>
-          <li>&bull; The exact tested object is promoted</li>
-          <li>&bull; A failed pipeline keeps the active final model</li>
+          <li>&bull; VALIDATION: losing to a constant baseline aborts</li>
+          <li>&bull; TEST: losing only writes a warning flag</li>
+          <li>&bull; Re-running on TEST would leak, so it never happens</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>One-shot registry</h3>
+        </div>
+        <ul>
+          <li>&bull; started is written before TEST is scored</li>
+          <li>&bull; started, evaluated, published, release_failed all count as opened</li>
+          <li>&bull; A crash burns the snapshot; new data is required to retry</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Release ordering gap</h3>
+        </div>
+        <ul>
+          <li>&bull; Reports land before the artifact is published</li>
+          <li>&bull; A failed release keeps the old pkl but stale reports</li>
+          <li>&bull; Metadata identity is cross-checked at load time</li>
         </ul>
       </div>
     </div>

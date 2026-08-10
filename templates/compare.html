@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{# Trang so sánh: Flask truyền đúng hai result đầy đủ (kèm price_history). #}
 
 {% block title %}So sánh hai mã cổ phiếu HOSE{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='page-signal.css') }}?v={{ asset_ver }}">
+{% endblock %}
 
 {% block page_header %}
 <h1>So sánh hai mã cổ phiếu</h1>
@@ -19,7 +24,7 @@
     </a>
 </nav>
 
-<form class="compare-form" method="post" action="{{ url_for('compare') }}">
+<form id="compare-form" class="compare-form" method="post" action="{{ url_for('compare') }}">
     <div class="compare-form-grid">
         <label for="symbol-a">
             Mã thứ nhất
@@ -45,6 +50,63 @@
 
 {% if error %}
 <section class="alert" role="alert">{{ error }}</section>
+{% endif %}
+
+{% if not results and not error %}
+{# Trạng thái rỗng: giữ cùng cấu trúc với trang dự báo một mã. #}
+<div class="empty-state">
+    <p class="empty-hint">Nhập hai mã HOSE khác nhau rồi bấm So sánh để xem Điểm UP, kết luận và biểu đồ hai mã cạnh nhau.</p>
+
+    {% if symbols and symbols|length >= 2 %}
+    {# Cặp gợi ý: ghép mã 1-2, 3-4, 5-6 theo thứ tự datalist nên luôn hợp lệ. #}
+    <div class="quick-picks">
+        <span class="quick-picks-label">Thử nhanh một cặp</span>
+        <div class="quick-picks-row" data-ui="pair-picks">
+            {% for offset in [0, 2, 4] %}
+            {% if symbols|length > offset + 1 %}
+            {% set first = symbols[offset] %}
+            {% set second = symbols[offset + 1] %}
+            <button type="button" class="quick-pick pair-pick"
+                    data-symbol-a="{{ first }}" data-symbol-b="{{ second }}">
+                <span>{{ first }}</span>
+                <span class="pair-pick-vs" aria-hidden="true">vs</span>
+                <span>{{ second }}</span>
+                <span class="visually-hidden">So sánh {{ first }} với {{ second }}</span>
+            </button>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Gập lại, giống trang Dự báo: đỡ chiếm chỗ khi quay lại trang. #}
+    <details class="reading-guide">
+        <summary class="section-label">Cách đọc bảng so sánh</summary>
+        <ul class="reading-guide-list">
+            <li>
+                <span class="reading-guide-icon" aria-hidden="true">%</span>
+                <div>
+                    <strong>Điểm UP</strong>
+                    <span>Xác suất model gán cho khả năng tăng của từng mã. Bên có điểm cao hơn được đánh dấu, không phải khuyến nghị mua.</span>
+                </div>
+            </li>
+            <li>
+                <span class="reading-guide-icon" aria-hidden="true">↕</span>
+                <div>
+                    <strong>Return và Volatility 20 phiên</strong>
+                    <span>Return là mức thay đổi giá 20 phiên qua; Volatility là mức dao động. Dao động thấp hơn thì tín hiệu ổn định hơn.</span>
+                </div>
+            </li>
+            <li>
+                <span class="reading-guide-icon" aria-hidden="true">◷</span>
+                <div>
+                    <strong>Biểu đồ hai mã</strong>
+                    <span>Cả hai đường quy về phần trăm thay đổi so với phiên đầu của chính nó, nên hai mã có mức giá khác nhau vẫn so được.</span>
+                </div>
+            </li>
+        </ul>
+    </details>
+</div>
 {% endif %}
 
 {% if results %}
@@ -73,6 +135,11 @@
     </section>
     {% endif %}
 
+    {# Cờ so sánh tính một lần để hai ô cùng hàng dùng lại, tránh lặp điều kiện. #}
+    {% set both_prob = a.probability_up is not none and b.probability_up is not none %}
+    {% set both_vol = a.volatility_20d is not none and b.volatility_20d is not none %}
+    {% set both_liq = a.volume_ratio_20 is not none and b.volume_ratio_20 is not none %}
+
     <div class="table-wrap compare-table-wrap" data-ui="table-scroll">
         <table class="compare-table" data-ui="data-table">
             <thead>
@@ -83,24 +150,237 @@
                 <tr><th scope="row">Giá đóng cửa</th><td>{{ "%.2f"|format(a.close_at_reference) }}</td><td>{{ "%.2f"|format(b.close_at_reference) }}</td></tr>
                 <tr>
                 <th scope="row">Điểm UP</th>
-                    <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up else '' }}">
+                    <td class="{{ 'higher-signal' if both_prob and a.probability_up > b.probability_up else '' }}">
                         {{ "%.1f%%"|format(a.probability_up * 100) if a.probability_up is not none else "Không hỗ trợ" }}
-                        {% if a.probability_up is not none and b.probability_up is not none and a.probability_up > b.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                        {% if both_prob and a.probability_up > b.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                        {% if a.probability_up is not none %}
+                        {# Thanh thu nhỏ + vạch ngưỡng: so trực quan hai ô cùng hàng. #}
+                        <span class="mini-prob" data-state="{{ a.prediction|lower }}"
+                              role="img"
+                              aria-label="Điểm UP {{ "%.1f"|format(a.probability_up * 100) }}% trên ngưỡng quyết định {{ "%.1f"|format(a.decision_threshold * 100) }}%">
+                            <span class="mini-prob-fill" style="width: {{ (a.probability_up * 100)|round(1) }}%;"></span>
+                            <span class="mini-prob-mark" style="--at: {{ (a.decision_threshold * 100)|round(1) }}%;" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
                     </td>
-                    <td class="{{ 'higher-signal' if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up else '' }}">
+                    <td class="{{ 'higher-signal' if both_prob and b.probability_up > a.probability_up else '' }}">
                         {{ "%.1f%%"|format(b.probability_up * 100) if b.probability_up is not none else "Không hỗ trợ" }}
-                        {% if a.probability_up is not none and b.probability_up is not none and b.probability_up > a.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                        {% if both_prob and b.probability_up > a.probability_up %}<span class="signal-note">Tín hiệu UP cao hơn theo mô hình</span>{% endif %}
+                        {% if b.probability_up is not none %}
+                        <span class="mini-prob" data-state="{{ b.prediction|lower }}"
+                              role="img"
+                              aria-label="Điểm UP {{ "%.1f"|format(b.probability_up * 100) }}% trên ngưỡng quyết định {{ "%.1f"|format(b.decision_threshold * 100) }}%">
+                            <span class="mini-prob-fill" style="width: {{ (b.probability_up * 100)|round(1) }}%;"></span>
+                            <span class="mini-prob-mark" style="--at: {{ (b.decision_threshold * 100)|round(1) }}%;" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
                     </td>
                 </tr>
                 <tr><th scope="row">Kết quả</th><td>{{ a.prediction_label_vi }}</td><td>{{ b.prediction_label_vi }}</td></tr>
-                <tr><th scope="row">Return 20 phiên</th><td>{{ "%.2f%%"|format(a.return_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.return_20d * 100) }}</td></tr>
-                <tr><th scope="row">Volatility 20 phiên</th><td>{{ "%.2f%%"|format(a.volatility_20d * 100) }}</td><td>{{ "%.2f%%"|format(b.volatility_20d * 100) }}</td></tr>
-                <tr><th scope="row">Volume / AVG20</th><td>{{ "%.2f"|format(a.volume_ratio_20) }}x</td><td>{{ "%.2f"|format(b.volume_ratio_20) }}x</td></tr>
+                <tr>
+                    <th scope="row">Return 20 phiên</th>
+                    {# Mũi tên ▲/▼ đến từ .delta-up/.delta-down (CSS content) nên dấu
+                       không chỉ nằm ở màu; kèm chữ ẩn vì không phải screen reader nào
+                       cũng đọc generated content. #}
+                    {% for item in [a, b] %}
+                    <td>
+                        <span class="delta {% if item.return_20d > 0 %}delta-up{% elif item.return_20d < 0 %}delta-down{% else %}delta-flat{% endif %}">
+                            <span class="visually-hidden">{% if item.return_20d > 0 %}Tăng{% elif item.return_20d < 0 %}Giảm{% else %}Đi ngang{% endif %}</span>
+                            {{ "%.2f%%"|format((item.return_20d * 100)|abs) }}
+                        </span>
+                    </td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th scope="row">Volatility 20 phiên</th>
+                    {# Thấp hơn thì ổn định hơn — đánh dấu trung tính, không phải màu UP. #}
+                    <td class="{{ 'compare-better' if both_vol and a.volatility_20d < b.volatility_20d else '' }}">
+                        {{ "%.2f%%"|format(a.volatility_20d * 100) }}
+                        {% if both_vol and a.volatility_20d < b.volatility_20d %}<span class="compare-note">Dao động thấp hơn</span>{% endif %}
+                    </td>
+                    <td class="{{ 'compare-better' if both_vol and b.volatility_20d < a.volatility_20d else '' }}">
+                        {{ "%.2f%%"|format(b.volatility_20d * 100) }}
+                        {% if both_vol and b.volatility_20d < a.volatility_20d %}<span class="compare-note">Dao động thấp hơn</span>{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Volume / AVG20</th>
+                    {# Cao hơn = thanh khoản tốt hơn, cũng đánh dấu trung tính. #}
+                    {% for item, other in [(a, b), (b, a)] %}
+                    <td class="{{ 'compare-better' if both_liq and item.volume_ratio_20 > other.volume_ratio_20 else '' }}">
+                        {{ "%.2f"|format(item.volume_ratio_20) }}x
+                        {% if both_liq and item.volume_ratio_20 > other.volume_ratio_20 %}<span class="compare-note">Giao dịch sôi động hơn</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
             </tbody>
         </table>
     </div>
+
+    {% if a.price_history and b.price_history %}
+    {% set a_first = a.price_history[0].close %}
+    {% set b_first = b.price_history[0].close %}
+    <div class="chart-card compare-chart-card">
+        <div class="chart-heading">
+            <div>
+                <p class="section-label">Diễn biến giá quy về phần trăm</p>
+                <p class="chart-note">Mỗi đường là phần trăm thay đổi so với phiên đầu của chính mã đó, nên hai mức giá khác nhau vẫn so được.</p>
+            </div>
+        </div>
+        <div class="compare-chart-legend">
+            <span class="compare-chart-legend-item">
+                <span class="compare-chart-swatch" data-series="a" aria-hidden="true"></span>
+                {{ a.symbol }} (nét liền)
+            </span>
+            <span class="compare-chart-legend-item">
+                <span class="compare-chart-swatch" data-series="b" aria-hidden="true"></span>
+                {{ b.symbol }} (nét đứt)
+            </span>
+        </div>
+        <div class="chart-wrap">
+            <canvas id="compare-chart" role="img"
+                    aria-label="Biểu đồ phần trăm thay đổi giá đóng cửa của {{ a.symbol }} và {{ b.symbol }} trong {{ a.price_history|length }} phiên gần nhất">
+                Trình duyệt không hỗ trợ canvas. Xem số liệu ở bảng so sánh phía trên.
+            </canvas>
+        </div>
+        <p class="chart-fallback">
+            Tổng thay đổi trong {{ a.price_history|length }} phiên gần nhất:
+            {% if a_first %}{{ a.symbol }} {{ "%+.2f%%"|format(((a.price_history[-1].close / a_first) - 1) * 100) }}{% else %}{{ a.symbol }} không đủ dữ liệu{% endif %};
+            {% if b_first %}{{ b.symbol }} {{ "%+.2f%%"|format(((b.price_history[-1].close / b_first) - 1) * 100) }}{% else %}{{ b.symbol }} không đủ dữ liệu{% endif %}.
+        </p>
+    </div>
+    {% endif %}
 </section>
 {% endif %}
 
 <p class="disclaimer">Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.</p>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='page-signal.js') }}?v={{ asset_ver }}"></script>
+<script>
+    (() => {
+        const form = document.getElementById("compare-form");
+        const inputA = document.getElementById("symbol-a");
+        const inputB = document.getElementById("symbol-b");
+        if (!form || !inputA || !inputB) return;
+
+        // Form POST thường: khoá nút + spinner khi đang chạy hai lượt inference.
+        if (window.UIKit) {
+            window.UIKit.lockForm(form, {label: "Đang so sánh..."});
+        }
+
+        const row = document.querySelector('[data-ui="pair-picks"]');
+        if (!row || !window.PageSignal) return;
+        window.PageSignal.wireQuickPicks(row, (pick) => {
+            inputA.value = pick.dataset.symbolA;
+            inputB.value = pick.dataset.symbolB;
+            form.requestSubmit();
+        });
+    })();
+</script>
+{% if results and results[0].price_history and results[1].price_history %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script>
+    (() => {
+        const series = {{ results|map(attribute='price_history')|list|tojson }};
+        const names = {{ results|map(attribute='symbol')|list|tojson }};
+        const signal = window.PageSignal;
+        const canvas = document.getElementById("compare-chart");
+        if (!canvas || !signal) return;
+
+        // Hai mã có thể lệch số phiên (dữ liệu thiếu) → chỉ vẽ phần chồng nhau và
+        // lấy các phiên GẦN NHẤT để mốc cuối vẫn là phiên tham chiếu.
+        const span = Math.min(series[0].length, series[1].length);
+        if (span < 2) return;
+        const tails = series.map((points) => points.slice(points.length - span));
+
+        // Nhãn theo phiên tương đối: ngày hai mã có thể khác nhau nên trục chung
+        // phải là khoảng cách tới phiên tham chiếu.
+        const labels = tails[0].map((point, index) => (
+            index === span - 1 ? "T (tham chiếu)" : "T-" + (span - 1 - index)
+        ));
+
+        // Quy về % thay đổi so với phiên đầu của chính mã đó.
+        const normalized = tails.map((points) => {
+            const base = Number(points[0].close);
+            return points.map((point) => signal.pctChange(base, Number(point.close)));
+        });
+
+        let colors = signal.palette();
+        const styleFor = (index) => (index === 0
+            ? {color: colors.up, dash: []}
+            : {color: colors.inkSoft, dash: [7, 5]});
+
+        const chart = new Chart(canvas, {
+            type: "line",
+            data: {
+                labels,
+                datasets: tails.map((points, index) => {
+                    const style = styleFor(index);
+                    return {
+                        label: names[index],
+                        data: normalized[index],
+                        borderColor: style.color,
+                        backgroundColor: style.color,
+                        borderDash: style.dash,
+                        borderWidth: 2.5,
+                        pointRadius: 3,
+                        pointHoverRadius: 7,
+                        pointHoverBorderWidth: 2,
+                        pointHoverBorderColor: colors.paper2,
+                        tension: 0.2,
+                        spanGaps: false
+                    };
+                })
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {mode: "index", intersect: false},
+                scales: {
+                    x: {grid: {display: false}, ticks: {maxRotation: 45, minRotation: 0}},
+                    y: {
+                        title: {display: true, text: "% thay đổi so với phiên đầu"},
+                        ticks: {callback: (value) => signal.signed(Number(value), 1) + "%"}
+                    }
+                },
+                plugins: {
+                    legend: {position: "bottom", labels: {usePointStyle: true, boxWidth: 9}},
+                    tooltip: {
+                        filter: (item) => item.raw !== null,
+                        callbacks: {
+                            // Kèm giá thật + ngày để % không mất ngữ cảnh.
+                            label: (item) => {
+                                const point = tails[item.datasetIndex][item.dataIndex];
+                                const pct = signal.signed(Number(item.raw));
+                                return `${item.dataset.label}: ${pct}% `
+                                    + `(giá ${Number(point.close).toFixed(2)}, ${signal.formatDateVi(point.date)})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        // Tick/grid/tiêu đề trục/legend/tooltip theo token; nếu bỏ bước này
+        // Chart.js dùng mặc định #666 + rgba(0,0,0,.1), gần như vô hình ở dark.
+        signal.applyChartTheme(chart, colors);
+        chart.update("none");
+        window.compareChart = chart;
+
+        // Đổi sáng/tối: nạp lại token màu rồi vẽ lại.
+        signal.onThemeChange((next) => {
+            colors = next;
+            chart.data.datasets.forEach((dataset, index) => {
+                const style = styleFor(index);
+                dataset.borderColor = style.color;
+                dataset.backgroundColor = style.color;
+                dataset.pointHoverBorderColor = next.paper2;
+            });
+            signal.applyChartTheme(chart, next);
+            chart.update("none");
+        });
+    })();
+</script>
+{% endif %}
 {% endblock %}

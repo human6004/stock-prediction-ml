@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish</h1>
       </div>
-      <p class="subtitle">clean → training universe → 20 feature → exact t+5 → rolling split · CV chỉ trong TRAIN · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact</p>
+      <p class="subtitle">clean → training universe → 20 feature → exact t+5 market → rolling boundary 274/94 ngày · CV chỉ trong TRAIN (Tuning Lab) · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1200 900" role="img" aria-label="Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish — clean → training universe → 20 feature → exact t+5 → rolling split · CV chỉ trong TRAIN · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact (data-flow diagram)">
+      <svg viewBox="0 0 1200 900" role="img" aria-label="Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish — clean → training universe → 20 feature → exact t+5 market → rolling boundary 274/94 ngày · CV chỉ trong TRAIN (Tuning Lab) · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact (data-flow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -538,7 +538,7 @@
         <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / Rolling split (RAM)</text>
 
         <rect x="876" y="46" width="168" height="780" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="960" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">05 / CV · chọn · refit · TEST · publish</text>
+        <text x="960" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">05 / Fit · chọn VAL · refit · TEST · publish</text>
 
         <!-- Flow paths -->
         <path d="M 164 385 L 206.5 385 L 206.5 157 L 249 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
@@ -546,14 +546,14 @@
         <path d="M 381 157 L 464 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 530 186 L 530 356" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 315 186 L 387.5 186 L 387.5 385 L 460 385" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 600 385 L 642.5 385 L 642.5 157 L 685 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 600 385 L 681 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 600 385 L 640.5 385 L 640.5 157 L 681 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 600 385 L 679 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 600 385 L 642.5 385 L 642.5 613 L 685 613" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 805 157 L 885 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 809 157 L 885 157" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 960 186 L 960 242" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 809 385 L 845.5 385 L 845.5 271 L 882 271" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 811 385 L 846.5 385 L 846.5 271 L 882 271" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path d="M 960 300 L 960 356" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 809 385 L 885 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 811 385 L 885 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 960 414 L 960 470" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 805 613 L 847.5 613 L 847.5 499 L 890 499" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path d="M 960 528 L 960 584" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
@@ -591,29 +591,29 @@
         <text x="530" y="393" class="t-muted" font-size="7" text-anchor="middle">ml_dataset</text>
         <text x="530" y="403" class="t-backend" font-size="7" text-anchor="middle">&gt; 1% → UP</text>
 
-        <rect x="685" y="128" width="120" height="58" rx="6" class="c-mask"/>
-        <rect x="685" y="128" width="120" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <rect x="681" y="128" width="128" height="58" rx="6" class="c-mask"/>
+        <rect x="681" y="128" width="128" height="58" rx="6" class="c-database" stroke-width="1.5"/>
         <text x="745" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TRAIN</text>
-        <text x="745" y="165" class="t-muted" font-size="7" text-anchor="middle">rolling boundary</text>
+        <text x="745" y="165" class="t-muted" font-size="7" text-anchor="middle">label_end ≤ train_end</text>
         <text x="745" y="175" class="t-database" font-size="7" text-anchor="middle">CV nội bộ</text>
 
-        <rect x="681" y="356" width="128" height="58" rx="6" class="c-mask"/>
-        <rect x="681" y="356" width="128" height="58" rx="6" class="c-database" stroke-width="1.5"/>
+        <rect x="679" y="356" width="132" height="58" rx="6" class="c-mask"/>
+        <rect x="679" y="356" width="132" height="58" rx="6" class="c-database" stroke-width="1.5"/>
         <text x="745" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">VALIDATION</text>
-        <text x="745" y="393" class="t-muted" font-size="7" text-anchor="middle">rolling boundary</text>
+        <text x="745" y="393" class="t-muted" font-size="7" text-anchor="middle">274 ngày trước TEST</text>
         <text x="745" y="403" class="t-database" font-size="7" text-anchor="middle">chọn + baseline</text>
 
         <rect x="685" y="584" width="120" height="58" rx="6" class="c-mask"/>
         <rect x="685" y="584" width="120" height="58" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="745" y="605" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TEST</text>
-        <text x="745" y="621" class="t-muted" font-size="7" text-anchor="middle">rolling snapshot</text>
+        <text x="745" y="621" class="t-muted" font-size="7" text-anchor="middle">94 ngày cuối</text>
         <text x="745" y="631" class="t-security" font-size="7" text-anchor="middle">chạm 1 lần</text>
 
         <rect x="885" y="128" width="150" height="58" rx="6" class="c-mask"/>
         <rect x="885" y="128" width="150" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="960" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">CV trong TRAIN</text>
-        <text x="960" y="165" class="t-muted" font-size="7" text-anchor="middle">4-fold purged (gap 5)</text>
-        <text x="960" y="175" class="t-backend" font-size="7" text-anchor="middle">fit candidate</text>
+        <text x="960" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Fit TRAIN</text>
+        <text x="960" y="165" class="t-muted" font-size="7" text-anchor="middle">replay CV đã chốt</text>
+        <text x="960" y="175" class="t-backend" font-size="7" text-anchor="middle">manual_config</text>
 
         <rect x="882" y="242" width="156" height="58" rx="6" class="c-mask"/>
         <rect x="882" y="242" width="156" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -670,9 +670,9 @@
         <rect x="611.5" y="494" width="61" height="27" rx="4" class="c-mask"/>
         <text x="642" y="505" class="t-muted" font-size="8" text-anchor="middle">snapshot</text>
         <text x="642" y="516" class="t-dim" font-size="7" text-anchor="middle">purge biên</text>
-        <rect x="814.5" y="139" width="61" height="27" rx="4" class="c-mask"/>
+        <rect x="807.15" y="139" width="75.7" height="27" rx="4" class="c-mask"/>
         <text x="845" y="150" class="t-backend" font-size="8" text-anchor="middle">TRAIN rows</text>
-        <text x="845" y="161" class="t-dim" font-size="7" text-anchor="middle">CV nội bộ</text>
+        <text x="845" y="161" class="t-dim" font-size="7" text-anchor="middle">fit đầy TRAIN</text>
         <rect x="931.95" y="203" width="56.1" height="27" rx="4" class="c-mask"/>
         <text x="960" y="214" class="t-backend" font-size="8" text-anchor="middle">candidate</text>
         <text x="960" y="225" class="t-dim" font-size="7" text-anchor="middle">LR/RF/GB</text>
@@ -746,7 +746,7 @@
           <h3>CV, chọn, refit và TEST gate</h3>
         </div>
         <ul>
-          <li>&bull; CV 4 fold purged (gap 5) chỉ chạy trên TRAIN để fit candidate LR/RF/GB — CV không phải là TRAIN → VALIDATION</li>
+          <li>&bull; CV 4 fold purged (gap 5, từ 2021-01-01) chỉ chạy trên TRAIN và chỉ ở Tuning Lab; official pipeline replay số đã chốt trong manual_config.json rồi fit lại trên full TRAIN</li>
           <li>&bull; VALIDATION chọn winner và so baseline Always-UP/Always-NOT-UP; thua baseline thì dừng trước TEST</li>
           <li>&bull; Winner hợp lệ refit TRAIN+VALIDATION TRƯỚC, rồi mới chấm TEST đúng một lần cho mỗi fingerprint; TEST không chọn model, sau đó publish và prediction đọc artifact</li>
         </ul>

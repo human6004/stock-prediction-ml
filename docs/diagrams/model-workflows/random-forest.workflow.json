@@ -3,36 +3,48 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Random Forest Tuning - Protocol v3",
-    "subtitle": "Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold"
+    "subtitle": "Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold"
   },
   "lanes": [
-    {"id": "params", "label": "Highlighted RF hyperparameters"},
-    {"id": "cv", "label": "TRAIN cross-validation"},
-    {"id": "result", "label": "Ranking + manual selection"}
+    {"id": "form", "label": "1. Tuning Lab form (user input)"},
+    {"id": "cv", "label": "2. Purged CV on TRAIN"},
+    {"id": "thr", "label": "3. One threshold from pooled OOF"},
+    {"id": "store", "label": "4. Provenance, history"}
   ],
   "nodes": [
-    {"id": "rf", "lane": "params", "col": 0, "type": "cloud", "label": "RF model", "sublabel": "balanced trees", "width": 90},
-    {"id": "trees", "lane": "params", "col": 2, "type": "security", "label": "n_estimators", "sublabel": ">= 1 (baseline 130)", "width": 104},
-    {"id": "depth", "lane": "params", "col": 3, "type": "security", "label": "max_depth", "sublabel": "int/None (base 6)", "width": 92},
-    {"id": "leaf", "lane": "params", "col": 5, "type": "security", "label": "min leaf", "sublabel": ">= 1 (baseline 40)", "width": 104},
-    {"id": "features", "lane": "cv", "col": 0, "type": "security", "label": "max features", "sublabel": "0.25; sqrt/log2", "width": 92},
-    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "One config x 4 folds", "sublabel": "repeat without limit", "tag": "OOF threshold", "width": 130},
-    {"id": "metrics", "lane": "cv", "col": 5, "type": "frontend", "label": "Fold details", "sublabel": "dates + F1/P/R", "width": 104},
-    {"id": "rank", "lane": "result", "col": 2, "type": "backend", "label": "Deterministic rank", "sublabel": "mean, std, run_id", "width": 126},
-    {"id": "best", "lane": "result", "col": 5, "type": "database", "label": "Best RF run", "sublabel": "user chooses when done", "tag": "no run limit", "width": 104}
+    {"id": "rf", "lane": "form", "col": 0, "type": "cloud", "label": "RF model", "sublabel": "balanced_subsample", "width": 92},
+    {"id": "trees", "lane": "form", "col": 2, "type": "security", "label": "n_estimators", "sublabel": "int >= 1 (form 130)", "width": 124},
+    {"id": "feat", "lane": "form", "col": 5, "type": "security", "label": "max_features", "sublabel": "sqrt/log2 or 0.25", "width": 104},
+
+    {"id": "leaf", "lane": "cv", "col": 0, "type": "security", "label": "depth + leaf", "sublabel": "None/int, >= 1", "width": 92},
+    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "4 purged folds", "sublabel": "dates >= 2021, gap 5", "tag": "fresh clone x4", "width": 154},
+    {"id": "oof", "lane": "cv", "col": 5, "type": "frontend", "label": "Pooled OOF", "sublabel": "y + P(UP)", "width": 104},
+
+    {"id": "gates", "lane": "thr", "col": 0, "type": "security", "label": "2 hard gates", "sublabel": "ratio, precision", "width": 92},
+    {"id": "pick", "lane": "thr", "col": 2, "type": "backend", "label": "Pick 1 threshold", "sublabel": "max F1_UP, no 0.5 fallback", "tag": "0.05..0.95 step 0.01", "width": 154},
+    {"id": "refold", "lane": "thr", "col": 5, "type": "frontend", "label": "Re-score folds", "sublabel": "F1/P/R + std", "width": 104},
+
+    {"id": "prov", "lane": "store", "col": 0, "type": "security", "label": "Provenance", "sublabel": "4-fold recheck", "width": 92},
+    {"id": "hist", "lane": "store", "col": 2, "type": "database", "label": "History row", "sublabel": "tuning_history.csv", "tag": "status ok / error", "width": 154},
+    {"id": "use", "lane": "store", "col": 5, "type": "frontend", "label": "User picks run", "sublabel": "manual_config", "tag": "no run limit", "width": 104}
   ],
   "edges": [
     {"from": "rf", "to": "trees"},
-    {"from": "trees", "to": "depth"},
-    {"from": "depth", "to": "leaf"},
-    {"from": "leaf", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "features", "to": "folds"},
-    {"from": "folds", "to": "metrics"},
-    {"from": "metrics", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "rank", "to": "best", "variant": "emphasis"}
+    {"from": "trees", "to": "feat"},
+    {"from": "feat", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "leaf", "to": "folds"},
+    {"from": "folds", "to": "oof", "variant": "emphasis"},
+    {"from": "oof", "to": "pick", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "gates", "to": "pick", "variant": "security"},
+    {"from": "pick", "to": "refold", "variant": "emphasis"},
+    {"from": "refold", "to": "hist", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "prov", "to": "hist", "variant": "security", "label": "pass"},
+    {"from": "hist", "to": "use", "variant": "emphasis"}
   ],
   "cards": [
-    {"dot": "rose", "title": "Manual trials", "items": ["Enter any valid parameters", "Repeat until satisfied", "No fixed run count"]},
-    {"dot": "emerald", "title": "Selection", "items": ["Only current policy and content fingerprint", "Highest CV F1_UP mean wins", "Lower std and lower run_id break ties"]}
+    {"dot": "rose", "title": "Four tunable params", "items": ["n_estimators, max_depth, min_samples_leaf", "max_features: sqrt, log2 or float in (0,1]", "Blank max_depth means None (unbounded)"]},
+    {"dot": "cyan", "title": "Fold contract", "items": ["clone() per fold, fitted models discarded", "Whole trading dates move together", "Train labels must close before validation"]},
+    {"dot": "amber", "title": "Threshold gates", "items": ["predicted UP ratio <= 0.50", "precision >= OOF up_rate", "No valid threshold raises, run logged as error"]},
+    {"dot": "slate", "title": "Fixed, not tunable", "items": ["class_weight balanced_subsample", "n_jobs -1", "random_state 42"]}
   ]
 }

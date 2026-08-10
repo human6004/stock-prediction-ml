@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Lifecycle — Snapshot dataset đến release</h1>
       </div>
-      <p class="subtitle">Vòng đời fingerprint: refresh, CV/config, VALIDATION gate, TEST một lần và các trạng thái evaluation_registry</p>
+      <p class="subtitle">Vòng đời fingerprint: refresh, CV/config ở Tuning Lab, VALIDATION gate, TEST một lần và 4 trạng thái evaluation_registry (không còn file TEST lock riêng)</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1000 700" role="img" aria-label="Lifecycle — Snapshot dataset đến release — Vòng đời fingerprint: refresh, CV/config, VALIDATION gate, TEST một lần và các trạng thái evaluation_registry (lifecycle diagram)">
+      <svg viewBox="0 0 1000 700" role="img" aria-label="Lifecycle — Snapshot dataset đến release — Vòng đời fingerprint: refresh, CV/config ở Tuning Lab, VALIDATION gate, TEST một lần và 4 trạng thái evaluation_registry (không còn file TEST lock riêng) (lifecycle diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -655,9 +655,9 @@
           <h3>Hai fingerprint khác scope</h3>
         </div>
         <ul>
-          <li>&bull; TRAIN fingerprint gắn tuning history và manual_config.json</li>
-          <li>&bull; Experiment fingerprint gắn snapshot TRAIN+VALIDATION+TEST và evaluation_registry.json</li>
-          <li>&bull; Dataset refresh mới sinh fingerprint mới; config cũ stale, phải CV và chọn lại 3 run</li>
+          <li>&bull; TRAIN fingerprint (scope train) gắn tuning history và manual_config.json</li>
+          <li>&bull; Experiment fingerprint (scope experiment) gắn snapshot TRAIN+VALIDATION+TEST và evaluation_registry.json</li>
+          <li>&bull; Boundary rolling tính từ phiên mới nhất (TEST 94 ngày, VALIDATION 274 ngày) nên refresh mới sinh fingerprint mới; config cũ stale, phải CV và chọn lại 3 run ở Tuning Lab</li>
         </ul>
       </div>
 
@@ -667,9 +667,9 @@
           <h3>Gate trước khi chạm TEST</h3>
         </div>
         <ul>
-          <li>&bull; Preflight cần đủ 3 config đúng schema/policy và khớp TRAIN fingerprint hiện tại</li>
-          <li>&bull; Snapshot đã có entry trong registry (started/evaluated/published/release_failed) không chạy lại TEST</li>
-          <li>&bull; Winner không vượt baseline tốt nhất trên VALIDATION → dừng trước TEST, release cũ vẫn phục vụ</li>
+          <li>&bull; Preflight cần đủ 3 config đúng schema_version 4 / policy rolling_recent_cv_oof_threshold và khớp TRAIN fingerprint hiện tại</li>
+          <li>&bull; Snapshot đã có entry trong registry (started/evaluated/published/release_failed) không chạy lại TEST — guard chạy 2 lần, trước và sau khi ghi ml_dataset.csv</li>
+          <li>&bull; Không còn file TEST lock riêng và không còn env escape hatch; registry là gate duy nhất</li>
         </ul>
       </div>
 
@@ -681,7 +681,8 @@
         <ul>
           <li>&bull; started: đã qua VALIDATION gate, chuẩn bị chạm TEST</li>
           <li>&bull; evaluated: refit TRAIN+VALIDATION và chấm TEST đúng một lần</li>
-          <li>&bull; published: atomic release model + metadata; lỗi promotion → rollback và release_failed</li>
+          <li>&bull; published: atomic release model + metadata; lỗi bất kỳ sau started → release_failed</li>
+          <li>&bull; Cả 4 status đều bị coi là snapshot đã tiêu: release_failed cháy fingerprint vĩnh viễn, chạy lại phải sửa tay evaluation_registry.json hoặc refresh dataset</li>
         </ul>
       </div>
     </div>

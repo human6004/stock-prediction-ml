@@ -6,7 +6,7 @@
     "**/.trace-chatbot": true,
     "**/.trace-coverage": true,
     "**/.git": true,
-    "data/processed": true,
+    "data/processed": false,
     "experiments/archive": true
   },
   "search.exclude": {

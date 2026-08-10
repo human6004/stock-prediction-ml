@@ -994,7 +994,7 @@
 
       </div>
 
-      <p class="subtitle">User → Flask API → JSON decision → dispatcher → data/ML → deterministic formatter</p>
+      <p class="subtitle">/chat hoặc dock → JSON 2-key → validate → dispatcher → data/ML → formatter</p>
 
     </div>
 
@@ -1004,7 +1004,7 @@
 
     <div class="diagram-container">
 
-      <svg viewBox="0 0 920 900" role="img" aria-label="Chatbot — Một LLM Decision, Một Action Cố Định — User → Flask API → JSON decision → dispatcher → data/ML → deterministic formatter (sequence diagram)">
+      <svg viewBox="0 0 920 900" role="img" aria-label="Chatbot — Một LLM Decision, Một Action Cố Định — /chat hoặc dock → JSON 2-key → validate → dispatcher → data/ML → formatter (sequence diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -1054,7 +1054,7 @@
         <path d="M 69 185 L 163 185" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="65.8" y="165" width="100.4" height="16" rx="3" class="c-mask"/>
         <text x="116" y="175" class="t-backend" font-size="9" text-anchor="middle">message + history</text>
-        <text x="81" y="203" class="t-dim" font-size="7">message tối đa 1000 ký tự; history tối đa 6 message đã validate</text>
+        <text x="81" y="203" class="t-dim" font-size="7">cùng API · message ≤1000 · history ≤3 cặp</text>
 
         <path d="M 177 225 L 271 225" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="160.8" y="205" width="126.4" height="16" rx="3" class="c-mask"/>
@@ -1062,18 +1062,18 @@
 
         <path d="M 285 290 L 379 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="253.2" y="270" width="157.6" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="280" class="t-backend" font-size="9" text-anchor="middle">system + whitelist + history</text>
-        <text x="297" y="308" class="t-dim" font-size="7">một call; không tools, tool_choice, response_format, CSV, report, code hoặc artifact</text>
+        <text x="332" y="280" class="t-backend" font-size="9" text-anchor="middle">prompt + whitelist + history</text>
+        <text x="297" y="308" class="t-dim" font-size="7">1 call · không tools/retry/router</text>
 
         <path d="M 379 335 L 285 335" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="276.6" y="315" width="110.8" height="16" rx="3" class="c-mask"/>
-        <text x="332" y="325" class="t-muted" font-size="9" text-anchor="middle">3-key JSON decision</text>
-        <text x="297" y="353" class="t-dim" font-size="7">GENERAL_CHAT · STOCK_SIGNAL · STOCK_RANKING · PROJECT_INFO · OUT_OF_SCOPE</text>
+        <text x="332" y="325" class="t-muted" font-size="9" text-anchor="middle">{action, arguments}</text>
+        <text x="297" y="353" class="t-dim" font-size="7">5 action whitelist</text>
 
         <path d="M 285 380 L 487 380" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <rect x="309.8" y="360" width="152.4" height="16" rx="3" class="c-mask"/>
-        <text x="386" y="370" class="t-security" font-size="9" text-anchor="middle">validate action + arguments</text>
-        <text x="297" y="398" class="t-dim" font-size="7">exact keys, type/range, symbol uppercase/unique; JSON sai trả 502, không retry</text>
+        <text x="386" y="370" class="t-security" font-size="9" text-anchor="middle">validate exact 2-key schema</text>
+        <text x="297" y="398" class="t-dim" font-size="7">fixed kind · 1–5 symbols · 7 topics · sai → 502</text>
 
         <path d="M 487 420 L 285 420" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="330.6" y="400" width="110.8" height="16" rx="3" class="c-mask"/>
@@ -1082,26 +1082,26 @@
         <path d="M 285 475 L 595 475" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="384.6" y="455" width="110.8" height="16" rx="3" class="c-mask"/>
         <text x="440" y="465" class="t-backend" font-size="9" text-anchor="middle">execute data action</text>
-        <text x="297" y="493" class="t-dim" font-size="7">GENERAL_CHAT và OUT_OF_SCOPE bỏ qua dispatcher</text>
+        <text x="297" y="493" class="t-dim" font-size="7">GENERAL_CHAT / OUT_OF_SCOPE bỏ qua tools</text>
 
         <path d="M 609 515 L 703 515" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <rect x="608.4" y="495" width="95.2" height="16" rx="3" class="c-mask"/>
         <text x="656" y="505" class="t-backend" font-size="9" text-anchor="middle">one fixed branch</text>
-        <text x="621" y="533" class="t-dim" font-size="7">readiness + symbol scope trước inference</text>
+        <text x="621" y="533" class="t-dim" font-size="7">kiểm toàn bộ symbol scope trước ML</text>
 
         <path d="M 717 555 L 811 555" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <rect x="693" y="535" width="142" height="16" rx="3" class="c-mask"/>
         <text x="764" y="545" class="t-backend" font-size="9" text-anchor="middle">predict symbols / ranking</text>
-        <text x="729" y="573" class="t-dim" font-size="7">chỉ STOCK_SIGNAL và STOCK_RANKING; PROJECT_INFO đọc metadata/report/config</text>
+        <text x="729" y="573" class="t-dim" font-size="7">PROJECT_INFO đọc static/report/metadata</text>
 
         <path d="M 811 595 L 717 595" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
-        <rect x="729.4" y="575" width="69.2" height="16" rx="3" class="c-mask"/>
-        <text x="764" y="585" class="t-muted" font-size="9" text-anchor="middle">signal rows</text>
+        <rect x="708.6" y="575" width="110.8" height="16" rx="3" class="c-mask"/>
+        <text x="764" y="585" class="t-muted" font-size="9" text-anchor="middle">trusted signal rows</text>
 
         <path d="M 703 635 L 609 635" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="616.2" y="615" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
         <text x="656" y="625" class="t-muted" font-size="9" text-anchor="middle">domain result</text>
-        <text x="621" y="653" class="t-dim" font-size="7">data + sources + warnings + hai mốc ngày; symbol ngoài scope là response 200</text>
+        <text x="621" y="653" class="t-dim" font-size="7">mã lỗi → liệt kê tất cả + dừng</text>
 
         <path d="M 595 700 L 285 700" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="400.2" y="680" width="79.60000000000001" height="16" rx="3" class="c-mask"/>
@@ -1110,12 +1110,12 @@
         <path d="M 271 735 L 177 735" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="166" y="715" width="116" height="16" rx="3" class="c-mask"/>
         <text x="224" y="725" class="t-muted" font-size="9" text-anchor="middle">deterministic answer</text>
-        <text x="189" y="753" class="t-dim" font-size="7">không gọi LLM lần hai; số lấy trực tiếp từ domain result</text>
+        <text x="189" y="753" class="t-dim" font-size="7">không LLM lần hai · chỉ facts backend</text>
 
         <path d="M 163 770 L 69 770" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <rect x="42.39999999999999" y="750" width="147.20000000000002" height="16" rx="3" class="c-mask"/>
-        <text x="116" y="760" class="t-muted" font-size="9" text-anchor="middle">5-field JSON + safe render</text>
-        <text x="81" y="788" class="t-dim" font-size="7">answer, sources, warnings, data_as_of, model_trained_through; browser dùng textContent</text>
+        <text x="116" y="760" class="t-muted" font-size="9" text-anchor="middle">5-field JSON + textContent</text>
+        <text x="81" y="788" class="t-dim" font-size="7">answer · sources · warnings · dates</text>
 
         <!-- Activations -->
         <rect x="165" y="180" width="10" height="596" rx="3" class="c-mask"/>
@@ -1137,7 +1137,7 @@
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="19" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
         <text x="62" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User</text>
-        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">trang /chat</text>
+        <text x="62" y="111" class="t-muted" font-size="7" text-anchor="middle">/chat hoặc dock</text>
 
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="127" y="72" width="86" height="54" rx="6" class="c-frontend" stroke-width="1.5"/>
@@ -1152,12 +1152,12 @@
         <rect x="343" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="343" y="72" width="86" height="54" rx="6" class="c-external" stroke-width="1.5"/>
         <text x="386" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM</text>
-        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">JSON decision</text>
+        <text x="386" y="111" class="t-muted" font-size="7" text-anchor="middle">action decision</text>
 
         <rect x="451" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="451" y="72" width="86" height="54" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="494" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Validator</text>
-        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">action + args</text>
+        <text x="494" y="111" class="t-muted" font-size="7" text-anchor="middle">exact schema</text>
 
         <rect x="559" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="559" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -1166,8 +1166,8 @@
 
         <rect x="667" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="667" y="72" width="86" height="54" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Data Tools</text>
-        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">read-only</text>
+        <text x="710" y="94" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Domain Tools</text>
+        <text x="710" y="111" class="t-muted" font-size="7" text-anchor="middle">scope + facts</text>
 
         <rect x="775" y="72" width="86" height="54" rx="6" class="c-mask"/>
         <rect x="775" y="72" width="86" height="54" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -1198,9 +1198,9 @@
           <h3>LLM quyết định ít</h3>
         </div>
         <ul>
-          <li>&bull; LLM hiểu câu tự nhiên và chọn đúng một action; GENERAL_CHAT có direct_answer ngắn</li>
-          <li>&bull; Thiếu mã hoặc tiêu chí: GENERAL_CHAT hỏi lại một câu ngắn</li>
-          <li>&bull; LLM không chọn function, model ML, threshold, file hoặc nguồn dữ liệu</li>
+          <li>&bull; LLM chỉ hiểu câu tự nhiên rồi chọn action + arguments đúng schema</li>
+          <li>&bull; GENERAL_CHAT dùng fixed kind; STOCK_SIGNAL nhận 1–5 mã, không focus</li>
+          <li>&bull; PROJECT_INFO có 7 topic; LLM không chọn model, threshold hoặc nguồn</li>
         </ul>
       </div>
 
@@ -1210,9 +1210,9 @@
           <h3>Backend kiểm soát</h3>
         </div>
         <ul>
-          <li>&bull; Decision sai schema bị chặn trước dispatcher; không retry hoặc fallback router</li>
-          <li>&bull; Dispatcher chỉ gọi handler cố định; prediction_service là nơi duy nhất inference</li>
-          <li>&bull; Formatter deterministic nên không cần grounding regex</li>
+          <li>&bull; Decision sai schema bị chặn; không retry, fallback router hoặc LLM lần hai</li>
+          <li>&bull; Scope validation tập trung trước prediction; một mã lỗi làm dừng cả request</li>
+          <li>&bull; Formatter deterministic chỉ dùng dữ liệu, metric và artifact thật</li>
         </ul>
       </div>
 
@@ -1224,7 +1224,7 @@
         <ul>
           <li>&bull; Dữ liệu offline; không realtime, news, fundamentals hoặc lời khuyên mua/bán</li>
           <li>&bull; Không RAG, embedding, Vector DB, agent loop, LangChain hoặc chat database</li>
-          <li>&bull; Một UI /chat; transcript sessionStorage và chỉ gửi 6 message cuối</li>
+          <li>&bull; Hai UI dùng chung API và transcript tab; gửi tối đa 3 cặp history</li>
         </ul>
       </div>
     </div>

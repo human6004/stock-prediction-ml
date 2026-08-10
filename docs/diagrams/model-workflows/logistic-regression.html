@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Logistic Regression Tuning - Protocol v3</h1>
       </div>
-      <p class="subtitle">Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold</p>
+      <p class="subtitle">Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 528" role="img" aria-label="Logistic Regression Tuning - Protocol v3 — Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold (workflow diagram)">
+      <svg viewBox="0 0 720 652" role="img" aria-label="Logistic Regression Tuning - Protocol v3 — Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -526,33 +526,40 @@
 
         <!-- Swimlanes -->
         <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Hyperparameters</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / 1. Tuning Lab form (user input)</text>
 
         <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / TRAIN cross-validation</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / 2. Purged CV on TRAIN</text>
 
         <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Ranking + manual selection</text>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / 3. One threshold from pooled OOF</text>
+
+        <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / 4. Provenance, history</text>
 
         <!-- Edge paths -->
-        <path d="M 134 119 L 211 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 389 119 L 573 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 134 119 L 223 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 377 119 L 573 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path d="M 625 145 L 625 166 L 300 166 L 300 209" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 243 L 239 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 361 243 L 573 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 625 269 L 625 290 L 300 290 L 300 341" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 243 L 223 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 377 243 L 573 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 269 L 625 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 367 L 223 367" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <path d="M 377 367 L 573 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 393 L 625 414 L 300 414 L 300 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 491 L 223 491" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 377 491 L 573 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
         <rect x="42" y="93" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="42" y="93" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Logistic Reg.</text>
-        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">scaled + balanced</text>
+        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">scaler + balanced</text>
 
-        <rect x="211" y="93" width="178" height="52" rx="6" class="c-mask"/>
-        <rect x="211" y="93" width="178" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <rect x="223" y="93" width="154" height="52" rx="6" class="c-mask"/>
+        <rect x="223" y="93" width="154" height="52" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="300" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">C</text>
-        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">&gt; 0 (baseline 4.1e-7)</text>
+        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">float &gt; 0 (form 4.1e-7)</text>
 
         <rect x="573" y="93" width="104" height="52" rx="6" class="c-mask"/>
         <rect x="573" y="93" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
@@ -561,30 +568,52 @@
 
         <rect x="42" y="217" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="42" y="217" width="92" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Trading dates</text>
-        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">whole-date folds</text>
+        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CV date grid</text>
+        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">sessions &gt;= 2021</text>
 
-        <rect x="239" y="209" width="122" height="68" rx="6" class="c-mask"/>
-        <rect x="239" y="209" width="122" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">4 temporary models</text>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">4 purged folds</text>
         <text x="300" y="247" class="t-muted" font-size="8" text-anchor="middle">gap 5 + label purge</text>
-        <text x="300" y="265" class="t-backend" font-size="7" text-anchor="middle">OOF threshold</text>
+        <text x="300" y="265" class="t-backend" font-size="7" text-anchor="middle">fresh clone x4</text>
 
         <rect x="573" y="217" width="104" height="52" rx="6" class="c-mask"/>
         <rect x="573" y="217" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fold metrics</text>
-        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">F1 / P / R</text>
+        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pooled OOF</text>
+        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">y + P(UP)</text>
 
-        <rect x="223" y="341" width="154" height="52" rx="6" class="c-mask"/>
-        <rect x="223" y="341" width="154" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rank valid runs</text>
-        <text x="300" y="379" class="t-muted" font-size="8" text-anchor="middle">mean desc, std asc, run_id asc</text>
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">2 hard gates</text>
+        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">ratio, precision</text>
 
-        <rect x="573" y="333" width="104" height="68" rx="6" class="c-mask"/>
-        <rect x="573" y="333" width="104" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="625" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Best LR run</text>
-        <text x="625" y="371" class="t-muted" font-size="8" text-anchor="middle">user chooses when done</text>
-        <text x="625" y="389" class="t-database" font-size="7" text-anchor="middle">no run limit</text>
+        <rect x="223" y="333" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="333" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pick 1 threshold</text>
+        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">max F1_UP, no 0.5 fallback</text>
+        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">0.05..0.95 step 0.01</text>
+
+        <rect x="573" y="341" width="104" height="52" rx="6" class="c-mask"/>
+        <rect x="573" y="341" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="625" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Re-score folds</text>
+        <text x="625" y="379" class="t-muted" font-size="8" text-anchor="middle">F1/P/R + std</text>
+
+        <rect x="42" y="465" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="465" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provenance</text>
+        <text x="88" y="503" class="t-muted" font-size="8" text-anchor="middle">4-fold recheck</text>
+
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="300" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">History row</text>
+        <text x="300" y="495" class="t-muted" font-size="8" text-anchor="middle">tuning_history.csv</text>
+        <text x="300" y="513" class="t-database" font-size="7" text-anchor="middle">status ok / error</text>
+
+        <rect x="573" y="457" width="104" height="68" rx="6" class="c-mask"/>
+        <rect x="573" y="457" width="104" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="625" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User picks run</text>
+        <text x="625" y="495" class="t-muted" font-size="8" text-anchor="middle">manual_config</text>
+        <text x="625" y="513" class="t-frontend" font-size="7" text-anchor="middle">no run limit</text>
 
         <!-- Edge labels -->
 
@@ -595,18 +624,23 @@
 
 
 
+
+        <rect x="163.5" y="471" width="30" height="14" rx="3" class="c-mask"/>
+        <text x="178.5" y="481" class="t-security" font-size="8" text-anchor="middle">pass</text>
+
+
         <!-- Legend -->
-        <text x="175" y="428" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <rect x="175" y="440" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="195" y="448" class="t-muted" font-size="7">User UI</text>
-        <rect x="260" y="440" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="280" y="448" class="t-muted" font-size="7">Agent logic</text>
-        <rect x="370" y="440" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="390" y="448" class="t-muted" font-size="7">Policy</text>
-        <rect x="455" y="440" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="475" y="448" class="t-muted" font-size="7">Tool action</text>
-        <rect x="565" y="440" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="585" y="448" class="t-muted" font-size="7">Context / trace</text>
+        <text x="175" y="552" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <rect x="175" y="564" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="195" y="572" class="t-muted" font-size="7">User UI</text>
+        <rect x="260" y="564" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="280" y="572" class="t-muted" font-size="7">Agent logic</text>
+        <rect x="370" y="564" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="390" y="572" class="t-muted" font-size="7">Policy</text>
+        <rect x="455" y="564" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+        <text x="475" y="572" class="t-muted" font-size="7">Tool action</text>
+        <rect x="565" y="564" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="585" y="572" class="t-muted" font-size="7">Context / trace</text>
       </svg>
     </div>
 
@@ -618,9 +652,9 @@
           <h3>Manual trials</h3>
         </div>
         <ul>
-          <li>&bull; Enter any valid C and solver</li>
-          <li>&bull; Repeat until satisfied</li>
-          <li>&bull; No fixed run count</li>
+          <li>&bull; Any valid C and solver, server-side validated</li>
+          <li>&bull; Repeat with no run limit</li>
+          <li>&bull; One job at a time; page refreshes every 5s</li>
         </ul>
       </div>
 
@@ -630,9 +664,33 @@
           <h3>Leakage controls</h3>
         </div>
         <ul>
-          <li>&bull; Split by trading dates, never pooled rows</li>
-          <li>&bull; Exactly five sessions between train and validation</li>
-          <li>&bull; Purge label_end_date at validation boundary</li>
+          <li>&bull; Folds cut whole trading dates, never pooled rows</li>
+          <li>&bull; Five sessions between train and validation</li>
+          <li>&bull; Train row needs label_end_date before validation</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>Threshold gates</h3>
+        </div>
+        <ul>
+          <li>&bull; predicted UP ratio &lt;= 0.50</li>
+          <li>&bull; precision &gt;= OOF up_rate</li>
+          <li>&bull; No valid threshold raises, no 0.5 fallback</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot slate"></div>
+          <h3>Fixed, not tunable</h3>
+        </div>
+        <ul>
+          <li>&bull; StandardScaler inside the pipeline</li>
+          <li>&bull; class_weight balanced, max_iter 1000</li>
+          <li>&bull; random_state 42</li>
         </ul>
       </div>
     </div>

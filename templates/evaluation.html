@@ -1,5 +1,71 @@
 {% extends "base.html" %}
+
+{# ---------- Chuẩn bị dữ liệu ----------
+   Đặt ở cấp template (ngoài mọi block) để cả `content` lẫn `page_scripts` đọc
+   được: biến {% set %} bên trong một block không lọt sang block khác.
+
+   Chỉ đọc `sections`, không gọi service nào.
+
+   Mắt lọc quan trọng: metric đọc từ CSV có thể là None (ô trống) hoặc NaN
+   (float). NaN đi qua `|tojson` sinh token `NaN` — JSON không hợp lệ →
+   JSON.parse ném lỗi. Jinja không có test isnan nên dùng mẹo `v == v`: chỉ NaN
+   là khác chính nó. #}
+{% set metric_keys = ["accuracy", "precision_up", "recall_up", "f1_up"] %}
+{% set metric_labels = ["Accuracy", "Precision UP", "Recall UP", "F1 UP"] %}
+{% set candidates = sections.validation | selectattr("row_type", "equalto", "candidate") | list %}
+
+{# Giá trị cao nhất mỗi cột, để đánh dấu ✓ trong bảng.
+
+   Hai điều kiện để một cột ĐƯỢC đánh dấu, cả hai đều là chuyện ngữ nghĩa chứ
+   không phải phòng lỗi:
+   1. Cột phải có từ 2 giá trị hợp lệ trở lên. "Cao nhất" giữa một giá trị duy
+      nhất là vô nghĩa — hay gặp ở cv_f1_up vì baseline không có CV.
+   2. max phải khác min. Nếu mọi model bằng nhau thì không model nào hơn; tô ✓
+      cả cột chỉ là nhiễu.
+   Đồng hạng ở đỉnh (2 model bằng nhau và cùng cao nhất) thì CẢ HAI được đánh
+   dấu — cố ý không tự chọn một cái. #}
+{% set best = namespace(map={}) %}
+{% for key in ["accuracy", "precision_up", "recall_up", "f1_up", "cv_f1_up"] %}
+{% set col = namespace(values=[]) %}
+{% for row in candidates %}
+{% set raw = row.get(key) %}
+{% if raw is number and raw == raw %}{% set _ = col.values.append(raw) %}{% endif %}
+{% endfor %}
+{% if col.values | length > 1 and (col.values | max) != (col.values | min) %}
+{% set _ = best.map.update({key: col.values | max}) %}
+{% endif %}
+{% endfor %}
+
+{# Payload Chart.js: một dataset cho mỗi model, một nhóm cột cho mỗi metric.
+   Dùng HAI mảng song song (`models` tên, `values` ma trận) thay vì một list dict.
+   Lý do rất cụ thể: Jinja giải `a.b` bằng getattr TRƯỚC rồi mới tới getitem, nên
+   một key tên `values` / `items` / `keys` sẽ trả về method của dict chứ không phải
+   dữ liệu — bẫy im lặng, chỉ nổ khi render. #}
+{% set chart = namespace(models=[], values=[], ok=candidates | length > 0) %}
+{% for row in candidates %}
+{% set point = namespace(row=[], holes=0) %}
+{% for key in metric_keys %}
+{% set raw = row.get(key) %}
+{% if raw is number and raw == raw %}
+{% set _ = point.row.append(raw) %}
+{% else %}
+{% set _ = point.row.append(none) %}
+{% set point.holes = point.holes + 1 %}
+{% endif %}
+{% endfor %}
+{# Model thiếu sạch 4 metric thì không có gì để vẽ → coi như dữ liệu vỡ, ẩn chart. #}
+{% if point.holes == metric_keys | length %}{% set chart.ok = false %}{% endif %}
+{% set _ = chart.models.append(row.model_name | string) %}
+{% set _ = chart.values.append(point.row) %}
+{% endfor %}
+
+{% set final_rows = sections.test | selectattr("row_type", "equalto", "final") | list if sections.test else [] %}
+
 {% block title %}Đánh giá model - HOSE ML{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='page-evaluation.css') }}?v={{ asset_ver }}">
+{% endblock %}
 
 {% block page_header %}
 <p class="eyebrow">Đánh giá</p>
@@ -11,20 +77,37 @@
 {% endblock %}
 
 {% block content %}
+{# Số hiển thị + dấu ✓ cho ô cao nhất cột. Dùng mực trung tính và dấu hình học,
+   KHÔNG dùng --up: trong app này --up nghĩa là "dự báo giá tăng", tô metric bằng
+   nó sẽ đọc thành khuyến nghị mua. #}
+{% macro metric_cell(value, best_value, fmt="%.4f") -%}
+{%- set shown = value if (value is number and value == value) else none -%}
+{%- set is_best = shown is not none and best_value is not none and shown == best_value -%}
+<td class="metric-cell{{ ' is-best' if is_best }}"><span class="metric-cell-num">{{ fmt | format(shown) if shown is not none else "—" }}</span>{% if is_best %}<span class="best-mark" aria-hidden="true">✓</span><span class="visually-hidden">cao nhất cột này</span>{% endif %}</td>
+{%- endmacro %}
+
+{% macro stat_card(label, value, fmt="%.4f") -%}
+{%- set shown = value if (value is number and value == value) else none -%}
+<article class="fetch-stat-card">
+    <p class="fetch-stat-label">{{ label }}</p>
+    <p class="fetch-stat-value"{% if shown is not none %} data-eval-count="{{ shown }}"{% endif %}>{{ fmt | format(shown) if shown is not none else "—" }}</p>
+</article>
+{%- endmacro %}
+
 {% macro metric_table(items, empty_text) %}
-<div class="table-wrap" data-ui="table-scroll">
-    <table>
+<div class="table-wrap" role="region" tabindex="0" aria-label="Bảng metric legacy, dùng mũi tên để cuộn ngang">
+    <table data-ui="sortable">
         <thead>
             <tr>
-                <th scope="col">Model</th>
-                <th scope="col">Accuracy</th>
-                <th scope="col">Precision UP</th>
-                <th scope="col">Recall UP</th>
-                <th scope="col">F1 UP</th>
-                <th scope="col">Precision NOT_UP</th>
-                <th scope="col">Recall NOT_UP</th>
-                <th scope="col">F1 NOT_UP</th>
-                <th scope="col">Trạng thái</th>
+                <th scope="col" data-sort="text">Model</th>
+                <th scope="col" data-sort="number">Accuracy</th>
+                <th scope="col" data-sort="number">Precision UP</th>
+                <th scope="col" data-sort="number">Recall UP</th>
+                <th scope="col" data-sort="number">F1 UP</th>
+                <th scope="col" data-sort="number">Precision NOT_UP</th>
+                <th scope="col" data-sort="number">Recall NOT_UP</th>
+                <th scope="col" data-sort="number">F1 NOT_UP</th>
+                <th scope="col" data-sort="text">Trạng thái</th>
             </tr>
         </thead>
         <tbody>
@@ -60,29 +143,33 @@
 <section class="workspace evaluation-section">
     <p class="eyebrow">MODEL COMPARISON</p>
     <h2>Bảng so sánh model</h2>
-    <div class="table-wrap" data-ui="table-scroll">
-        <table>
+
+    {% if candidates %}
+    {# role=region + tabindex: bảng min-width 980px tràn ngang trên màn nhỏ, không
+       có 2 thuộc tính này thì người dùng bàn phím không cuộn được. #}
+    <div class="table-wrap" role="region" tabindex="0" aria-label="Bảng so sánh model, dùng mũi tên để cuộn ngang">
+        <table data-ui="sortable">
             <thead>
                 <tr>
-                    <th scope="col">Model</th>
-                    <th scope="col">Accuracy</th>
-                    <th scope="col">Precision_UP</th>
-                    <th scope="col">Recall_UP</th>
-                    <th scope="col">F1_UP</th>
-                    <th scope="col">CV F1_UP</th>
-                    <th scope="col">Threshold</th>
-                    <th scope="col">Chọn</th>
+                    <th scope="col" data-sort="text">Model</th>
+                    <th scope="col" data-sort="number">Accuracy</th>
+                    <th scope="col" data-sort="number">Precision_UP</th>
+                    <th scope="col" data-sort="number">Recall_UP</th>
+                    <th scope="col" data-sort="number">F1_UP</th>
+                    <th scope="col" data-sort="number">CV F1_UP</th>
+                    <th scope="col" data-sort="number">Threshold</th>
+                    <th scope="col" data-sort="text">Chọn</th>
                 </tr>
             </thead>
             <tbody>
-                {% for row in sections.validation if row.row_type == "candidate" %}
+                {% for row in candidates %}
                 <tr class="{{ 'selected-row' if row.status else '' }}">
                     <th scope="row">{{ row.model_name }}</th>
-                    <td>{{ "%.4f"|format(row.accuracy) }}</td>
-                    <td>{{ "%.4f"|format(row.precision_up) }}</td>
-                    <td>{{ "%.4f"|format(row.recall_up) }}</td>
-                    <td>{{ "%.4f"|format(row.f1_up) }}</td>
-                    <td>{{ "%.4f"|format(row.cv_f1_up) }}</td>
+                    {{ metric_cell(row.accuracy, best.map.get("accuracy")) }}
+                    {{ metric_cell(row.precision_up, best.map.get("precision_up")) }}
+                    {{ metric_cell(row.recall_up, best.map.get("recall_up")) }}
+                    {{ metric_cell(row.f1_up, best.map.get("f1_up")) }}
+                    {{ metric_cell(row.cv_f1_up, best.map.get("cv_f1_up")) }}
                     <td>{{ "%.2f"|format(row.decision_threshold|default(0.5)) }}</td>
                     <td>
                         {% if row.status %}
@@ -92,24 +179,114 @@
                         {% endif %}
                     </td>
                 </tr>
-                {% else %}
-                <tr><td colspan="8" class="empty">Chưa có kết quả so sánh model.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% if best.map %}
+    <p class="best-legend">
+        <span class="best-mark" aria-hidden="true">✓</span>
+        Dấu ✓ kèm viền đậm đánh dấu giá trị cao nhất của cột đó. Đây là so sánh chất lượng
+        giữa các model trên cùng một tập dữ liệu, không phải nhận định về cổ phiếu.
+    </p>
+    {% endif %}
+    {% else %}
+    {# Chưa chạy pipeline lần nào: nói rõ phải làm gì thay vì một câu cụt. #}
+    <div class="ui-empty eval-empty">
+        <span class="ui-empty-icon" aria-hidden="true">◇</span>
+        <p class="ui-empty-title">Chưa có kết quả so sánh model.</p>
+        <p class="ui-empty-text">
+            Bảng này đọc từ <code>reports/model_comparison.csv</code>, chỉ xuất hiện sau khi chạy
+            pipeline chính thức. Sang Tuning Lab chạy CV cho từng model, chốt cấu hình,
+            rồi bấm chạy pipeline.
+        </p>
+        <div class="ui-empty-actions">
+            <a class="btn-fetch-link" href="{{ url_for('tuning') }}">Mở Tuning Lab</a>
+        </div>
+    </div>
+    {% endif %}
+
     <p class="eval-note">
         Metric chính lấy từ VALIDATION; CV F1_UP lấy từ TRAIN. Chọn theo F1_UP, rồi Recall_UP, cuối cùng LR → RF → GB.
     </p>
-    {% for row in sections.test if row.row_type == "final" %}
-    <p class="eval-note">
-        <strong>Kết quả Final Model trên TEST:</strong>
-        {{ row.model_name }} — Accuracy {{ "%.4f"|format(row.accuracy) }},
-        Precision_UP {{ "%.4f"|format(row.precision_up) }},
-        Recall_UP {{ "%.4f"|format(row.recall_up) }},
-        F1_UP {{ "%.4f"|format(row.f1_up) }}.
-        <a href="{{ url_for('confusion_matrix_image') }}" target="_blank">Xem confusion matrix</a>.
-    </p>
+
+    {% if chart.ok %}
+    {# Nhóm theo METRIC, không theo model: mắt so sánh chiều cao cột cạnh nhau dễ
+       hơn nhiều so với nhảy giữa các nhóm. Mỗi nhóm là một câu hỏi ("model nào
+       Recall_UP cao nhất?") và câu trả lời nằm gọn trong một nhóm cột. #}
+    <div class="chart-card eval-chart-card" id="eval-chart-card">
+        <div class="chart-heading">
+            <div>
+                <p class="section-label">So sánh metric trên VALIDATION</p>
+                <p class="chart-note">
+                    Mỗi nhóm cột là một metric; trong nhóm, các cột xếp đúng thứ tự model ở chú giải.
+                    Thang 0 tới 1, càng cao càng tốt.
+                </p>
+            </div>
+        </div>
+        <div class="chart-wrap eval-chart-wrap">
+            <canvas id="model-compare-chart" role="img"
+                    aria-label="Biểu đồ cột so sánh {{ chart.models | length }} model trên tập VALIDATION theo {{ metric_labels | join(', ') }}">
+                Trình duyệt không hỗ trợ canvas. Toàn bộ số liệu đã có trong bảng so sánh model ở trên.
+            </canvas>
+        </div>
+        {# Canvas rỗng với trình đọc màn hình → mô tả bằng chữ, đồng thời là phương
+           án dự phòng khi JS lỗi hoặc Chart.js không nạp được. #}
+        <p class="chart-fallback">
+            Cột đứng cạnh nhau theo từng metric.
+            {%- for name in chart.models %}
+            {%- set row_values = chart.values[loop.index0] %}
+            {{ name }}: {% for index in range(metric_keys | length) -%}
+            {{ metric_labels[index] }} {{ "%.4f"|format(row_values[index]) if row_values[index] is not none else "không có" }}{{ ", " if not loop.last else "" }}
+            {%- endfor %}.
+            {%- endfor %}
+        </p>
+        {# tojson escape < > & nên chuỗi "</script>" trong dữ liệu không thoát ra
+           khỏi thẻ được. Truyền qua thẻ JSON chứ không qua data-attribute vì
+           tojson KHÔNG escape dấu ngoặc kép. #}
+        <script type="application/json" id="model-compare-data">{{ {"metrics": metric_labels, "models": chart.models, "values": chart.values} | tojson }}</script>
+    </div>
+    {% endif %}
+
+    {% for row in final_rows %}
+    <div class="final-test-block">
+        <h3 class="final-test-title">Kết quả Final Model trên TEST</h3>
+        <p class="eval-note">
+            Bộ số này chỉ đo một lần, sau khi refit trên TRAIN+VALIDATION. Không dùng nó để chọn model.
+        </p>
+        <div class="fetch-stats eval-final-stats" data-stagger>
+            <article class="fetch-stat-card">
+                <p class="fetch-stat-label">Model</p>
+                <p class="fetch-stat-value fetch-stat-value-sm">{{ row.model_name }}</p>
+            </article>
+            {{ stat_card("Accuracy", row.accuracy) }}
+            {{ stat_card("Precision_UP", row.precision_up) }}
+            {{ stat_card("Recall_UP", row.recall_up) }}
+            {{ stat_card("F1_UP", row.f1_up) }}
+            <article class="fetch-stat-card">
+                <p class="fetch-stat-label">Ngưỡng quyết định</p>
+                <p class="fetch-stat-value fetch-stat-value-sm">{{ "%.2f"|format(row.decision_threshold|default(0.5)) }}</p>
+            </article>
+        </div>
+
+        {# Ma trận nhầm lẫn nhúng thẳng thay vì mở tab mới. Route trả chuỗi
+           plain-text 404 khi thiếu PNG, nên page-evaluation.js bắt sự kiện `error`
+           của <img> rồi ẩn figure, hiện thông báo tiếng Việt bên dưới. #}
+        <figure class="cm-figure" id="cm-figure">
+            <img class="cm-image" id="cm-image"
+                 src="{{ url_for('confusion_matrix_image') }}"
+                 width="800" height="640" decoding="async"
+                 alt="Ma trận nhầm lẫn của Final Model {{ row.model_name }} trên tập TEST: bốn ô đếm số lần dự báo đúng và sai cho hai nhóm UP và NOT_UP.">
+            <figcaption class="cm-caption">
+                Hàng là nhãn thực tế, cột là nhãn model dự báo; hai ô trên đường chéo là số lần dự báo đúng.
+                <a href="{{ url_for('confusion_matrix_image') }}" target="_blank" rel="noopener">Mở ảnh gốc</a>.
+            </figcaption>
+        </figure>
+        <p class="cm-missing" id="cm-missing" hidden>
+            Chưa có ảnh ma trận nhầm lẫn (<code>reports/confusion_matrix.png</code>).
+            Ảnh này sinh ở bước cuối của pipeline chính thức — hãy chạy lại pipeline rồi tải lại trang.
+        </p>
+    </div>
     {% endfor %}
 </section>
 {% else %}
@@ -117,5 +294,14 @@
     <h2>Kết quả legacy</h2>
     {{ metric_table(sections.legacy, "Chưa có report legacy.") }}
 </section>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+{% if sections.is_current_policy and chart.ok %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+{% endif %}
+{% if sections.is_current_policy %}
+<script src="{{ url_for('static', filename='page-evaluation.js') }}?v={{ asset_ver }}"></script>
 {% endif %}
 {% endblock %}

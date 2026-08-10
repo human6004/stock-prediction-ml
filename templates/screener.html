@@ -24,9 +24,9 @@
 {% if all_rows is defined and not error %}
 <div class="screener-toolbar">
     <p class="screener-summary" role="status">
-        Tổng <strong>{{ total_count }}</strong> mã có đủ dữ liệu:
-        <span class="count-up">{{ up_count }} UP</span> ·
-        <span class="count-down">{{ not_up_count }} NOT_UP</span>
+        <span class="screener-total">Tổng <strong>{{ total_count }}</strong> mã có đủ dữ liệu</span>
+        <span class="pill pill-up">{{ up_count }} UP</span>
+        <span class="pill pill-down">{{ not_up_count }} NOT_UP</span>
     </p>
     <div class="screener-controls">
         <div class="filter-group" role="group" aria-label="Lọc theo trạng thái">
@@ -43,12 +43,13 @@
 </div>
 
 {% if all_rows %}
-<div class="table-wrap" data-ui="table-scroll">
-    <table class="data-table screener-table" data-ui="data-table">
+<div class="table-wrap screener-wrap" data-ui="table-scroll">
+    <table class="data-table screener-table" data-ui="data-table sortable">
         <caption class="visually-hidden">
             Bảng xếp hạng {{ total_count }} mã theo điểm UP của model, sắp giảm dần.
         </caption>
         <colgroup>
+            <col class="col-rank">
             <col class="col-symbol">
             <col class="col-status">
             <col class="col-score">
@@ -57,24 +58,29 @@
         </colgroup>
         <thead>
             <tr>
-                <th scope="col">Mã</th>
-                <th scope="col">Trạng thái</th>
-                <th scope="col" class="num">Điểm UP</th>
-                <th scope="col" class="num">Giá tham chiếu</th>
-                <th scope="col" class="num">Ngày dữ liệu</th>
+                {# Cột thứ tự không cho sort: bảng đã sắp theo điểm UP giảm dần nên
+                   "sort theo #" chính là thứ tự mặc định — nút chỉ thêm nhiễu, và
+                   mũi ⇅ trong ô đẩy nhãn # lệch khỏi trục số bên dưới. #}
+                <th scope="col" class="num" data-sort="none">#</th>
+                <th scope="col" data-sort="text">Mã</th>
+                <th scope="col" data-sort="text">Trạng thái</th>
+                <th scope="col" class="num" data-sort="percent">Điểm UP</th>
+                <th scope="col" class="num" data-sort="number">Giá tham chiếu</th>
+                <th scope="col" class="num" data-sort="date">Ngày dữ liệu</th>
             </tr>
         </thead>
         <tbody id="screener-rows">
             {% for row in all_rows %}
             <tr data-symbol="{{ row.symbol }}"
                 data-status="{{ 'UP' if row.prediction == 'UP' else 'NOT_UP' }}">
+                <td class="num cell-rank">{{ loop.index }}</td>
                 <th scope="row" class="cell-symbol">
                     <a href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
                     {% if row.is_stale %}
-                    <span class="stale-badge">cũ · {{ row.reference_date|date_vi }}</span>
+                    <span class="stale-badge" title="Dữ liệu cũ hơn ngày chốt của bộ dữ liệu">cũ</span>
                     {% endif %}
                 </th>
-                <td>
+                <td class="cell-status">
                     {% if row.prediction == 'UP' %}
                     <span class="tag tag-up">UP</span>
                     {% else %}
@@ -83,19 +89,16 @@
                 </td>
                 <td class="num cell-score">
                     {% if row.probability_up is not none %}
-                    <span class="prob-value">{{ "%.1f%%"|format(row.probability_up * 100) }}</span>
-                    <span class="prob-bar" role="meter"
+                    <span class="score-value" role="meter"
                           aria-valuenow="{{ (row.probability_up * 100)|round(1) }}"
                           aria-valuemin="0" aria-valuemax="100"
-                          aria-label="Điểm UP của {{ row.symbol }}">
-                        <span class="prob-fill" style="width: {{ (row.probability_up * 100)|round(1) }}%;"></span>
-                    </span>
+                          aria-label="Điểm UP của {{ row.symbol }}">{{ "%.1f%%"|format(row.probability_up * 100) }}</span>
                     {% else %}
-                    <span class="prob-value muted">N/A</span>
+                    <span class="score-value muted">N/A</span>
                     {% endif %}
                 </td>
                 <td class="num">{{ "%.2f"|format(row.close_at_reference) }}</td>
-                <td class="num">{{ row.reference_date|date_vi }}</td>
+                <td class="num cell-date">{{ row.reference_date|date_vi }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -104,6 +107,11 @@
 <p class="screener-empty" id="screener-no-match" hidden role="status">
     Không có mã nào khớp bộ lọc.
 </p>
+{# Lọc/tìm chỉ đặt tr.hidden nên người dùng screen reader không biết bảng vừa
+   rút từ 400 xuống 1 dòng. Vùng này báo số kết quả bằng lời. Tách khỏi
+   #screener-no-match vì cái đó chỉ nói khi KHÔNG còn dòng nào.
+   aria-live="polite" + debounce trong script: gõ từng ký tự không đọc chen. #}
+<span id="screener-count-live" class="visually-hidden" aria-live="polite"></span>
 {% else %}
 <section class="alert" role="alert">
     Chưa có mã nào để xếp hạng. Hãy chạy pipeline trước.
@@ -127,8 +135,23 @@
         const rows = Array.from(document.querySelectorAll("#screener-rows tr"));
         const search = document.getElementById("screener-search");
         const noMatch = document.getElementById("screener-no-match");
+        const countLive = document.getElementById("screener-count-live");
         const filterButtons = Array.from(document.querySelectorAll(".filter-btn"));
         let activeFilter = "all";
+        let announceTimer = null;
+
+        // Gõ trong ô tìm gọi apply() mỗi ký tự. Ghi thẳng vào live region thì
+        // screen reader đọc chồng từng lần gõ, nên hoãn 450ms và chỉ đọc kết quả
+        // cuối. Bỏ hẳn khi không còn dòng nào: #screener-no-match đã nói việc đó.
+        function announce(visible) {
+            if (!countLive) { return; }
+            if (announceTimer) { window.clearTimeout(announceTimer); }
+            announceTimer = window.setTimeout(() => {
+                countLive.textContent = visible === 0
+                    ? ""
+                    : `Còn ${visible} mã khớp bộ lọc.`;
+            }, 450);
+        }
 
         function apply() {
             const term = (search.value || "").trim().toUpperCase();
@@ -141,6 +164,9 @@
                 if (show) { visible += 1; }
             });
             noMatch.hidden = visible !== 0;
+            announce(visible);
+            // Số dòng đổi → chiều cao nội dung đổi → đo lại cho khớp bội số dòng.
+            fitWrap();
         }
 
         filterButtons.forEach((btn) => {
@@ -155,6 +181,99 @@
             });
         });
         search.addEventListener("input", apply);
+
+        // Khung bảng cao đúng SỐ DÒNG NGUYÊN vừa khoảng trống còn lại dưới toolbar:
+        // chỉ còn một thanh cuộn dọc (thanh trong bảng), và mép dưới khung luôn trùng
+        // viền một dòng trọn vẹn.
+        //
+        // JS ở đây chỉ ghi --rows-shown; công thức max-height nằm trong CSS. Trước đây
+        // JS ghi thẳng maxHeight bằng px thô từ viewport, chia cho chiều cao dòng ra số
+        // lẻ nên dòng cuối hở nửa thân — đúng chỗ trông như bảng bị cắt dở.
+        const wrap = document.querySelector(".screener-wrap");
+        const MIN_ROWS = 6;      // dưới mức này khung quá ngắn, giữ 6 dòng và để trang cuộn
+        const GAP_BELOW = 24;    // chừa cho ghi chú cuối trang, không dính sát mép
+
+        function cssPx(styles, name) {
+            return parseFloat(styles.getPropertyValue(name)) || 0;
+        }
+
+        // Tổng phần chiếm chỗ TỪ ĐÁY KHUNG XUỐNG HẾT TRANG, đo bằng cách leo cây:
+        // ở mỗi tầng lấy các em kế sau + padding/border/margin đáy của chính tầng đó.
+        // Phải cộng cả padding đáy ancestor vì .app-body có padding-bottom: 72px chừa
+        // cho chat dock nổi — nó nằm ngoài main nên duyệt sibling của khung không thấy,
+        // ăn thiếu đúng 72px và trang cuộn lại.
+        // Bỏ qua phần tử fixed/absolute (chat dock, toast): chúng không chiếm chỗ dòng.
+        // Cũng bỏ qua node cao 0px — #screener-no-match khi không lọc gì đang display:none
+        // nhưng margin 15+15 vẫn đọc được qua getComputedStyle, cộng vào là đếm oan 30px
+        // (margin của display:none không tồn tại trong layout).
+        function spaceBelow(el) {
+            let total = 0;
+            let node = el;
+            while (node && node !== document.body) {
+                for (let n = node.nextElementSibling; n; n = n.nextElementSibling) {
+                    const s = getComputedStyle(n);
+                    if (s.position === "fixed" || s.position === "absolute") { continue; }
+                    const r = n.getBoundingClientRect();
+                    if (r.height <= 0) { continue; }
+                    total += r.height + (parseFloat(s.marginTop) || 0)
+                        + (parseFloat(s.marginBottom) || 0);
+                }
+                const ps = getComputedStyle(node.parentElement || document.body);
+                total += (parseFloat(ps.paddingBottom) || 0)
+                    + (parseFloat(ps.borderBottomWidth) || 0);
+                const ms = getComputedStyle(node);
+                total += parseFloat(ms.marginBottom) || 0;
+                node = node.parentElement;
+            }
+            return total;
+        }
+
+        // Trang có cuộn dọc thật hay không. clientHeight của <html> = phần nhìn thấy,
+        // scrollHeight = nội dung; lệch > 1px thì có thanh cuộn trang (dùng 1px vì
+        // devicePixelRatio lẻ làm rect ra số thập phân).
+        function pageScrolls() {
+            const de = document.documentElement;
+            return de.scrollHeight - de.clientHeight > 1;
+        }
+
+        function fitWrap() {
+            if (!wrap) { return; }
+            wrap.style.removeProperty("--rows-shown");
+            // Dưới 720px CSS đã trả bảng về cuộn trang, không ghi đè bằng inline.
+            if (window.innerWidth <= 720) { return; }
+
+            const styles = getComputedStyle(wrap);
+            const rowH = cssPx(styles, "--row-h");
+            const headH = cssPx(styles, "--head-h");
+            const chrome = cssPx(styles, "--wrap-chrome");
+            if (rowH < 1) { return; }
+
+            // Phần chiếm chỗ dưới khung không đổi khi khung co lại, nên đo một lần rồi
+            // trừ ra. KHÔNG dùng documentElement.scrollHeight: tài liệu ngắn hơn viewport
+            // thì scrollHeight bị kẹp bằng chiều cao viewport, "below" phình lên bằng
+            // đúng phần trống (đo thật ở 1512x949: 121px thay vì 46px) — khung càng co
+            // phần trống càng lớn, below càng phình, vòng xoáy đẩy kết quả về sàn
+            // MIN_ROWS. Cũng không mượn được rect của body/shell vì shell min-height:100vh
+            // nên cũng bị kẹp.
+            const box = wrap.getBoundingClientRect();
+            const room = window.innerHeight - box.top - spaceBelow(wrap) - GAP_BELOW;
+
+            const fit = Math.floor((room - headH - chrome) / rowH);
+            let rows = Math.max(MIN_ROWS, fit);
+            wrap.style.setProperty("--rows-shown", String(rows));
+
+            // Chốt hạ: nếu còn chỗ nào tính thiếu mà trang vẫn cuộn thì bớt dần một dòng.
+            // Mục tiêu của khung là CHỈ có một thanh cuộn (thanh trong bảng).
+            let guard = 40;
+            while (rows > MIN_ROWS && guard > 0 && pageScrolls()) {
+                rows -= 1;
+                guard -= 1;
+                wrap.style.setProperty("--rows-shown", String(rows));
+            }
+        }
+
+        fitWrap();
+        window.addEventListener("resize", fitWrap);
     })();
 </script>
 {% endif %}

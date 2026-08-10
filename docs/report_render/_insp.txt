@@ -1,0 +1,33 @@
+SECT: <w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/><w:titlePg/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1189" w:right="1018" w:bottom="1080" w:left="1980" w:header="586" w:footer="432" w:gutter="0"/><w:pgNumType w:start="1"/><w:cols w:space="720"/></w:sectPr>
+Normal        jc=both ind=<w:ind w:left="0" w:right="0" w:firstLine="537"/>
+CoverText     jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+CoverHeading  jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+CoverSub      jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+CoverTitle    jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+Heading1      jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+Caption       jc=center ind=<w:ind w:left="0" w:right="0" w:firstLine="0"/>
+total paras=954
+00 | BỘ GIÁO DỤC VÀ ĐÀO TẠO | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+01 | TRƯỜNG ĐẠI HỌC CẦN THƠ | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+02 | TRƯỜNG CÔNG NGHỆ THÔNG TIN &amp; TRUYỀN THÔNG | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+03 | [IMG] | <w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="60"/></w:pPr>
+04 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+05 | NIÊN LUẬN CƠ SỞ | <w:pPr><w:pStyle w:val="CoverHeading"/></w:pPr>
+06 | HỌC PHẦN CT239H | <w:pPr><w:pStyle w:val="CoverHeading"/></w:pPr>
+07 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+08 | Đề tài | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+09 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+10 | DỰ BÁO XU HƯỚNG GIÁ CỔ PHIẾU HOSE BẰNG MACHINE | <w:pPr><w:pStyle w:val="CoverTitle"/></w:pPr>
+11 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+12 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+13 | Giảng viên hướng dẫn: | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+14 | Phan Phương Lan | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+15 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+16 | Sinh viên thực hiện: | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+17 | 1. Lê Trần Hiếu Nhân - B2308203 | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+18 | Niên luận cơ sở ngành Công nghệ thông tin | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+19 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+20 |  | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>
+21 | Cần Thơ, tháng 7 năm 2026 | <w:pPr><w:pStyle w:val="CoverSub"/></w:pPr>
+22 |  | -
+23 | BỘ GIÁO DỤC VÀ ĐÀO TẠO | <w:pPr><w:pStyle w:val="CoverText"/></w:pPr>

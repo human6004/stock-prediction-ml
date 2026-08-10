@@ -13,8 +13,10 @@ Tài liệu hiện hành cho policy ML `rolling_recent_cv_oof_threshold` (hằng
 > tuning_fingerprint  live  fa1cf401b4a6   == manual_config.json  →  is_config_complete() = True
 > experiment_fingerprint    41580ec734ea   CHƯA có trong evaluation_registry.json  →  TEST còn nguyên
 > registry chỉ có           fd7fa2887812   (snapshot legacy, status "published")
-> lock                      pipeline.lock / fetch.lock / tuning.lock đều không tồn tại
+> lock                      pipeline.lock / fetch.lock đều không tồn tại
 > ```
+>
+> (Không có `tuning.lock`: `config/settings.py` chỉ định nghĩa `PIPELINE_LOCK_PATH` (`:189`) và `FETCH_LOCK_PATH` (`:191`). Job CV được khóa **trong RAM** bằng thread state của `services/tuning_lab.py` (`is_tuning_job_running()`), không phải bằng file — nên restart Flask là mất trạng thái job CV, khác hẳn hai lock kia.)
 >
 > Nghĩa là 5 điều kiện `can_run` ở mục 11 đều thỏa: có thể bấm "Chạy official pipeline" ngay để sinh một release **thuộc policy hiện hành**, thay cho artifact legacy. Tài liệu này mô tả cả hai trạng thái — số của release legacy (nằm trong `reports/` + `models/`) và số của dataset đang chờ chạy (đọc trực tiếp từ `data/processed/ml_dataset.csv`) — nên khi trích số vào báo cáo, phải nói rõ đang trích cột nào.
 
@@ -77,7 +79,7 @@ Nếu bạn chỉ muốn nắm ý, đọc 6 đoạn dưới đây là đủ; cá
 
 **Kết quả thật, nói thẳng.** Model đang chạy (Random Forest) **kém hơn một chiến lược ngớ ngẩn là "luôn báo UP"** — theo thang điểm F1_UP. Lý do: chỉ ~24–38% số dòng thực sự là UP, nên cứ báo UP hết thì bắt được 100% dòng UP, và điểm F1 của nó lại cao. Model thì thận trọng hơn, báo UP ít hơn nhưng bỏ sót nhiều, nên điểm thấp hơn. Điều này **không** có nghĩa code sai — nó có nghĩa bài toán "dự báo cổ phiếu 5 phiên bằng chỉ báo kỹ thuật" là bài toán tín hiệu rất yếu. Chính vì vậy code hiện tại có thêm một cổng chặn: nếu model không thắng baseline trên VALIDATION thì pipeline **dừng bằng lỗi**, không cho xuất bản model. Model đang serve lọt qua được chỉ vì nó là artifact cũ, import vào trước khi cổng này tồn tại.
 
-**Web dùng để làm gì.** 6 trang: nhập mã để xem dự báo (`/`), so 2 mã (`/compare`), xếp hạng tất cả mã theo Điểm UP (`/screener`), xem bảng điểm model (`/evaluation`), phòng thí nghiệm tham số (`/tuning`), và một chatbot tiếng Việt (`/chat`). Với chatbot, LLM hiểu câu hỏi, chọn một action cố định và chỉ viết câu chào/hỏi lại cho `GENERAL_CHAT`; backend lấy dữ liệu/ML rồi tự format câu trả lời có số liệu.
+**Web dùng để làm gì.** 6 trang: nhập mã để xem dự báo (`/`), so 2 mã (`/compare`), xếp hạng tất cả mã theo Điểm UP (`/screener`), xem bảng điểm model (`/evaluation`), phòng thí nghiệm tham số (`/tuning`), và một chatbot tiếng Việt (`/chat`). Với chatbot, LLM hiểu câu hỏi, chọn một action cố định và chỉ viết câu chào/hỏi lại cho `GENERAL_CHAT`; backend lấy dữ liệu/ML rồi tự format câu trả lời có số liệu. Ngoài trang `/chat`, chatbot còn có một **khung chat nổi** ở góc màn hình, render trên mọi trang khác (mục 11.2).
 
 Thuật ngữ dùng xuyên suốt:
 
@@ -246,7 +248,7 @@ Fallback về mốc cố định (`source: "fallback_fixed"`) chỉ xảy ra khi
 
 **`TEST_WINDOW_DAYS` và `VALIDATION_WINDOW_DAYS` là ngày lịch, không phải phiên giao dịch.** Đây là điểm dễ nhầm nhất của mục này, vì cả phần còn lại của project rất kỹ chuyện phiên vs ngày (`CV_GAP_SESSIONS` đếm phiên, nhãn t+5 đếm phiên thị trường). Riêng ở đây `resolve_protocol_dates()` trừ bằng `pd.Timedelta(days=...)` (`services/protocol_dates.py:69-70`), tức `94` và `274` là ngày trên lịch — đã gồm cuối tuần và nghỉ lễ. Quy đổi thô: 94 ngày lịch ≈ 64–66 phiên, 274 ngày lịch ≈ 188–190 phiên. Nên đừng đọc "TEST 94" thành "94 phiên TEST"; số phiên thực tế trong TEST nhỏ hơn nhiều (xem dải ngày thật bên dưới).
 
-Cùng một hàm `resolve_protocol_dates()` được dùng cho cả split thật lẫn mask tính fingerprint, nên hai đường không bao giờ lệch nhau. Hàm này được gọi từ đúng **3** chỗ, và đó là lý do không đường nào lệch: `feature_engineering.protocol_time_split` (`:249`, cắt split thật), `feature_engineering.verify_protocol_splits` (`:413`, kiểm lại bất biến khi không được truyền mốc sẵn) và `model_evaluation.build_model_metadata` (`:637`, ghi mốc vào metadata).
+Cùng một hàm `resolve_protocol_dates()` được dùng cho cả split thật lẫn mask tính fingerprint, nên hai đường không bao giờ lệch nhau. Hàm này được gọi từ đúng **3** chỗ, và đó là lý do không đường nào lệch: `feature_engineering.protocol_time_split` (`:249`, cắt split thật), `feature_engineering.verify_protocol_splits` (`:413`, kiểm lại bất biến khi không được truyền mốc sẵn) và `model_evaluation.build_model_metadata` (`:623`, ghi mốc vào metadata).
 
 Row có feature trước ranh giới nhưng label vượt qua ranh giới bị purge. Vì vậy:
 
@@ -259,7 +261,7 @@ TEST không dùng để tuning hoặc chọn loại model.
 
 Vì sao phải purge: một row ngày 2025-07-08 có nhãn phụ thuộc giá ngày 2025-07-15. Nếu để row đó trong TRAIN mà ranh giới train là 2025-07-10, model đã "nhìn thấy" thông tin sau ranh giới → metric VALIDATION bị thổi phồng. Purge cắt đúng những row này. `verify_protocol_splits()` chạy lại các bất biến trên và **raise** nếu có bất kỳ chồng lấn ngày, chồng lấn nhãn hay leak feature.
 
-Số row và dải ngày thật của từng tập, vẫn hai cột. Cột A đọc từ `models/model_metadata.json` + `reports/pipeline_summary.json` → `split_report` (cũng ghi ra `reports/split_summary.csv`); cột B là kết quả gọi trực tiếp `protocol_time_split()` trên `ml_dataset.csv` đang có:
+Số row và dải ngày thật của từng tập, vẫn hai cột. Cột A đọc từ `models/model_metadata.json` + `reports/pipeline_summary.json` → `split_report`; cột B là kết quả gọi trực tiếp `protocol_time_split()` trên `ml_dataset.csv` đang có:
 
 ```text
                        A: release legacy       B: đĩa hiện tại
@@ -395,9 +397,14 @@ Random Forest          81 run
 Gradient Boosting      50 run
 
 trong đó thuộc snapshot dataset hiện tại (fa1cf401b4a6)   151 run
+    Logistic Regression   101 run
+    Random Forest          30 run
+    Gradient Boosting      20 run
 ```
 
 Con số 502 là **toàn bộ sổ thí nghiệm từ đầu project**, gồm cả run tính trên các snapshot dataset cũ. Chỉ 151 run trong đó còn "đủ điều kiện" cho snapshot hiện tại (`_eligible_policy_rows` lọc theo policy + fingerprint) — và chỉ những run này mới xuất hiện trong ranking / được phép chốt. Khi báo cáo, nói rõ đang trích con số nào: 502 là công sức thử nghiệm, 151 là số run còn dùng được.
+
+Phân bố 151 run đó lệch mạnh về LR (101 / 30 / 20) không phải vì LR quan trọng hơn, mà vì nó chạy nhanh nhất — mỗi run GB tốn hàng chục lần thời gian của một run LR trên cùng 4 fold. Hệ quả khi đọc bảng ranking: không gian tham số của GB được khám phá thưa hơn nhiều, nên "GB có CV F1_UP cao nhất" (mục 7) là kết luận trên 20 điểm thử, không cùng độ tin cậy với 101 điểm của LR.
 
 LR chiếm nhiều run nhất vì nó chạy nhanh nhất (fit một pipeline scaler + logistic trên ~420k row), còn GB ít nhất vì mỗi run tốn thời gian nhất — boosting phải fit tuần tự từng cây, không song song hóa được như RF (`n_jobs=-1`).
 
@@ -571,7 +578,7 @@ Report tách vai trò (thư mục `reports/`):
 
 - `tuning_results.csv`: CV của best config.
 - `cv_fold_results.csv`: metric và dải ngày từng fold.
-- `best_params.json`: params đã chốt.
+- `best_params.json`: params đã chốt — **file này hiện không khớp bất kỳ nguồn nào khác**, xem cảnh báo bên dưới.
 - `model_comparison.csv`: candidates và baselines trên VALIDATION.
 - `final_model_evaluation.csv`: Final Model và hai baselines trên TEST.
 - `classification_report.csv`: chi tiết Final Model trên TEST.
@@ -580,11 +587,23 @@ Report tách vai trò (thư mục `reports/`):
 - `eligible_symbols.csv` / `excluded_symbols.csv` / `data_quality_report.csv`: kết quả bước clean (mục 2), gồm lý do loại từng mã.
 - `model_selection_report.txt`, `pipeline_summary.json`, `feature_importance.csv`, `hyperparameter_explanation.md`: phụ trợ.
 
+**Cảnh báo: `reports/` hiện KHÔNG đồng bộ một snapshot.** `split_summary.csv` (mtime 2026-07-31 17:04) mang split của **snapshot đang trên đĩa** (TRAIN 422.448 / VALIDATION 66.880 / TEST 20.965, TEST tới 2026-07-24 — đúng cột B mục 4), trong khi `pipeline_summary.json` và `model_metadata.json` (cùng mtime 2026-07-21) mang số của **release legacy** (419.807 / 67.047 / 20.350, TEST tới 2026-07-13 — cột A). Nguyên nhân: `split_summary.csv` được ghi lại bởi một bước chỉ tính split (không mở TEST), còn `pipeline_summary.json` chỉ ghi khi chạy official pipeline — mà pipeline chưa chạy trên snapshot mới. Nên khi trích số split cho báo cáo, đừng gộp hai file này thành "cùng một run": đọc `split_summary.csv` là đọc cột B, đọc `pipeline_summary.json` là đọc cột A.
+
+**Cảnh báo 2: `best_params.json` là file mồ côi, đừng trích số từ nó.** File này ghi `dataset_fingerprint: "f90986c53a32"` — một fingerprint **không tồn tại ở bất kỳ nguồn nào khác** trong repo (config hiện tại là `fa1cf401b4a6`, metadata legacy là `9eabd4bf8d11` / `fd7fa2887812`). Params bên trong cũng lệch:
+
+| Model | `best_params.json` | `manual_config.json` (đang chốt) | `model_metadata.json` (đang serve) |
+| --- | --- | --- | --- |
+| Logistic Regression | `C=2.68012167507e-05`, liblinear | `C=2.4e-05`, liblinear | — (không phải Final Model) |
+| Random Forest | 130 / 8 / 100 / 0.2 | 90 / 7 / 75 / 0.2 | 130 / 8 / 100 / 0.2 |
+| Gradient Boosting | 110 / 0.25 / 2 / 0.6 | 120 / 0.3 / 2 / 0.8 | — |
+
+Đọc bảng này ra được lịch sử: RF trong `best_params.json` khớp **đúng** model legacy đang serve, nên file được ghi trong một lần chạy pipeline cũ hơn nữa, rồi không bị ghi lại (chỉ `tune_models()` ghi nó — mục 8 — và pipeline chưa chạy lại). Khi báo cáo hyperparameter, lấy từ `manual_config.json` (cấu hình đang chốt) hoặc `model_metadata.json` (model đang serve), **không** lấy từ `best_params.json`.
+
 Một chi tiết dễ hiểu nhầm: `model_metadata.json` **không** do `write_reports()` ghi. Nó đi qua hàm riêng `write_model_metadata()` (cùng cơ chế atomic với `final_model.pkl`), chỉ được liệt kê chung trong `summary["report_files"]` cho tiện tra. Tách như vậy vì metadata phải được promote *cùng lúc* với artifact, còn report thì chỉ là file đọc.
 
 ## 11. Tuning Lab, UI dự báo và Chatbot
 
-Menu điều hướng sidebar ([templates/base.html:24-35](../templates/base.html)) chia hai nhóm:
+Menu điều hướng sidebar ([templates/base.html:27-38](../templates/base.html)) chia hai nhóm:
 
 - **Người dùng**: Dự báo (`/`), Xếp hạng (`/screener`), So sánh (`/compare`), Trợ lý (`/chat`).
 - **Model & Dữ liệu**: Đánh giá (`/evaluation`), Tuning Lab (`/tuning`).
@@ -593,20 +612,20 @@ Sáu trang trên là những gì người dùng thấy trong menu, nhưng repo c
 
 | Route | Method | Vai trò |
 | --- | --- | --- |
-| `/` | GET | trang dự báo, form trống (`app.py:354`) |
-| `/predict` | GET, POST | **chạy dự báo thật** rồi render lại `index.html` (`app.py:485`) |
-| `/compare` | GET, POST | so 2 mã (`app.py:521`) |
-| `/screener` | GET | xếp hạng toàn bộ mã (`app.py:558`) |
-| `/evaluation` | GET | bảng điểm model (`app.py:607`) |
-| `/reports/confusion_matrix.png` | GET | serve file ảnh confusion matrix (`app.py:600`) |
-| `/chat` | GET | giao diện chatbot (`app.py:431`) |
-| `/api/chat` | POST | endpoint JSON của chatbot (`app.py:441`) |
-| `/tuning` | GET | Tuning Lab (`app.py:1324`) |
-| `/tuning/evaluate` | POST | chạy một job CV (`app.py:1329`) |
-| `/tuning/use-config` | POST | chốt một run làm cấu hình chính thức (`app.py:1365`) |
-| `/tuning/run-pipeline` | POST | chạy official pipeline (`app.py:1405`) |
-| `/tuning/fetch-data` | POST | khởi chạy refresh dữ liệu (`app.py:1484`) |
-| `/tuning/fetch-status` | GET | trang tiến độ fetch (`app.py:1515`) |
+| `/` | GET | trang dự báo, form trống (`app.py:438`) |
+| `/predict` | GET, POST | **chạy dự báo thật** rồi render lại `index.html` (`app.py:569`) |
+| `/compare` | GET, POST | so 2 mã (`app.py:605`) |
+| `/screener` | GET | xếp hạng toàn bộ mã (`app.py:642`) |
+| `/evaluation` | GET | bảng điểm model (`app.py:691`) |
+| `/reports/confusion_matrix.png` | GET | serve file ảnh confusion matrix (`app.py:684`) |
+| `/chat` | GET | giao diện chatbot (`app.py:521`) |
+| `/api/chat` | POST | endpoint JSON của chatbot (`app.py:531`) |
+| `/tuning` | GET | Tuning Lab (`app.py:1408`) |
+| `/tuning/evaluate` | POST | chạy một job CV (`app.py:1413`) |
+| `/tuning/use-config` | POST | chốt một run làm cấu hình chính thức (`app.py:1449`) |
+| `/tuning/run-pipeline` | POST | chạy official pipeline (`app.py:1489`) |
+| `/tuning/fetch-data` | POST | khởi chạy refresh dữ liệu (`app.py:1568`) |
+| `/tuning/fetch-status` | GET | trang tiến độ fetch (`app.py:1599`) |
 
 Hai điểm đáng nhớ về `/predict`: nó là route **duy nhất** thực sự gọi model để dự báo một mã (trang `/` chỉ render form rỗng), và nó nhận cả GET lẫn POST. POST là submit form; GET dùng cho link từ bảng xếp hạng (`/predict?symbol=FPT`). GET mà **thiếu** `?symbol=` thì trả `redirect(url_for("index"))` (302 về `/`) chứ không phải lỗi 400 — nên gõ tay `/predict` trên browser luôn quay về trang chủ.
 
@@ -632,7 +651,7 @@ Tuning Lab (`/tuning`) hiển thị:
 
 Lý do bất đối xứng là hợp lý, không phải sơ suất: pipeline **phải** xong mới có report để trang `/evaluation` hiển thị, nên chờ đồng bộ là đúng ngữ nghĩa; còn fetch dữ liệu có thể chạy hàng chục phút (mỗi mã `sleep` 3.5 giây, ~400 mã) nên bắt buộc phải nền. Hệ quả thực tế khi bấm "chạy pipeline": browser sẽ đứng chờ, và nếu reverse proxy hoặc browser có timeout ngắn hơn thời gian train thì request đứt dù pipeline vẫn chạy tiếp trong subprocess.
 
-Nút chạy pipeline chỉ bật khi **cả 5 điều kiện** đúng (`can_run`, `app.py:1262`):
+Nút chạy pipeline chỉ bật khi **cả 5 điều kiện** đúng (`can_run`, `app.py:1351`):
 
 1. `complete` — `manual_config.json` đủ 3 model hợp lệ cho fingerprint hiện tại.
 2. `not snapshot_evaluated` — snapshot dataset này chưa từng mở TEST.
@@ -664,7 +683,7 @@ Trang `/tuning/fetch-status` không đọc trạng thái từ RAM mà **suy từ
 
 ### 11.1. Sắp xếp và lọc bảng history (server-side)
 
-Bảng history phân trang `HISTORY_PAGE_SIZE = 50` row/trang (`app.py:167`), nên **không** thể sort bằng JavaScript: sort client chỉ sắp được 50 row của trang đang xem, ra kết quả sai. Vì vậy mọi thao tác đi qua query string và server sắp lại toàn bộ tập row. Query được `_parse_history_query()` (`app.py:652`) đọc và chuẩn hóa, rồi `_build_history_page()` (`app.py:940`) lọc → sắp → cắt trang.
+Bảng history phân trang `HISTORY_PAGE_SIZE = 50` row/trang (`app.py:167`), nên **không** thể sort bằng JavaScript: sort client chỉ sắp được 50 row của trang đang xem, ra kết quả sai. Vì vậy mọi thao tác đi qua query string và server sắp lại toàn bộ tập row. Query được `_parse_history_query()` (`app.py:741`) đọc và chuẩn hóa, rồi `_build_history_page()` (`app.py:1029`) lọc → sắp → cắt trang.
 
 Toàn bộ từ vựng query string của bảng history:
 
@@ -684,7 +703,7 @@ Toàn bộ từ vựng query string của bảng history:
 
 **Phần lớn bộ lọc này là URL-only, không có control nào trên trang.** Form filter thấy được (`templates/tuning.html:417/421`) chỉ expose đúng hai checkbox `best` và `selected` cộng nút "Lọc kết quả" / link "Xóa bộ lọc". Điều này được test khóa lại tường minh: `tests/test_tuning_history.py:205-209` assert rằng `name="dataset"`, `name="status"`, `name="f1_min"`, `name="sort"` và `name="p_` **không** xuất hiện trong form. Nghĩa là muốn lọc theo status hoặc theo khoảng hyperparameter thì phải tự gõ query string — backend hỗ trợ đầy đủ, UI thì chưa. Khi đọc code đừng kết luận "filter chết": nó hoạt động, chỉ là chưa có nút bấm.
 
-Mặc định sort là `HISTORY_DEFAULT_SORT = "default"` (`app.py:175`), **không** phải `time_desc`. Token `time_desc` vẫn được nhận (`app.py:792-793`) nhưng chỉ để link cũ và bookmark không vỡ; nó tồn tại song song với `default` vì nếu dùng lại `time_desc` làm mặc định thì cột "Thời điểm" mất một trạng thái trong vòng xoay ba bước (không phân biệt được "đang sắp giảm" với "chưa sắp").
+Mặc định sort là `HISTORY_DEFAULT_SORT = "default"` (`app.py:175`), **không** phải `time_desc`. Token `time_desc` vẫn được nhận (`app.py:882`) nhưng chỉ để link cũ và bookmark không vỡ; nó tồn tại song song với `default` vì nếu dùng lại `time_desc` làm mặc định thì cột "Thời điểm" mất một trạng thái trong vòng xoay ba bước (không phân biệt được "đang sắp giảm" với "chưa sắp").
 
 Cột sort được:
 
@@ -715,12 +734,12 @@ Giá trị `kind` là `all` | `numeric` | `none` (hoặc tên choice như `sqrt`
 
 Server truyền hai context key cho Tuning Lab:
 
-- `history_sort` (`app.py:1292`): dict mô tả trạng thái sort hiện tại — hàm `sort_state()` (`app.py:1182`) chuẩn hóa từ query string thành `{col, dir, is_default}` để macro `sort_th` và template không phải parse chuỗi `column_asc`/`column_desc` tại chỗ.
-- `history_trend` (`app.py:1294`): mảng điểm `{x, f1_mean, run_id}` sắp sẵn theo thời gian, do `_build_history_trend()` (`app.py:893`) sinh từ lịch sử của model đang xem. Server sắp — client **không** sắp lại.
+- `history_sort` (`app.py:1381`): dict mô tả trạng thái sort hiện tại — hàm `sort_state()` (`app.py:1271`) chuẩn hóa từ query string thành `{col, dir, is_default}` để macro `sort_th` và template không phải parse chuỗi `column_asc`/`column_desc` tại chỗ.
+- `history_trend` (`app.py:1383`): mảng điểm `{x, f1_mean, run_id}` sắp sẵn theo thời gian, do `_build_history_trend()` (`app.py:982`) sinh từ lịch sử của model đang xem. Server sắp — client **không** sắp lại.
 
 **Biểu đồ CV-trend ("tuning đã hội tụ chưa?")** dùng dữ liệu `history_trend` này. Bảng history trả lời được "run nào tốt nhất" nhưng không trả lời được "còn thử nữa có hơn không" — đường F1 theo thứ tự thời gian trả lời câu đó: đi ngang vài lượt cuối nghĩa là đã tới hạn của không gian tham số này.
 
-Triển khai: `tuning.html:346/349` đặt `{% set trend = history_trend or [] %}`, canvas `#cv-trend-chart` (`TREND_CANVAS_ID`, `:370-371`) mang `data-trend='{{ trend | tojson }}'` để truyền dữ liệu mà không cần thêm một API endpoint. `tuning-lab.js:449+` đọc attribute đó, dựng Chart.js instance, và đăng ký `MutationObserver` theo dõi `data-theme` trên `<html>` để đổi màu khi người dùng bật dark/light mode. Hai điểm kỹ thuật cần biết:
+Triển khai: `tuning.html:349` đặt `{% set trend = history_trend or [] %}`, canvas `#cv-trend-chart` (`TREND_CANVAS_ID`, `:370-371`) mang `data-trend='{{ trend | tojson }}'` để truyền dữ liệu mà không cần thêm một API endpoint. `tuning-lab.js:453+` đọc attribute đó, dựng Chart.js instance, và đăng ký `MutationObserver` theo dõi `data-theme` trên `<html>` để đổi màu khi người dùng bật dark/light mode. Hai điểm kỹ thuật cần biết:
 
 - **Destroy trước khi mount lại.** Mỗi lần AJAX swap `#main-content` thì node `<canvas>` cũ bị bỏ nhưng Chart.js cũ vẫn giữ tham chiếu và listener resize — rò rỉ dần. `tuning-lab.js` giữ `trendChart` ở tầng module và gọi `.destroy()` nếu có instance cũ trước khi dựng mới.
 - **Màu từ CSS var, không phải hex.** Chart.js vẽ lên canvas nên không "thấy" CSS custom property. Hàm `trendPalette()` dùng `getComputedStyle(document.documentElement)` để resolve token `--ink`, `--ink-soft`, `--muted`, `--line`, `--panel` thành chuỗi màu tại thời điểm dựng, với fallback là system color (`canvastext`/`graytext`) để hoạt động đúng kể cả khi `app.css` chưa nạp. **Không dùng `--up`/`--down`**: theo ngôn ngữ thiết kế của repo, màu xanh/đỏ dành riêng cho tín hiệu tăng/giảm thị trường — F1 cao không phải là "mã sẽ tăng".
@@ -728,26 +747,28 @@ Triển khai: `tuning.html:346/349` đặt `{% set trend = history_trend or [] %
 
 ### 11.2. Frontend: inventory file static và lớp design system
 
-Frontend **không** chỉ có một file script. Hiện tại là **6 CSS + 7 JS + 1 vendor**, chia theo phạm vi nạp:
+Frontend **không** chỉ có một file script. Hiện tại là **7 CSS + 8 JS + 1 vendor**, chia theo phạm vi nạp:
 
 | File | Dòng/kích cỡ | Nạp ở đâu | Vai trò |
 | --- | --- | --- | --- |
-| `static/app.css` | 3.565 dòng / 75K | `base.html:12` — mọi trang | style chính của toàn app |
+| `static/app.css` | 3.389 dòng / 73K | `base.html:13` — mọi trang | style chính của toàn app |
 | `static/ui-kit.css` | 742 dòng / 17K | `base.html:14` — mọi trang | lớp primitive dùng chung, nạp **sau** `app.css` để ghi đè được |
-| `static/chat-ui.css` | 67 dòng / 1K | `chat.html:6` — chỉ trang `/chat` | phần style bổ sung cho transcript, loading, focus và mobile |
-| `static/page-evaluation.css` | 201 dòng / 6K | `evaluation.html:66-67` (block `page_styles`) | riêng trang `/evaluation` |
-| `static/page-signal.css` | 322 dòng / 8K | `index.html:7`, `compare.html:7` | riêng hai trang dự báo |
-| `static/tuning-lab.css` | 620 dòng / 16K | `tuning.html:7-8`, `fetch_status.html:8-9` (block `page_styles`) | riêng Tuning Lab |
-| `static/theme.js` | 141 dòng / 5K | `base.html:18` (trong `<head>`) | toggle sáng/tối, đặt sớm để không nháy màu |
-| `static/tuning-lab.js` | 722 dòng / 29K | `tuning.html:682`, `fetch_status.html` | JS polling job CV + polling fetch + chart CV-trend |
-| `static/ui-kit.js` | 516 dòng / 17K | `base.html:269` | `window.UIKit` + `autoWire()` |
-| `static/table-sort.js` | 204 dòng / 8K | `base.html:273` | sort client-side (mục 11.3) |
-| `static/chat-client.js` | 231 dòng / 8K | `chat.html:63` — chỉ trang `/chat` | transport, transcript trong `sessionStorage`, history 6 message và timeout |
-| `static/page-evaluation.js` | 270 dòng / 11K | `evaluation.html:305` (block `page_scripts`) | chart và sort trang `/evaluation` |
-| `static/page-signal.js` | 179 dòng / 8K | `index.html`, `compare.html` | helper hai trang dự báo |
-| `static/vendor/chart.umd.min.js` | Chart.js 4.4.9 / 202K | `index.html`, `compare.html`, `evaluation.html:302` | vẽ biểu đồ, nạp **có điều kiện** ở cả ba trang |
+| `static/chat-dock.css` | 246 dòng / 4,9K | `base.html:16` — mọi trang **trừ** `/chat` | khung chat nổi (mục 11.2.1) |
+| `static/chat-ui.css` | 67 dòng / 1,1K | `chat.html:6` — chỉ trang `/chat` | phần style bổ sung cho transcript, loading, focus và mobile |
+| `static/page-evaluation.css` | 201 dòng / 6,2K | `evaluation.html:67` (block `page_styles`) | riêng trang `/evaluation` |
+| `static/page-signal.css` | 883 dòng / 21K | `index.html:7`, `compare.html:7` | riêng hai trang dự báo |
+| `static/tuning-lab.css` | 620 dòng / 16K | `tuning.html:8`, `fetch_status.html:9` (block `page_styles`) | riêng Tuning Lab |
+| `static/theme.js` | 141 dòng / 5,7K | `base.html:19` (trong `<head>`) | toggle sáng/tối, đặt sớm để không nháy màu |
+| `static/chat-client.js` | 231 dòng / 7,7K | `chat.html:63` **và** `base.html:137` | `window.ChatClientKit`: transport, transcript trong `sessionStorage`, timeout |
+| `static/chat-dock.js` | 175 dòng / 5,8K | `base.html:138` — mọi trang **trừ** `/chat` | render khung chat nổi, dùng lại `ChatClientKit` |
+| `static/ui-kit.js` | 516 dòng / 18K | `base.html:141` | `window.UIKit` + `autoWire()` |
+| `static/table-sort.js` | 204 dòng / 8,1K | `base.html:142` | sort client-side (mục 11.3) |
+| `static/tuning-lab.js` | 722 dòng / 29K | `tuning.html:682`, `fetch_status.html:165` | JS polling job CV + polling fetch + chart CV-trend |
+| `static/page-evaluation.js` | 270 dòng / 12K | `evaluation.html:305` (block `page_scripts`) | chart so sánh model + sort trang `/evaluation` |
+| `static/page-signal.js` | 179 dòng / 8,1K | `index.html:403`, `compare.html:260` | helper hai trang dự báo |
+| `static/vendor/chart.umd.min.js` | Chart.js 4.4.9 / 202K | `index.html:433`, `compare.html:283`, `evaluation.html:302`, `tuning.html:679` | vẽ biểu đồ, nạp **có điều kiện** ở bốn trang |
 
-Hai điểm đáng chú ý về cách nạp: các stylesheet riêng trang đi qua block Jinja `page_styles` (`base.html:17`), và Chart.js chỉ được chèn khi thật sự có dữ liệu vẽ — `index.html`/`compare.html` kiểm `{% if result and result.price_history %}`, còn `evaluation.html:301` kiểm thêm điều kiện `{% if sections.is_current_policy and chart.ok %}`. Mọi link đều mang `?v={{ asset_ver }}` để cache-bust khi sửa file.
+Ba điểm đáng chú ý về cách nạp: các stylesheet riêng trang đi qua block Jinja `page_styles` (`base.html:18`); Chart.js chỉ được chèn khi thật sự có dữ liệu vẽ — `index.html`/`compare.html` kiểm `{% if result and result.price_history %}`, còn `evaluation.html:301` kiểm thêm `{% if sections.is_current_policy and chart.ok %}`; và mọi link **trừ Chart.js** mang `?v={{ asset_ver }}` để cache-bust khi sửa file. Vendor không cần cache-bust vì tên file đã gắn phiên bản, không sửa tay.
 
 **Lớp design system `ui-kit.css` + `window.UIKit`.** Đây là lớp mới, dùng chung cho mọi trang, hoạt động theo kiểu **opt-in bằng data-attribute**: template chỉ cần dán attribute, `autoWire()` (`static/ui-kit.js:492`) tự tìm và gắn hành vi lúc DOM ready. Không phải gọi hàm khởi tạo cho từng phần tử.
 
@@ -761,9 +782,9 @@ Hai điểm đáng chú ý về cách nạp: các stylesheet riêng trang đi qu
 | `data-ui="table-scroll"` (hoặc class `.table-wrap`) | vùng cuộn bảng có bóng mờ báo còn nội dung | `ui-kit.js:464` |
 | `data-ui~="sortable"` trên `<table>` | sort client-side (mục 11.3) | `table-sort.js:192` |
 
-API công khai `window.UIKit` (`ui-kit.js:501`): `toast`, `busy`, `lockForm`, `elapsed`, `countUp`, `stagger`, `copy`, `prefersReducedMotion`, `onReady`, và `autoWire` — cái cuối để trang nào thay DOM bằng AJAX (Tuning Lab) gắn lại hành vi sau khi swap. Mỗi tính năng trong `autoWire` được bọc `try/catch` riêng (`ui-kit.js:376`), nên một data-attribute viết sai không làm chết cả lớp UI.
+API công khai `window.UIKit` (`ui-kit.js:501`): `toast`, `busy`, `lockForm`, `elapsed`, `countUp`, `stagger`, `copy`, `prefersReducedMotion`, `onReady`, và `autoWire` — cái cuối để trang nào thay DOM bằng AJAX (Tuning Lab) gắn lại hành vi sau khi swap. Mỗi tính năng trong `autoWire` được bọc `try/catch` riêng qua helper `guard()` (`ui-kit.js:378`), nên một data-attribute viết sai không làm chết cả lớp UI.
 
-Toast dùng chung một máng duy nhất: `#toast-stack` render sẵn trong `base.html:99` với `role="status"` + `aria-live="polite"`, và `UIKit.toast()` ghi vào đúng container đó. Máng nằm trong `#app-shell` chứ không nằm sâu trong nội dung vì shell chỉ là flex column, không có `position`/`overflow`/`transform` nên không cắt phần tử `fixed`.
+Toast dùng chung một máng duy nhất: `#toast-stack` render sẵn trong `base.html:94` với `role="status"` + `aria-live="polite"`, và `UIKit.toast()` ghi vào đúng container đó. Máng nằm trong `#app-shell` chứ không nằm sâu trong nội dung vì shell chỉ là flex column, không có `position`/`overflow`/`transform` nên không cắt phần tử `fixed`.
 
 **Shell dùng chung trong `base.html`.** Cấu trúc mới:
 
@@ -778,11 +799,32 @@ Toast dùng chung một máng duy nhất: `#toast-stack` render sẵn trong `bas
 └── #toast-stack
 ```
 
-Điểm thiết kế quan trọng: sidebar nằm **ngoài** `#main-content`. Vì AJAX của Tuning Lab (mục 11.1) thay nguyên nội dung `#main-content`, nếu điều hướng nằm bên trong thì mỗi lần sort bảng là mất luôn menu. Có `.skip-link` (`base.html:22`) nhảy thẳng tới `#main-content` cho người dùng bàn phím. Nút `#nav-toggle` mang nhãn nhìn thấy là chữ "Menu" và `aria-label="Menu điều hướng"` — tên khả cận phải *chứa* chữ nhìn thấy theo WCAG 2.5.3 (Label in Name), trạng thái đóng/mở truyền qua `aria-expanded`.
+Điểm thiết kế quan trọng: sidebar nằm **ngoài** `#main-content`. Vì AJAX của Tuning Lab (mục 11.1) thay nguyên nội dung `#main-content`, nếu điều hướng nằm bên trong thì mỗi lần sort bảng là mất luôn menu. Có `.skip-link` (`base.html:25`) nhảy thẳng tới `#main-content` cho người dùng bàn phím. Nút `#nav-toggle` mang nhãn nhìn thấy là chữ "Menu" và `aria-label="Menu điều hướng"` — tên khả cận phải *chứa* chữ nhìn thấy theo WCAG 2.5.3 (Label in Name), trạng thái đóng/mở truyền qua `aria-expanded`.
 
-Nav sidebar chia hai nhóm, định nghĩa ở `base.html:24-35`: **Người dùng** = Dự báo (`/`), Xếp hạng (`/screener`), So sánh (`/compare`), Trợ lý (`/chat`); **Model & Dữ liệu** = Đánh giá (`/evaluation`), Tuning Lab (`/tuning`). Trang đang xem được đánh dấu bằng `aria-current="page"`.
+Nav sidebar chia hai nhóm, định nghĩa ở `base.html:27-38`: **Người dùng** = Dự báo (`/`), Xếp hạng (`/screener`), So sánh (`/compare`), Trợ lý (`/chat`); **Model & Dữ liệu** = Đánh giá (`/evaluation`), Tuning Lab (`/tuning`). Trang đang xem được đánh dấu bằng `aria-current="page"`.
 
-Một điểm cần sửa nếu bạn đọc tài liệu cũ: **nút đổi theme giờ render server-side**, tại `base.html:71`, kèm glyph mặc định `☾` để nút không rỗng khi JS tắt. `static/theme.js:86` ghi rõ trong comment là "nay render sẵn từ base.html (không còn tạo bằng JS)" — nó chỉ tìm nút có sẵn, gắn listener một lần (`dataset.bound` chống gắn trùng sau AJAX swap) và đồng bộ icon. Tài liệu nào mô tả nút theme được JS inject vào `.nav-links` là đã lỗi thời.
+`<body>` mang class động `page-{{ active_page or 'app' }}` (`base.html:24`) để CSS riêng của một trang chỉnh được cả khung ngoài (`.app-body`, `.app-topbar`, `h1`, `.dataset-status`) mà không rò sang trang khác — thay cho việc nhồi selector đặc thù vào `app.css`.
+
+Một điểm cần sửa nếu bạn đọc tài liệu cũ: **nút đổi theme giờ render server-side**, tại `base.html:69-71`, kèm glyph mặc định `☾` để nút không rỗng khi JS tắt. `static/theme.js:86` ghi rõ trong comment là "nay render sẵn từ base.html (không còn tạo bằng JS)" — nó chỉ tìm nút có sẵn, gắn listener một lần (`dataset.bound` chống gắn trùng sau AJAX swap) và đồng bộ icon. Tài liệu nào mô tả nút theme được JS inject vào `.nav-links` là đã lỗi thời.
+
+#### 11.2.1. Khung chat nổi (chat dock) — trợ lý có mặt trên mọi trang
+
+Trước đây trợ lý chỉ dùng được khi rời trang hiện tại để vào `/chat`. Giờ `base.html` render thêm một **khung chat nổi góc phải** trên **mọi trang trừ `/chat`**, gói trong `{% if active_page != 'chat' %}`: CSS ở `base.html:15-17`, markup + script ở `base.html:98-139`. Tài liệu nào nói `/chat` là UI chat duy nhất là đã lỗi thời.
+
+Điều kiện `active_page != 'chat'` không phải tối ưu hóa mà là **bắt buộc**: dock và trang `/chat` cùng nói chuyện với `/api/chat`, nếu render cả hai trên cùng một trang thì hai transcript cùng ghi vào một `sessionStorage` key và các id sẽ xung đột. Vì vậy dock dùng bộ id riêng tiền tố `chat-dock-*` (`#chat-dock`, `#chat-dock-panel`, `#chat-dock-transcript`, `#chat-dock-form`, …), độc lập hoàn toàn với id của `chat.html`.
+
+**Tách kit ra khỏi render.** `chat-client.js` được nạp ở **hai chỗ** (`chat.html:63` cho trang đầy đủ, `base.html:137` cho dock) và chỉ chứa phần dùng chung, phơi ra `window.ChatClientKit` (`chat-client.js:220`): `sendMessage`, `restoreSession`, `clearSession`, `enhanceComposer`, cùng hằng `SESSION_KEY`. `chat-dock.js` (`base.html:138`) chỉ viết phần **render** riêng của nó — bong bóng gọn, không liệt kê danh sách nguồn. Hệ quả có thật: transcript được chia sẻ, gõ trong dock rồi bấm ⤢ mở `/chat` là thấy nguyên hội thoại, vì cả hai đọc cùng `sessionStorage` key `hose-chat-session-v1`.
+
+Hằng số của kit (`chat-client.js:5-8`): `MAX_MESSAGE = 1000` ký tự, `MAX_TRANSCRIPT = 40` message giữ trong session, `REQUEST_TIMEOUT_MS = 70000` (dài vì phải chờ LLM provider). Lưu ý số 40 này là **giới hạn lưu trữ phía client**, không phải giới hạn `history` gửi lên server — payload `/api/chat` vẫn bị chặn ở 6 message (mục 11.3).
+
+Bốn chi tiết đáng biết trong `chat-dock.js`:
+
+- **Chỉ ghi bằng `textContent`.** Comment đầu file ghi rõ: "Mọi nội dung từ server chỉ ghi vào DOM qua `textContent`, không dựng HTML thô". Câu trả lời đi qua LLM nên phải coi là không tin được — dựng bằng `innerHTML` là mở cửa XSS.
+- **Link "Trợ lý" trên nav mở dock tại chỗ** (`chat-dock.js:162`): `preventDefault()` rồi `setOpen(true)`, không điều hướng. Nhưng `href` vẫn trỏ `/chat` thật, nên **JS tắt thì link vẫn hoạt động** như trước.
+- **Guard đầu file** (`chat-dock.js:9-12`): thiếu `window.ChatClientKit` hoặc thiếu `#chat-dock` thì `return` ngay. Đây là lý do nạp dock ở `base.html` không làm vỡ trang `/chat` (nơi không có `#chat-dock`).
+- **Accessibility.** Panel là `role="dialog"` nhưng **`aria-modal="false"`** — dock không khóa focus, người dùng vẫn tương tác được với trang phía sau, nên khai `true` là nói dối AT. Transcript `aria-live="polite"`, nút toggle đồng bộ `aria-expanded` + đổi `aria-label` theo trạng thái, `Escape` đóng dock rồi trả focus về nút toggle (`chat-dock.js:169-174`).
+
+Ba nút trên header dock: ⤢ (link sang `/chat` đầy đủ), ↺ (`#chat-dock-clear` — xóa session + xóa transcript), ✕ (đóng). Khi đang chờ trả lời, `setBusy()` khóa cả input, nút gửi **và** nút xóa — xóa session giữa lúc một request đang bay sẽ để lại một câu trả lời mồ côi ghi vào transcript vừa bị dọn.
 
 
 ### 11.3. Sắp xếp client-side ở hai bảng khác
@@ -795,8 +837,17 @@ Trang `/screener` còn có: cột `#` hiển thị hạng, Điểm UP hiện d�
 
 Trang đánh giá (`/evaluation`) có **hai view, chọn bằng một điều kiện duy nhất**: `model_metadata.json["policy_id"]` có khớp `EXPERIMENT_POLICY_ID` hay không (`load_evaluation_sections()` trong [app.py](../app.py)).
 
-- Khớp (`is_current_policy = true`) → **view hiện hành**: một bảng "MODEL COMPARISON" (3 candidate trên VALIDATION, cột `CV F1_UP` của TRAIN, cột `Threshold`, badge "Đã chọn") + đoạn text kết quả Final Model trên TEST + link confusion matrix. Ngoài ra view này hiện **biểu đồ phân phối điểm UP** khi `chart.ok` (`evaluation.html:57/213`) — chart chứa histogram xác suất của toàn tập TEST để trực quan hóa "model này tự tin ra sao". Chart.js chỉ được nhúng khi cả hai điều kiện đều đúng: `{% if sections.is_current_policy and chart.ok %}` (`:301`), tiếp theo là `page-evaluation.js` (`:305`). Stylesheet riêng `page-evaluation.css` đi qua block `page_styles` (`:66-67`).
+- Khớp (`is_current_policy = true`) → **view hiện hành**: một bảng "MODEL COMPARISON" (3 candidate trên VALIDATION, cột `CV F1_UP` của TRAIN, cột `Threshold`, badge "Đã chọn") + khối "Kết quả Final Model trên TEST" (`:251-270`) + ma trận nhầm lẫn nhúng thẳng trong trang. Ngoài ra view này hiện **biểu đồ cột so sánh 3 candidate trên VALIDATION** khi `chart.ok` (`evaluation.html:44/57/213`). Chart.js chỉ được nhúng khi cả hai điều kiện đều đúng: `{% if sections.is_current_policy and chart.ok %}` (`:301`), tiếp theo là `page-evaluation.js` (`:305`). Stylesheet riêng `page-evaluation.css` đi qua block `page_styles` (`:67`).
 - Không khớp → **view legacy**: toàn bộ `model_comparison.csv` đổ vào một bảng riêng, kèm banner "Artifact/report hiện tại không thuộc policy hiện hành. Hãy chạy CV, tự chọn cấu hình cho mỗi model rồi chạy official pipeline."
+
+**Biểu đồ so sánh model** (`#model-compare-chart`, `evaluation.html:228`) là bar chart nhóm **theo metric, không theo model**: 4 nhóm cột (Accuracy, Precision_UP, Recall_UP, F1_UP), mỗi nhóm có 3 cột ứng với 3 candidate, thang 0–1. Nhóm theo metric để so chiều cao cột cạnh nhau — mỗi nhóm là một câu hỏi ("model nào Recall_UP cao nhất?") và câu trả lời nằm gọn trong nhóm đó. Bốn chi tiết triển khai đáng biết:
+
+- **Dữ liệu đi qua thẻ `<script type="application/json" id="model-compare-data">`** (`:247`), không qua `data-attribute`. Lý do: `tojson` escape `< > &` nên chuỗi `</script>` trong dữ liệu không thoát ra khỏi thẻ được, nhưng `tojson` **không** escape dấu ngoặc kép — nhúng vào attribute sẽ vỡ HTML.
+- **Hai mảng song song `models` + `values`, không phải list of dict.** Jinja giải `a.b` bằng `getattr` **trước** rồi mới tới `getitem`, nên một key tên `values` / `items` / `keys` sẽ trả về method của dict chứ không phải dữ liệu — bẫy im lặng, chỉ nổ lúc render (`:39-43`).
+- **`chart.ok` tắt khi dữ liệu vỡ**: khởi tạo `candidates | length > 0` (`:44`), và nếu một model thiếu sạch cả 4 metric thì `chart.ok = false` (`:57`) — không vẽ chart trống. Metric lẻ thiếu chỉ thành `none` (lỗ trong cột).
+- **Fallback chữ luôn render** (`.chart-fallback`, `:235-243`): liệt kê từng model kèm 4 số, vừa là mô tả cho screen reader (canvas rỗng với AT) vừa là phương án khi JS lỗi hoặc Chart.js không nạp được.
+
+**Ma trận nhầm lẫn nhúng thẳng trong trang**, không còn mở tab mới: `figure#cm-figure` + `img#cm-image` (`:275-284`) trỏ tới route `/reports/confusion_matrix.png`, kèm `figcaption` giải thích hàng/cột và link "Mở ảnh gốc". Route trả chuỗi plain-text 404 khi thiếu PNG, nên `page-evaluation.js` bắt event `error` của `<img>` rồi ẩn `figure` và bỏ `hidden` khỏi `p#cm-missing` (`:285-288`) để hiện câu tiếng Việt hướng dẫn chạy lại pipeline.
 
 Ba điểm dễ hiểu nhầm ở view legacy:
 
@@ -833,7 +884,7 @@ Một lượt hỏi đi qua 5 bước:
 | `PROJECT_INFO` | đọc một trong sáu topic: overview, model, dataset, features, method, limitations |
 | `OUT_OF_SCOPE` | trả câu cố định cho realtime, news, fundamentals, trading advice hoặc yêu cầu ngoài phạm vi |
 
-Follow-up như “So với MWG?” hoạt động nhờ tối đa 6 message gần nhất được đưa cho LLM. Không có bộ nhớ hoặc pronoun resolver tự viết. Trang `/chat` là UI duy nhất: transcript lưu trong `sessionStorage` key `hose-chat-session-v1`, tối đa 40 entry; reload tab còn hội thoại, đóng tab thì mất. Request chỉ gửi 6 entry cuối. Nội dung LLM được render qua `textContent`, không dùng `innerHTML`.
+Follow-up như “So với MWG?” hoạt động nhờ tối đa 6 message gần nhất được đưa cho LLM. Không có bộ nhớ hoặc pronoun resolver tự viết. Có **hai** UI dùng chung một transcript: trang `/chat` và khung chat nổi (mục 11.2.1). Transcript lưu trong `sessionStorage` key `hose-chat-session-v1`, tối đa 40 entry — cùng key nên hỏi ở dock rồi mở `/chat` là thấy lại đúng hội thoại đó; reload tab còn hội thoại, đóng tab thì mất. Request chỉ gửi 6 entry cuối. Nội dung LLM được render qua `textContent`, không dùng `innerHTML`.
 
 Ba lớp phòng thủ đáng nêu trong báo cáo vì nằm ở code, không chỉ ở prompt:
 
@@ -880,14 +931,14 @@ Chữ "below" trong câu warning đó chính là điều kiện mà `select_fina
 tuning_fingerprint     fa1cf401b4a6   khớp experiments/manual_config.json  →  is_config_complete() = True
 experiment_fingerprint 41580ec734ea   CHƯA có trong evaluation_registry.json  →  TEST còn nguyên
 registry chỉ chứa      fd7fa2887812   (snapshot legacy, status "published")
-lock                   pipeline.lock / fetch.lock / tuning.lock đều không tồn tại
+lock                   pipeline.lock / fetch.lock đều không tồn tại (không có tuning.lock)
 ```
 
 Đọc hai bảng này cạnh nhau là thấy toàn bộ tình hình: artifact **đang phục vụ** thuộc snapshot legacy `fd7fa2887812`, còn dataset **đang nằm trên đĩa** là một snapshot khác (`41580ec734ea`) chưa từng mở TEST. Hai thứ đó không phải một.
 
-Hệ quả: `_guard_unevaluated_snapshot()` (`scripts/run_pipeline.py:96`) sẽ **không** abort. `has_evaluated_snapshot("41580ec734ea")` trả `False` vì registry không có khóa đó, nên cả hai lần kiểm (trước cleanup và sau khi ghi `ml_dataset.csv`) đều đi qua. Cổng mục 8 cũng mở: `is_config_complete()` trả `True` với đủ 4 lớp — `policy_id` = `rolling_recent_cv_oof_threshold`, `schema_version` = 4, `cv_settings` khớp, `dataset_fingerprint` = `fa1cf401b4a6` khớp cả `content_sha256`, và cả ba model đều `selection_method = "manual"` với run_id + params + `decision_threshold` còn nguyên trong `tuning_history.csv`.
+Hệ quả: `_guard_unevaluated_snapshot()` (`scripts/run_pipeline.py:87`) sẽ **không** abort. `has_evaluated_snapshot("41580ec734ea")` trả `False` vì registry không có khóa đó, nên cả hai lần kiểm (trước cleanup và sau khi ghi `ml_dataset.csv`) đều đi qua. Cổng mục 8 cũng mở: `is_config_complete()` trả `True` với đủ 4 lớp — `policy_id` = `rolling_recent_cv_oof_threshold`, `schema_version` = 4, `cv_settings` khớp, `dataset_fingerprint` = `fa1cf401b4a6` khớp cả `content_sha256`, và cả ba model đều `selection_method = "manual"` với run_id + params + `decision_threshold` còn nguyên trong `tuning_history.csv`.
 
-Nghĩa là **một run pipeline sạch, đúng policy hiện hành, chạy được ngay bây giờ**, và nó sẽ thay artifact legacy bằng artifact đầu tiên thật sự đi qua cổng baseline VALIDATION. Điều kiện `can_run` trong UI (`app.py:1262`) vì vậy cũng đang thỏa — nút chạy pipeline ở Tuning Lab không bị chặn.
+Nghĩa là **một run pipeline sạch, đúng policy hiện hành, chạy được ngay bây giờ**, và nó sẽ thay artifact legacy bằng artifact đầu tiên thật sự đi qua cổng baseline VALIDATION. Điều kiện `can_run` trong UI (`app.py:1351`) vì vậy cũng đang thỏa — nút chạy pipeline ở Tuning Lab không bị chặn.
 
 Hai lưu ý trước khi bấm chạy:
 
@@ -968,9 +1019,25 @@ Chạy toàn bộ test từ root repo:
 python -m pytest -p no:cacheprovider tests
 ```
 
-Baseline sau khi hợp nhất test chatbot: **10 file test, 140 test pass**, còn 2 warning thông báo có bản `vnstock`/`vnai` mới, không phải lỗi code.
+Baseline hiện tại: **10 file test, 153 test pass + 42 subtest**, 0 fail, còn 2 warning thông báo có bản `vnstock`/`vnai` mới (phát ra từ `test_unified_pipeline.py::FetchWindowTests`), không phải lỗi code.
 
-Suite chatbot nay tập trung trong [tests/test_chatbot.py](../tests/test_chatbot.py): decision JSON, schema 5 action, một provider call, dispatcher, formatter, API/error mapping, follow-up history và một UI an toàn. [tests/test_prediction_flow.py](../tests/test_prediction_flow.py) giữ integration ML inference. Tám file còn lại khóa các bất biến pipeline/UI: split + purge, recent CV, decision policy, model selection/baseline, Tuning Lab/history, UI shell và unified pipeline.
+Số test từng file (`--collect-only -q`):
+
+```text
+test_chatbot          32     test_unified_pipeline   13
+test_prediction_flow  26     test_model_selection    11
+test_ui_shell         23     test_data_protocol       6
+test_tuning_history   21     test_recent_cv           3
+test_tuning_lab       17     test_decision_policy     1
+```
+
+Suite chatbot tập trung trong [tests/test_chatbot.py](../tests/test_chatbot.py): decision JSON, schema 5 action, một provider call, dispatcher, formatter, API/error mapping, follow-up history và contract asset/DOM của frontend. [tests/test_prediction_flow.py](../tests/test_prediction_flow.py) giữ integration ML inference. Tám file còn lại khóa các bất biến pipeline/UI: split + purge, recent CV, decision policy, model selection/baseline, Tuning Lab/history, UI shell và unified pipeline.
+
+Ba nhóm test mới đáng biết vì chúng khóa đúng ba tính năng mới của lần cập nhật này:
+
+- `test_chatbot.py::test_chat_page_and_floating_dock_load_assets_locally_once` — assert `base.html` nhúng **đúng một lần** mỗi file `chat-client.js` / `chat-dock.js` / `chat-dock.css`, **không** nhúng `chat-ui.css`, có đúng 2 khối `{% if active_page != 'chat' %}`, và đủ 5 id `chat-dock-*`. Đây là chốt chặn cho chat dock ở mục 11.2.1.
+- `test_tuning_history.py::HistoryTrendTests` (9 test) — khóa `history_trend`: sắp theo thời gian chứ không theo điểm, `?sort=` không được đổi thứ tự, loại row sai fingerprint/model, loại giá trị non-finite, loại row legacy, cờ best/selected, rỗng thì trả `[]`, và phải JSON-serializable.
+- `test_unified_pipeline.py::FetchWindowTests` (4 test) — khóa ba loại phản hồi xấu ở mục 13: dữ liệu trống **không** tính là mã lỗi, lỗi thật vẫn fail sau khi hết retry, `SystemExit` do rate limit thì chờ rồi retry, `SystemExit` không phải rate limit thì không được nuốt.
 
 Dựng tài liệu báo cáo (chỉ khi cần, không thuộc đường chạy của app — xem mục 14):
 
@@ -985,7 +1052,7 @@ python docs/slides/build_pptx.py              # sinh file .pptx 24 slide
 | Thư mục | Nội dung |
 | --- | --- |
 | [docs/diagrams/luuDo/](diagrams/luuDo/) | 6 sơ đồ tổng: kiến trúc runtime, luồng dữ liệu, workflow tuning→release, sequence predict, lifecycle fingerprint/lock, sequence chatbot |
-| [docs/diagrams/pipeline-worklow/](diagrams/pipeline-worklow/) | 2 workflow chi tiết theo lane: `pipeline.workflow.json` (9 chặng S1–S9) và `chatbot.workflow.json` |
+| [docs/diagrams/pipeline-worklow/](diagrams/pipeline-worklow/) | workflow chi tiết theo lane: `pipeline.workflow.json` (9 chặng S1–S9), `pipeline-workflow.workflow.json` (bản render lại, kèm `.html`) và `chatbot.workflow.json` / `chatbot-workflow.html` |
 | [docs/diagrams/soDoKienTruc/](diagrams/soDoKienTruc/) | 2 sơ đồ dùng cho báo cáo: hướng 1 pipeline dataflow, hướng 2 chatbot sequence |
 | [docs/diagrams/model-workflows/](diagrams/model-workflows/) | workflow riêng từng model (LR, RF, GB) và bước chọn Final Model, kèm `png/` để chèn vào Word |
 
@@ -997,14 +1064,16 @@ Hai bộ script sinh tài liệu (không nằm trong đường chạy của app,
 
 | Thư mục | Làm gì |
 | --- | --- |
-| [docs/report_render/](report_render/) | `python build_report.py` dựng `docs/bao_cao_project_hose_stock_prediction.docx` (4 chương theo guideline CT239H). Tự ghi OXML qua `docx_builder.py`, không cần `python-docx`. Nội dung tách theo module: `content_front.py` (bìa, abstract, mục lục), `content_ch12.py`, `content_ch3a/b/c.py` (SRS, thiết kế, kiểm thử), `content_ch4.py`. Các file `_insp.py`, `_fixcenter.py`, `_mk.py`, `_m.py`, `_bf.py` là script debug tạm, không cần cho lần build sạch. |
+| [docs/report_render/](report_render/) | `python build_report.py` dựng `docs/bao_cao_project_hose_stock_prediction.docx` (4 chương theo guideline CT239H). Tự ghi OXML qua `docx_builder.py`, không cần `python-docx`. Nội dung tách theo module: `content_front.py` (bìa, abstract, mục lục), `content_ch12.py`, `content_ch3a/b/c.py` (SRS, thiết kế, kiểm thử), `content_ch4.py`. Hai script sinh hình tĩnh cho báo cáo, ghi PNG 200 dpi font Arial vào `docs/report_assets/`: `make_report_figures.py` (`gantt_plan.png`, `use_case_diagram.png`, `architecture_overview.png`) và `make_flow_figures.py` (`flow_labeling`, `flow_purged_cv`, `flow_threshold`, `flow_tuning_lab`, `sequence_predict`, `sequence_chatbot`). Các file `_insp.py`, `_fixcenter.py`, `_mk.py`, `_m.py`, `_bf.py` là script debug tạm, không cần cho lần build sạch. |
 | [docs/slides/](slides/) | dựng slide bảo vệ: `make_charts.py` (vẽ 9 chart từ `reports/*` thật, rồi copy thêm 3 ảnh có sẵn từ `docs/report_assets/`: `architecture_overview.png`, `dataflow_pipeline.png`, `logo_ctu.png`) + `make_chatbot_chart.py` (vẽ `chatbot_flow.png`) → `build_pptx.py` (24 slide 16:9, ra `thuyet_trinh_nien_luan.pptx`) → `shoot_chat.py` (chụp demo `/chat` qua Chrome DevTools, cần Flask đang chạy) → `selfcheck.py` (kiểm lại file `.pptx` vừa dựng, ghi `selfcheck_report.txt`). Chart xuất vào `slides/img/`. Kèm `outline.md`, `BAO_CAO_AI.md`, `script_thuyet_trinh.md`. |
 
 Các chart số liệu và slide **đọc số trực tiếp** từ `reports/*.json|csv` và `models/model_metadata.json`; riêng `chatbot_flow.png` là sơ đồ contract tĩnh từ `make_chatbot_chart.py`, không chứa số model/test dễ lỗi thời.
 
-Trong `docs/` hiện có **hai** file `.docx`: `bao_cao_project_hose_stock_prediction.docx` (bản `build_report.py` sinh ra) và `bao_cao_project_hose_stock_prediction_FIXED.docx` (bản sửa tay sau đó). Bản `_FIXED` **không** được script nào sinh lại, nên nếu chạy `build_report.py` thì chỉ file đầu được ghi mới — mọi sửa tay trong `_FIXED` phải tự chuyển sang, hoặc sửa trong `content_ch*.py` rồi build lại.
+Trong `docs/` hiện có **ba** file `.docx`: `bao_cao_project_hose_stock_prediction.docx` (bản `build_report.py` sinh ra), `bao_cao_project_hose_stock_prediction_FIXED.docx` (bản sửa tay sau đó) và `bao_cao_project_hose_stock_prediction_FIXED - Copy.docx` (bản sao dự phòng của bản sửa tay). Chỉ file đầu được script ghi mới; hai bản `_FIXED*` **không** được script nào sinh lại, nên mọi sửa tay trong đó phải tự chuyển sang, hoặc sửa trong `content_ch*.py` rồi build lại. Ngoài ra `report_render/_preview.docx` là output tạm của script debug, không phải bản báo cáo.
 
-Tài liệu chatbot canonical là [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md): đúng 5 action, một LLM JSON decision, fixed dispatcher, formatter deterministic và một UI `/chat`. Khi tài liệu và code khác nhau, tin `services/chatbot_service.py` cùng `services/chatbot_tools.py`.
+Bốn thư mục tài liệu có file `LEGACY_STALE_CHATBOT.md` (`diagrams/pipeline-worklow/`, `diagrams/soDoKienTruc/`, `report_render/`, `slides/`). Tên file là dấu vết lịch sử: nội dung hiện tại **ghi ngược lại** rằng phần chatbot trong thư mục đó đã render lại theo kiến trúc Action-Decision và "Không còn LEGACY/STALE", đồng thời trỏ về `docs/CHATBOT_ARCHITECTURE.md` làm source of truth. Đừng đọc tên file thành "tài liệu này đã lỗi thời".
+
+Tài liệu chatbot canonical là [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md): đúng 5 action, một LLM JSON decision, fixed dispatcher, formatter deterministic. Lưu ý một chỗ tài liệu đó đã lệch code: nó vẫn ghi `/chat` là UI duy nhất, còn `base.html` giờ render thêm khung chat nổi trên mọi trang khác (mục 11.2.1) — cả hai dùng chung `/api/chat` nên contract không đổi, chỉ điểm vào là hai chỗ. Khi tài liệu và code khác nhau, tin `services/chatbot_service.py` cùng `services/chatbot_tools.py`.
 
 [README.md](../README.md) và [docs/SO_DO_KIEN_TRUC_HE_THONG.md](SO_DO_KIEN_TRUC_HE_THONG.md) đã được đồng bộ về policy `rolling_recent_cv_oof_threshold` và mốc rolling suy từ dataset. Khi có xung đột, tin code (`config/settings.py`, `models/model_metadata.json`) trước tiên.
 
@@ -1041,5 +1110,5 @@ Ba cạm bẫy đáng giải thích dài hơn một dòng:
 - **Dataset trên đĩa không phải dataset của release đang serve.** `reports/` + `models/` là số của snapshot legacy (510.862 row, TEST tới 2026-07-13); `data/processed/ml_dataset.csv` đã là snapshot khác (513.971 row, TEST tới 2026-07-24) và chưa từng mở TEST. Trích số vào báo cáo phải nói rõ đang trích nguồn nào — đừng ghép số dataset mới với metric model cũ.
 - Cổng chạy pipeline sạch **đang mở** (mục 12.1). Nếu chạy trước khi nộp báo cáo thì toàn bộ số ở mục 4, 7, 9, 10 đổi hết, và `/evaluation` chuyển từ view legacy sang view policy hiện hành. Chốt một lần: hoặc báo cáo theo artifact legacy (nêu rõ là legacy), hoặc chạy pipeline rồi viết lại số — không trộn hai.
 - Chatbot dùng **action decision**: LLM hiểu câu hỏi, chọn một trong 5 action và chỉ viết `direct_answer` cho `GENERAL_CHAT`; backend validate, gọi dispatcher cố định rồi format dữ liệu thật. Không dùng RAG, tool loop, custom memory hoặc context dữ liệu trong prompt; LLM không trực tiếp dự đoán cổ phiếu và không tự viết số liệu ML.
-- Số liệu trong báo cáo/slide nên lấy từ `reports/pipeline_summary.json` và `models/model_metadata.json` (bộ script ở mục 14 đọc trực tiếp hai nguồn này), không gõ tay — tránh lệch giữa văn bản và artifact đang serve.
+- Số liệu trong báo cáo/slide nên lấy từ `reports/pipeline_summary.json` và `models/model_metadata.json` (bộ script ở mục 14 đọc trực tiếp hai nguồn này), không gõ tay — tránh lệch giữa văn bản và artifact đang serve. **Một ngoại lệ phải biết:** `reports/split_summary.csv` đã bị ghi lại sau đó (mtime 2026-07-31) nên nó chứa split của snapshot **mới**, lệch với `pipeline_summary.json` (2026-07-21) ngay trong cùng thư mục. Đừng trộn hai file này vào một bảng.
 - Kết quả chỉ phục vụ nghiên cứu/học tập, không phải khuyến nghị đầu tư.

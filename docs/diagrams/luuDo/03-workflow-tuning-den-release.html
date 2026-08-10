@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Workflow tuning → release — precheck Flask và revalidation trong official pipeline</h1>
       </div>
-      <p class="subtitle">run_pipeline.py: lock · dataset_check → split · fingerprint · config gate · fit TRAIN · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed</p>
+      <p class="subtitle">run_pipeline.py (không nhận tham số CLI): lock token-owned · dataset_check → rolling split · 2 fingerprint · config gate · fit TRAIN theo config đã chốt · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 1272" role="img" aria-label="Workflow tuning → release — precheck Flask và revalidation trong official pipeline — run_pipeline.py: lock · dataset_check → split · fingerprint · config gate · fit TRAIN · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed (workflow diagram)">
+      <svg viewBox="0 0 720 1272" role="img" aria-label="Workflow tuning → release — precheck Flask và revalidation trong official pipeline — run_pipeline.py (không nhận tham số CLI): lock token-owned · dataset_check → rolling split · 2 fingerprint · config gate · fit TRAIN theo config đã chốt · select VALIDATION · baseline gate · TEST một lần · reports · atomic release · published / release_failed (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -605,8 +605,8 @@
         <rect x="42" y="209" width="92" height="68" rx="6" class="c-mask"/>
         <rect x="42" y="209" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="88" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Acquire lock</text>
-        <text x="88" y="247" class="t-muted" font-size="8" text-anchor="middle">pipeline.lock</text>
-        <text x="88" y="265" class="t-security" font-size="7" text-anchor="middle">single-process</text>
+        <text x="88" y="247" class="t-muted" font-size="8" text-anchor="middle">pipeline.lock O_EXCL</text>
+        <text x="88" y="265" class="t-security" font-size="7" text-anchor="middle">token + PID alive</text>
 
         <rect x="172" y="217" width="96" height="52" rx="6" class="c-mask"/>
         <rect x="172" y="217" width="96" height="52" rx="6" class="c-database" stroke-width="1.5"/>
@@ -631,8 +631,8 @@
         <rect x="245" y="333" width="110" height="68" rx="6" class="c-mask"/>
         <rect x="245" y="333" width="110" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rolling split</text>
-        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">protocol_time_split</text>
-        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">TR/VAL/TEST</text>
+        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">resolve_protocol_dates</text>
+        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">274d VAL · 94d TEST</text>
 
         <rect x="571" y="341" width="108" height="52" rx="6" class="c-mask"/>
         <rect x="571" y="341" width="108" height="52" rx="6" class="c-security" stroke-width="1.5"/>
@@ -671,7 +671,7 @@
         <rect x="42" y="705" width="92" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="88" y="726" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fit TRAIN</text>
         <text x="88" y="743" class="t-muted" font-size="8" text-anchor="middle">tune_models</text>
-        <text x="88" y="761" class="t-backend" font-size="7" text-anchor="middle">reuse CV</text>
+        <text x="88" y="761" class="t-backend" font-size="7" text-anchor="middle">replay config</text>
 
         <rect x="172" y="713" width="96" height="52" rx="6" class="c-mask"/>
         <rect x="172" y="713" width="96" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -828,9 +828,9 @@
           <h3>Revalidation bên trong official pipeline</h3>
         </div>
         <ul>
-          <li>&bull; main() acquire_pipeline_lock; _run_pipeline chạy dataset_check → clean → features → labels → protocol_time_split → verify</li>
-          <li>&bull; Tự tính lại dataset + experiment fingerprint, guard has_evaluated_snapshot và is_config_complete — không tin precheck Flask</li>
-          <li>&bull; Ghi processed outputs rồi recheck content_hash + guard snapshot lần nữa; snapshot đã eval / config thiếu-stale → dừng trước TEST</li>
+          <li>&bull; main() acquire_pipeline_lock (token uuid4, stale nhận biết bằng PID còn sống); _run_pipeline chạy dataset_check → clean → features → labels → protocol_time_split → verify</li>
+          <li>&bull; Rolling boundary do resolve_protocol_dates suy ra từ phiên mới nhất: TEST 94 ngày cuối, VALIDATION 274 ngày trước đó; ngày cứng trong settings chỉ là fallback khi span ≤ 368 ngày</li>
+          <li>&bull; Tự tính lại dataset + experiment fingerprint, guard has_evaluated_snapshot và is_config_complete — không tin precheck Flask; ghi processed outputs rồi recheck content_hash + guard snapshot lần nữa</li>
         </ul>
       </div>
 
@@ -842,7 +842,8 @@
         <ul>
           <li>&bull; select_final_model raise nếu winner F1_UP ≤ baseline VALIDATION tốt nhất → dừng trước khi chạm TEST</li>
           <li>&bull; Chỉ khi vượt baseline mới ghi registry started, refit TRAIN+VALIDATION và chấm TEST đúng một lần → evaluated → published</li>
-          <li>&bull; Lỗi bất kỳ sau started ghi release_failed; atomic_model_release đảm bảo final_model.pkl cũ vẫn phục vụ</li>
+          <li>&bull; Thứ tự ghi là reports → atomic_model_release → pipeline_summary.json → registry published: từng file nguyên tử nhưng cả tập thì không, nên reports có thể tả model chưa được publish</li>
+          <li>&bull; Lỗi bất kỳ sau started ghi release_failed; final_model.pkl cũ vẫn phục vụ, nhưng has_evaluated_snapshot coi release_failed là đã tiêu — snapshot không chạy lại được, phải sửa tay evaluation_registry.json</li>
         </ul>
       </div>
     </div>

@@ -3,7 +3,7 @@
   "diagram_type": "dataflow",
   "meta": {
     "title": "Data flow ML offline — Raw đến TRAIN / VALIDATION / TEST và publish",
-    "subtitle": "clean → training universe → 20 feature → exact t+5 → rolling split · CV chỉ trong TRAIN · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact",
+    "subtitle": "clean → training universe → 20 feature → exact t+5 market → rolling boundary 274/94 ngày · CV chỉ trong TRAIN (Tuning Lab) · chọn trên VALIDATION · refit TR+VAL trước TEST · TEST 1 lần · publish · prediction đọc artifact",
     "output": "docs/diagrams/luuDo/02-luong-du-lieu-pipeline.html",
     "viewBox": [1200, 900]
   },
@@ -12,7 +12,7 @@
     { "label": "Làm sạch" },
     { "label": "Feature / Label" },
     { "label": "Rolling split (RAM)" },
-    { "label": "CV · chọn · refit · TEST · publish" }
+    { "label": "Fit · chọn VAL · refit · TEST · publish" }
   ],
   "nodes": [
     { "id": "raw", "type": "external", "label": "Raw OHLCV", "sublabel": "shared_dataset CSV", "tag": "ngoài repo", "stage": 0, "row": 2, "width": 128 },
@@ -23,11 +23,11 @@
     { "id": "features", "type": "backend", "label": "20 features", "sublabel": "rolling theo symbol", "tag": "FEATURE_COLUMNS", "stage": 2, "row": 0, "width": 132 },
     { "id": "labels", "type": "backend", "label": "Nhãn exact t+5", "sublabel": "ml_dataset", "tag": "> 1% → UP", "stage": 2, "row": 2, "width": 140 },
 
-    { "id": "train", "type": "database", "label": "TRAIN", "sublabel": "rolling boundary", "tag": "CV nội bộ", "stage": 3, "row": 0, "width": 120 },
-    { "id": "validation", "type": "database", "label": "VALIDATION", "sublabel": "rolling boundary", "tag": "chọn + baseline", "stage": 3, "row": 2, "width": 128 },
-    { "id": "test", "type": "security", "label": "TEST", "sublabel": "rolling snapshot", "tag": "chạm 1 lần", "stage": 3, "row": 4, "width": 120 },
+    { "id": "train", "type": "database", "label": "TRAIN", "sublabel": "label_end ≤ train_end", "tag": "CV nội bộ", "stage": 3, "row": 0, "width": 128 },
+    { "id": "validation", "type": "database", "label": "VALIDATION", "sublabel": "274 ngày trước TEST", "tag": "chọn + baseline", "stage": 3, "row": 2, "width": 132 },
+    { "id": "test", "type": "security", "label": "TEST", "sublabel": "94 ngày cuối", "tag": "chạm 1 lần", "stage": 3, "row": 4, "width": 120 },
 
-    { "id": "cvfit", "type": "backend", "label": "CV trong TRAIN", "sublabel": "4-fold purged (gap 5)", "tag": "fit candidate", "stage": 4, "row": 0, "width": 150 },
+    { "id": "cvfit", "type": "backend", "label": "Fit TRAIN", "sublabel": "replay CV đã chốt", "tag": "manual_config", "stage": 4, "row": 0, "width": 150 },
     { "id": "select", "type": "backend", "label": "Chọn trên VALIDATION", "sublabel": "F1_UP + baseline", "tag": "winner", "stage": 4, "row": 1, "width": 156 },
     { "id": "refit", "type": "backend", "label": "Refit TR + VAL", "sublabel": "gộp TRAIN+VAL", "tag": "trước TEST", "stage": 4, "row": 2, "width": 150 },
     { "id": "testEval", "type": "security", "label": "TEST 1 lần", "sublabel": "chấm đúng 1 lần", "tag": "không chọn model", "stage": 4, "row": 3, "width": 140 },
@@ -77,7 +77,7 @@
     },
     {
       "from": "train", "to": "cvfit", "label": "TRAIN rows",
-      "classification": "CV nội bộ",
+      "classification": "fit đầy TRAIN",
       "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight", "labelAt": [845, 150]
     },
     {
@@ -149,7 +149,7 @@
       "dot": "rose",
       "title": "CV, chọn, refit và TEST gate",
       "items": [
-        "CV 4 fold purged (gap 5) chỉ chạy trên TRAIN để fit candidate LR/RF/GB — CV không phải là TRAIN → VALIDATION",
+        "CV 4 fold purged (gap 5, từ 2021-01-01) chỉ chạy trên TRAIN và chỉ ở Tuning Lab; official pipeline replay số đã chốt trong manual_config.json rồi fit lại trên full TRAIN",
         "VALIDATION chọn winner và so baseline Always-UP/Always-NOT-UP; thua baseline thì dừng trước TEST",
         "Winner hợp lệ refit TRAIN+VALIDATION TRƯỚC, rồi mới chấm TEST đúng một lần cho mỗi fingerprint; TEST không chọn model, sau đó publish và prediction đọc artifact"
       ]

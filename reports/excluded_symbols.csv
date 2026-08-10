@@ -1,5 +1,5 @@
 symbol,rows,start_date,end_date,average_volume,eligible_for_training,exclusion_reason
-CRV,149,2025-10-10,2026-07-17,5782.342281879195,False,fewer_than_250_trading_days
-TCX,180,2025-10-21,2026-07-20,2179101.6277777776,False,fewer_than_250_trading_days
-VCK,140,2025-12-16,2026-07-20,4046609.1285714284,False,fewer_than_250_trading_days
-VPX,143,2025-12-11,2026-07-20,1517596.5034965035,False,fewer_than_250_trading_days
+CRV,150,2025-10-10,2026-07-30,5750.46,False,fewer_than_250_trading_days
+TCX,189,2025-10-21,2026-07-31,2146347.0529100527,False,fewer_than_250_trading_days
+VCK,149,2025-12-16,2026-07-31,3978570.9932885906,False,fewer_than_250_trading_days
+VPX,152,2025-12-11,2026-07-31,1504023.0263157894,False,fewer_than_250_trading_days

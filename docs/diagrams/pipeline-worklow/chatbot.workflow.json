@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Chatbot Action-Decision — Luồng hoạt động",
+    "subtitle": "/chat và dock dùng chung API → Flask whitelist payload → đúng một LLM call trả {action, arguments} → validator exact schema → fixed dispatcher → deterministic formatter",
+    "output": "chatbot-workflow.html"
+  },
+  "lanes": [
+    { "id": "ui", "label": "Browser · /chat và floating dock dùng chung ChatClientKit" },
+    { "id": "http", "label": "Flask POST /api/chat · whitelist payload trước khi vào service" },
+    { "id": "service", "label": "chatbot_service.chat() · một lượt, một call, một deadline" },
+    { "id": "llm", "label": "Đúng một LLM call · LLM chỉ chọn action và trích arguments" },
+    { "id": "verify", "label": "Validator · exact schema rồi chuẩn hóa arguments" },
+    { "id": "dispatch", "label": "Fixed dispatcher · readiness và scope thuộc backend" },
+    { "id": "data", "label": "Data handler read-only · artifact đã publish và ML" },
+    { "id": "format", "label": "Deterministic formatter · response 5 field và render an toàn" }
+  ],
+  "nodes": [
+    { "id": "user", "lane": "ui", "col": 0, "type": "external", "label": "Người dùng", "sublabel": "câu hỏi tiếng Việt", "tag": "≤ 1000 ký tự" },
+    { "id": "surfaces", "lane": "ui", "col": 1, "type": "frontend", "label": "/chat + dock", "sublabel": "ChatClientKit chung", "tag": "dock ẩn ở /chat" },
+    { "id": "transcript", "lane": "ui", "col": 3, "type": "database", "label": "sessionStorage", "sublabel": "40 entry, gửi 6 cuối", "tag": "reload còn, tab mất" },
+    { "id": "request", "lane": "ui", "col": 5, "type": "frontend", "label": "POST body", "sublabel": "message + history", "tag": "abort 70s, 0 retry" },
+
+    { "id": "mimetype", "lane": "http", "col": 0, "type": "security", "label": "Content-Type", "sublabel": "application/json", "tag": "khác → 400" },
+    { "id": "payload", "lane": "http", "col": 1, "type": "security", "label": "Whitelist key", "sublabel": "chỉ message, history", "tag": "key lạ → 400" },
+    { "id": "msgcheck", "lane": "http", "col": 3, "type": "security", "label": "Message", "sublabel": "1–1000 sau strip" },
+    { "id": "histcheck", "lane": "http", "col": 5, "type": "security", "label": "History", "sublabel": "≤ 6, chẵn, xen kẽ", "tag": "tổng ≤ 6000 ký tự" },
+
+    { "id": "chatcall", "lane": "service", "col": 0, "type": "backend", "label": "chat()", "sublabel": "một lượt, một call" },
+    { "id": "config", "lane": "service", "col": 1, "type": "security", "label": "Config gate", "sublabel": "base_url http/https", "tag": "thiếu → 503" },
+    { "id": "client", "lane": "service", "col": 3, "type": "backend", "label": "OpenAI client", "sublabel": "timeout 60s", "tag": "max_retries = 0" },
+    { "id": "deadline", "lane": "service", "col": 5, "type": "security", "label": "Deadline", "sublabel": "time.monotonic 60s", "tag": "quá hạn → 504" },
+
+    { "id": "prompt", "lane": "llm", "col": 0, "type": "backend", "label": "Prompt", "sublabel": "DECISION_PROMPT + 6 lượt" },
+    { "id": "call", "lane": "llm", "col": 1, "type": "cloud", "label": "1 LLM call", "sublabel": "no tools, no schema", "tag": "không LLM lần hai" },
+    { "id": "decision", "lane": "llm", "col": 3, "type": "external", "label": "{action, args}", "sublabel": "JSON thuần 2 khóa" },
+    { "id": "parse", "lane": "llm", "col": 5, "type": "security", "label": "Parse", "sublabel": "chặn tool_calls", "tag": "sai protocol → 502" },
+
+    { "id": "exact2", "lane": "verify", "col": 0, "type": "security", "label": "Exact 2 khóa", "sublabel": "action + arguments", "tag": "extra key → 502" },
+    { "id": "whitelist", "lane": "verify", "col": 1, "type": "security", "label": "5 action", "sublabel": "whitelist cố định" },
+    { "id": "args", "lane": "verify", "col": 3, "type": "security", "label": "Arguments", "sublabel": "enum · type · range", "tag": "top_n int 1–10" },
+    { "id": "norm", "lane": "verify", "col": 5, "type": "backend", "label": "Chuẩn hóa", "sublabel": "upper, bỏ trùng, 1–5 mã" },
+
+    { "id": "branch", "lane": "dispatch", "col": 0, "type": "backend", "label": "Dispatcher", "sublabel": "nhánh cố định", "tag": "5 action → 3 nhánh" },
+    { "id": "dataact", "lane": "dispatch", "col": 1, "type": "messagebus", "label": "3 data action", "sublabel": "signal · ranking · info" },
+    { "id": "readiness", "lane": "dispatch", "col": 3, "type": "security", "label": "Readiness", "sublabel": "pipeline + artifact", "tag": "chưa sẵn → 503" },
+    { "id": "scope", "lane": "dispatch", "col": 5, "type": "security", "label": "Scope mã", "sublabel": "training_symbols", "tag": "ngoài scope → 200" },
+
+    { "id": "handlers", "lane": "data", "col": 0, "type": "messagebus", "label": "3 handler", "sublabel": "read-only, cố định" },
+    { "id": "artifacts", "lane": "data", "col": 1, "type": "database", "label": "Artifact", "sublabel": "pkl · metadata · report", "tag": "chỉ đọc" },
+    { "id": "ml", "lane": "data", "col": 3, "type": "backend", "label": "prediction_svc", "sublabel": "predict_proba", "tag": "không train lại" },
+    { "id": "rows", "lane": "data", "col": 5, "type": "database", "label": "Kết quả thật", "sublabel": "signal · ranking · facts", "tag": "loại mã stale" },
+
+    { "id": "fixedmsg", "lane": "format", "col": 0, "type": "backend", "label": "Câu cố định", "sublabel": "chat + out of scope", "tag": "không vào ML" },
+    { "id": "formatter", "lane": "format", "col": 1, "type": "backend", "label": "Formatter", "sublabel": "chỉ dữ liệu backend", "tag": "không gọi LLM" },
+    { "id": "response", "lane": "format", "col": 3, "type": "frontend", "label": "5 field JSON", "sublabel": "answer · sources · warnings" },
+    { "id": "render", "lane": "format", "col": 5, "type": "frontend", "label": "textContent", "sublabel": "không HTML thô", "tag": "safe DOM" }
+  ],
+  "edges": [
+    { "from": "user", "to": "surfaces", "variant": "default" },
+    { "from": "surfaces", "to": "transcript", "variant": "default" },
+    { "from": "transcript", "to": "request", "variant": "default" },
+    { "from": "request", "to": "mimetype", "label": "POST /api/chat", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+
+    { "from": "mimetype", "to": "payload", "variant": "security" },
+    { "from": "payload", "to": "msgcheck", "variant": "security" },
+    { "from": "msgcheck", "to": "histcheck", "variant": "security" },
+    { "from": "histcheck", "to": "chatcall", "label": "message + history", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+
+    { "from": "chatcall", "to": "config", "variant": "security" },
+    { "from": "config", "to": "client", "variant": "default" },
+    { "from": "client", "to": "deadline", "variant": "security" },
+    { "from": "deadline", "to": "prompt", "label": "remaining time", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+
+    { "from": "prompt", "to": "call", "variant": "emphasis" },
+    { "from": "call", "to": "decision", "variant": "default" },
+    { "from": "decision", "to": "parse", "variant": "security" },
+    { "from": "parse", "to": "exact2", "label": "JSON 2 khóa", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+
+    { "from": "exact2", "to": "whitelist", "variant": "security" },
+    { "from": "whitelist", "to": "args", "variant": "security" },
+    { "from": "args", "to": "norm", "variant": "security" },
+    { "from": "norm", "to": "branch", "label": "decision chuẩn hóa", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+
+    { "from": "branch", "to": "dataact", "variant": "emphasis" },
+    { "from": "dataact", "to": "readiness", "variant": "security" },
+    { "from": "readiness", "to": "scope", "variant": "security" },
+    { "from": "scope", "to": "handlers", "label": "trong scope", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -30 },
+    { "from": "branch", "to": "fixedmsg", "variant": "default", "fromSide": "left", "toSide": "left", "via": [[20, 739], [20, 987]] },
+
+    { "from": "handlers", "to": "artifacts", "variant": "default" },
+    { "from": "artifacts", "to": "ml", "variant": "emphasis" },
+    { "from": "ml", "to": "rows", "variant": "default" },
+    { "from": "rows", "to": "formatter", "label": "domain result", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelDx": -100 },
+
+    { "from": "fixedmsg", "to": "formatter", "variant": "default" },
+    { "from": "formatter", "to": "response", "variant": "emphasis" },
+    { "from": "response", "to": "render", "variant": "emphasis" },
+    { "from": "render", "to": "transcript", "label": "ghi sessionStorage", "variant": "dashed", "fromSide": "right", "toSide": "top", "via": [[698, 987], [698, 60], [430, 60]], "labelSegment": 2 }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "LLM chỉ ra quyết định",
+      "items": [
+        "Đúng một LLM call cho mỗi lượt; không tools, không tool_choice, SDK max_retries = 0",
+        "Provider trả JSON thuần đúng hai khóa action và arguments, không Markdown hay prose",
+        "5 action: GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, PROJECT_INFO, OUT_OF_SCOPE",
+        "LLM không đọc file, không gọi ML, không chọn model/threshold, không viết câu trả lời cuối"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Backend giữ quyền",
+      "items": [
+        "Validator chặn extra key, sai type/range/enum; sai protocol trả 502, không fallback router",
+        "Chuẩn hóa arguments: symbol trim + uppercase + bỏ trùng còn 1–5 mã; top_n integer 1–10",
+        "Scope mã kiểm tập trung trước inference; có một mã ngoài scope thì không predict mã nào",
+        "Formatter deterministic viết answer từ metadata, report và predict_proba thật"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Giới hạn và mã lỗi",
+      "items": [
+        "message 1–1000 ký tự; history ≤ 6 entry, số chẵn, xen kẽ user/assistant, tổng ≤ 6000",
+        "TOTAL_DEADLINE_SECONDS = 60, đo bằng time.monotonic trước và sau provider call",
+        "400 payload sai · 502 provider hoặc decision sai · 503 config/nguồn chưa sẵn sàng · 504 quá deadline · 500 lỗi nội bộ",
+        "Không RAG, embedding, Vector DB, agent loop, conversation state hay LLM call thứ hai"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Phiên và hiển thị",
+      "items": [
+        "sessionStorage hose-chat-session-v1 giữ tối đa 40 entry; chỉ 6 entry cuối được gửi lên",
+        "Dock dùng lại ChatClientKit và ẩn tại /chat để không có hai UI trùng nhau",
+        "Answer chỉ ghi vào DOM bằng textContent; provider không bao giờ dựng HTML",
+        "Client abort 70s, không retry tự động, không fallback local, không stop button"
+      ]
+    }
+  ]
+}

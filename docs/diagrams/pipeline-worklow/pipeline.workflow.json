@@ -1,0 +1,437 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Stock Prediction ML — Pipeline Workflow",
+    "subtitle": "3 chain doc lap, rap noi qua disk: data-refresh · model-training · tuning lab → inference"
+  },
+  "lanes": [
+    {
+      "id": "c1",
+      "label": "Chain 1 · refresh_data.py — tuan tu, stop-on-first-failure"
+    },
+    {
+      "id": "disk",
+      "label": "Disk · shared artifacts (diem rap noi 3 chain)"
+    },
+    {
+      "id": "c3",
+      "label": "Chain 3 · Tuning Lab /tuning — chi dung TRAIN"
+    },
+    {
+      "id": "c2a",
+      "label": "Chain 2 · run_pipeline.py — re-derive + guard"
+    },
+    {
+      "id": "c2b",
+      "label": "Chain 2 · run_pipeline.py — train + select + TEST"
+    },
+    {
+      "id": "out",
+      "label": "Publish → Inference (downstream)"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fetch",
+      "lane": "c1",
+      "col": 0,
+      "type": "cloud",
+      "label": "fetch_hose",
+      "sublabel": "vnstock KBS",
+      "tag": "merge atomic"
+    },
+    {
+      "id": "prep",
+      "lane": "c1",
+      "col": 1,
+      "type": "backend",
+      "label": "preprocess_data",
+      "sublabel": "dataset_check + clean",
+      "width": 112
+    },
+    {
+      "id": "feat",
+      "lane": "c1",
+      "col": 3,
+      "type": "backend",
+      "label": "build_features",
+      "sublabel": "features + labels + split",
+      "tag": "khong train model",
+      "width": 150
+    },
+    {
+      "id": "raw",
+      "lane": "disk",
+      "col": 0,
+      "type": "database",
+      "label": "hose_raw.csv",
+      "sublabel": "RAW_DATA_PATH",
+      "tag": "absolute, ngoai repo"
+    },
+    {
+      "id": "clean",
+      "lane": "disk",
+      "col": 1,
+      "type": "database",
+      "label": "hose_stock_clean",
+      "sublabel": "data/processed",
+      "width": 112
+    },
+    {
+      "id": "ml",
+      "lane": "disk",
+      "col": 3,
+      "type": "database",
+      "label": "ml_dataset.csv",
+      "sublabel": "+ features + split_summary",
+      "width": 150
+    },
+    {
+      "id": "hist",
+      "lane": "disk",
+      "col": 5,
+      "type": "database",
+      "label": "tuning_history",
+      "sublabel": "moi run: ok + error",
+      "width": 105
+    },
+    {
+      "id": "web",
+      "lane": "c3",
+      "col": 1,
+      "type": "frontend",
+      "label": "Web /tuning",
+      "sublabel": "background thread",
+      "tag": "meta-refresh 5s",
+      "width": 112
+    },
+    {
+      "id": "cv",
+      "lane": "c3",
+      "col": 3,
+      "type": "backend",
+      "label": "run_cv_metrics",
+      "sublabel": "purged CV tren TRAIN",
+      "tag": "gap 5 session",
+      "width": 150
+    },
+    {
+      "id": "cfg",
+      "lane": "c3",
+      "col": 5,
+      "type": "security",
+      "label": "manual_config",
+      "sublabel": "3 config winner",
+      "tag": "user chon",
+      "width": 105
+    },
+    {
+      "id": "s1",
+      "lane": "c2a",
+      "col": 0,
+      "type": "backend",
+      "label": "S1 re-derive",
+      "sublabel": "dataset_check"
+    },
+    {
+      "id": "s2",
+      "lane": "c2a",
+      "col": 1,
+      "type": "backend",
+      "label": "S2 features",
+      "sublabel": "build + labels",
+      "width": 112
+    },
+    {
+      "id": "s3",
+      "lane": "c2a",
+      "col": 3,
+      "type": "backend",
+      "label": "S3 split",
+      "sublabel": "TRAIN / VAL / TEST",
+      "tag": "purge label_end_date",
+      "width": 150
+    },
+    {
+      "id": "s4",
+      "lane": "c2a",
+      "col": 5,
+      "type": "security",
+      "label": "S4 fingerprint",
+      "sublabel": "validate config",
+      "tag": "guard: raise",
+      "width": 105
+    },
+    {
+      "id": "s5",
+      "lane": "c2b",
+      "col": 0,
+      "type": "security",
+      "label": "S5 ghi+check",
+      "sublabel": "doc lai tu disk",
+      "tag": "integrity"
+    },
+    {
+      "id": "s6",
+      "lane": "c2b",
+      "col": 1,
+      "type": "backend",
+      "label": "S6 tune_models",
+      "sublabel": "doc CV cu tu manual_config",
+      "tag": "chi fit full TRAIN",
+      "width": 112
+    },
+    {
+      "id": "s7",
+      "lane": "c2b",
+      "col": 3,
+      "type": "backend",
+      "label": "S7 select_final",
+      "sublabel": "F1_UP > Recall_UP > LR<RF<GB",
+      "tag": "gate cung: thang VAL",
+      "width": 150
+    },
+    {
+      "id": "s8",
+      "lane": "c2b",
+      "col": 5,
+      "type": "messagebus",
+      "label": "S8 danh TEST",
+      "sublabel": "refit TRAIN+VAL, 1 lan",
+      "tag": "Always-UP chi warning",
+      "width": 105
+    },
+    {
+      "id": "reg",
+      "lane": "out",
+      "col": 0,
+      "type": "database",
+      "label": "registry",
+      "sublabel": "started → evaluated",
+      "tag": "xen vao S8-S9"
+    },
+    {
+      "id": "rel",
+      "lane": "out",
+      "col": 1,
+      "type": "backend",
+      "label": "S9 release",
+      "sublabel": "atomic → summary",
+      "width": 112,
+      "tag": "published cuoi"
+    },
+    {
+      "id": "pred",
+      "lane": "out",
+      "col": 3,
+      "type": "backend",
+      "label": "predict_symbol",
+      "sublabel": "rebuild feature tu clean data",
+      "tag": "khong ghi file",
+      "width": 150
+    },
+    {
+      "id": "res",
+      "lane": "out",
+      "col": 5,
+      "type": "frontend",
+      "label": "Prediction",
+      "sublabel": "lru_cache(data,model)",
+      "width": 105
+    }
+  ],
+  "edges": [
+    {
+      "from": "fetch",
+      "to": "prep",
+      "variant": "default"
+    },
+    {
+      "from": "prep",
+      "to": "feat",
+      "variant": "default"
+    },
+    {
+      "from": "fetch",
+      "to": "raw",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "prep",
+      "to": "clean",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "feat",
+      "to": "ml",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "raw",
+      "to": "s1",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "ml",
+      "to": "cv",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "web",
+      "to": "cv",
+      "label": "evaluate_single",
+      "variant": "default"
+    },
+    {
+      "from": "cv",
+      "to": "hist",
+      "label": "append_history",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "drop"
+    },
+    {
+      "from": "hist",
+      "to": "cfg",
+      "label": "find_run(run_id)",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "cfg",
+      "to": "s4",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "s1",
+      "to": "s2",
+      "variant": "default"
+    },
+    {
+      "from": "s2",
+      "to": "s3",
+      "label": "protocol_split",
+      "variant": "default"
+    },
+    {
+      "from": "s3",
+      "to": "s4",
+      "variant": "default"
+    },
+    {
+      "from": "s4",
+      "to": "s5",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "s5",
+      "to": "s6",
+      "variant": "default"
+    },
+    {
+      "from": "s6",
+      "to": "s7",
+      "label": "refit 3 config",
+      "variant": "emphasis"
+    },
+    {
+      "from": "s7",
+      "to": "s8",
+      "label": "winner",
+      "variant": "emphasis"
+    },
+    {
+      "from": "s8",
+      "to": "reg",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "reg",
+      "to": "rel",
+      "variant": "default"
+    },
+    {
+      "from": "clean",
+      "to": "pred",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right",
+      "labelAt": [
+        628,
+        540
+      ]
+    },
+    {
+      "from": "rel",
+      "to": "pred",
+      "label": "final_model.pkl",
+      "variant": "emphasis"
+    },
+    {
+      "from": "pred",
+      "to": "res",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Rap noi qua disk",
+      "items": [
+        "3 chain chay doc lap, khong goi lan nhau",
+        "refresh_data giu CSV moi, khong train model",
+        "run_pipeline tu re-derive tu RAW roi ghi lai disk",
+        "Tuning Lab day manual_config.json vao S4 + S6"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Sai lech so voi mo ta",
+      "items": [
+        "S6 KHONG re-run purged CV — doc CV cu tu manual_config",
+        "TEST vs Always-UP chi set warning, khong raise",
+        "manual_config ghi o /tuning/use-config, KHONG trong job CV",
+        "pipeline_summary.json ghi TRUOC registry published"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Chong leakage + drift",
+      "items": [
+        "resolve_protocol_dates = single source ngay ranh",
+        "3 consumer: split that, fingerprint, metadata",
+        "Lop 1: purge boundary theo label_end_date",
+        "Lop 2: purged CV gap 5 session trong TRAIN"
+      ]
+    }
+  ]
+}

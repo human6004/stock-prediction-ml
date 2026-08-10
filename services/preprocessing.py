@@ -144,6 +144,20 @@ def write_clean_outputs(
     cleaned_all: pd.DataFrame,
     symbol_stats: pd.DataFrame,
 ) -> None:
+    """Ghi 4 output của bước làm sạch, mỗi file một mục đích riêng.
+
+    - ``cleaned_hose_stock.csv``: TOÀN BỘ dòng đã sạch (không lọc mã). Đây là
+      nguồn duy nhất cho các bước sau; ``cleaned_for_training`` được tính LẠI từ
+      file này ở ``scripts/build_features.py`` nên không ghi ra đĩa.
+    - ``data_quality_report.csv``: thống kê từng mã, gồm cờ ``eligible_for_training``.
+    - ``eligible_symbols.csv`` / ``excluded_symbols.csv``: tách đôi theo cờ đó.
+      ``eligible_symbols.csv`` không chỉ để đọc cho vui — nó là bộ lọc mã ở bước
+      build features, và là scope dự phòng của chatbot với artifact cũ chưa có
+      ``training_symbols`` trong metadata.
+
+    Toàn bộ ghi qua ``atomic_dataframe_to_csv`` (tmp rồi ``os.replace``) để web UI
+    đang đọc song song không bao giờ thấy file ghi dở.
+    """
     CLEANED_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     atomic_dataframe_to_csv(cleaned_all, CLEANED_DATA_PATH, index=False)
     atomic_dataframe_to_csv(symbol_stats, DATA_QUALITY_REPORT_PATH, index=False)

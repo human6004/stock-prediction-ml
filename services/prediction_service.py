@@ -44,7 +44,25 @@ def load_model_artifact() -> dict:
 
 
 def load_metadata(artifact: dict | None = None) -> dict:
-    """Load metadata report; fallback về artifact đã có nếu được truyền vào."""
+    """Load metadata report; fallback về artifact đã có nếu được truyền vào.
+
+    Vì sao phải đối chiếu chứ không đọc thẳng ``model_metadata.json``: hai file
+    (pkl và json) được publish cùng lúc nhưng vẫn có thể lệch nhau (pipeline
+    hỏng giữa đường, ai đó copy tay một file, hoặc đang đọc lúc pipeline ghi).
+    Nếu tin json mà pkl là bản khác thì UI sẽ hiển thị metric/threshold của một
+    model KHÁC với model đang thực sự dự báo.
+
+    Cách xử lý:
+    1. Dựng ``artifact_metadata`` — bản metadata suy trực tiếp từ chính artifact
+       đang dùng để inference. Đây là nguồn LUÔN đúng với model thực thi.
+    2. Nếu json không tồn tại → trả bản này.
+    3. So 3 khóa định danh (model_name, policy_id, content_fingerprint). Chỉ so
+       các khóa mà artifact có giá trị (artifact legacy thiếu fingerprint thì
+       không nên vì thế mà bị coi là lệch). Lệch bất kỳ khóa → BỎ json, dùng bản
+       từ artifact: thà thiếu thông tin phụ còn hơn hiển thị số của release khác.
+    4. Khớp → dùng json (giàu thông tin hơn) nhưng ``decision_threshold`` vẫn
+       lấy từ artifact, vì đó là ngưỡng model thật sự áp dụng khi phân loại.
+    """
     if artifact is None:
         artifact = load_model_artifact()
     artifact_metadata = {
@@ -84,8 +102,20 @@ def load_metadata(artifact: dict | None = None) -> dict:
 
 
 def _normalize_symbols(symbols: list[str]) -> list[str]:
+    """Chuẩn hoá input người dùng thành 1-5 mã hoa, đã bỏ trùng, giữ thứ tự nhập.
+
+    Thứ tự các bước có chủ đích:
+    1. Chặn kiểu sai/rỗng trước, để không phải đoán ý ở dưới.
+    2. Trim + upper từng mã, rồi bỏ trùng bằng ``not in normalized`` (không dùng
+       ``set``) để GIỮ thứ tự nhập — UI hiển thị và khối so sánh hai mã dựa vào
+       thứ tự này.
+    3. Chỉ kiểm ``> 5`` SAU khi bỏ trùng: nhập ["FPT", "fpt"] là một mã hợp lệ
+       chứ không phải hai, nên không được báo lỗi vượt hạn mức.
+
+    Giới hạn 5 mã chặn chi phí mỗi request; model vẫn inference theo batch.
+    """
     if not isinstance(symbols, (list, tuple)) or not symbols:
-        raise ValueError("Vui lòng nhập từ một đến hai mã cổ phiếu.")
+        raise ValueError("Vui lòng nhập từ một đến năm mã cổ phiếu.")
 
     normalized = []
     for symbol in symbols:
@@ -95,12 +125,23 @@ def _normalize_symbols(symbols: list[str]) -> list[str]:
         if value not in normalized:
             normalized.append(value)
 
-    if len(normalized) > 2:
-        raise ValueError("Chỉ có thể dự báo tối đa hai mã cổ phiếu mỗi lần.")
+    if len(normalized) > 5:
+        raise ValueError("Chỉ có thể dự báo tối đa năm mã cổ phiếu mỗi lần.")
     return normalized
 
 
 def _forecast_sessions(reference_date: date, *, horizon: int) -> list[dict]:
+    """Ước lượng ngày của ``horizon`` phiên tới, chỉ loại cuối tuần.
+
+    Đây là XẤP XỈ, không phải lịch giao dịch thật: ``weekday() < 5`` bỏ T7/CN
+    nhưng KHÔNG biết nghỉ lễ (Tết, 30/4, 2/9). Vì vậy mỗi phần tử mang cờ
+    ``estimated: True`` để UI nói rõ đây là ngày dự kiến. Không thể tính chính
+    xác hơn được: lịch nghỉ tương lai chưa nằm trong dataset — dataset chỉ có
+    các phiên ĐÃ xảy ra.
+
+    Nhãn UP/NOT_UP thì vẫn đúng theo "sau đúng 5 phiên giao dịch"; chỉ phần
+    NGÀY hiển thị là ước lượng.
+    """
     sessions = []
     candidate = reference_date
     while len(sessions) < horizon:
@@ -117,7 +158,30 @@ def _as_date(value) -> date:
 
 
 def predict_symbols(symbols: list[str]) -> list[dict]:
-    """Dự báo 1-2 mã bằng một lượt đọc dữ liệu, build feature và inference."""
+    """Dự báo 1-5 mã bằng một lượt đọc dữ liệu, build feature và inference.
+
+    Các điểm dễ gây nhầm khi đọc:
+
+    - ``build_features`` được gọi trên TOÀN BỘ chuỗi lịch sử của mã, không phải
+      trên một dòng cuối. Bắt buộc như vậy vì feature là cửa sổ trượt (sma50,
+      return_20d, rsi14…): thiếu lịch sử phía trước thì các cột đó là NaN và bị
+      loại, dẫn tới lỗi "không đủ dữ liệu".
+    - ``latest_by_symbol``: sau khi build, lấy đúng dòng ``trading_date`` LỚN NHẤT
+      của từng mã. Đây là dòng dùng để dự báo — feature của phiên gần nhất.
+    - Thứ tự cột: ``x_latest = latest_rows[feature_columns]`` dùng
+      ``feature_order`` từ metadata/artifact chứ không dùng thứ tự cột của
+      DataFrame. sklearn khớp feature theo VỊ TRÍ, nên lệch thứ tự sẽ cho kết quả
+      sai một cách âm thầm (không exception).
+    - ``predict_proba``: chỉ lấy cột của lớp 1 qua ``classes.index(1)``, không
+      giả định lớp UP ở cột thứ hai. Model chỉ thấy một lớp lúc fit sẽ không có
+      ``1`` trong ``classes_`` → rơi về ``model.predict`` (nhãn cứng, không có
+      Điểm UP) thay vì đọc sai cột.
+    - Ngưỡng quyết định là ``decision_threshold`` của artifact (chọn từ OOF),
+      KHÔNG phải 0.5 — nên ``predict_proba`` + so ngưỡng thủ công, không dùng
+      ``model.predict``.
+    - ``global_latest_date`` là phiên mới nhất của TOÀN dataset; so với phiên
+      mới nhất của từng mã để đặt cờ ``is_stale`` (mã ngừng cập nhật).
+    """
     normalized = _normalize_symbols(symbols)
     clean_df = _load_clean_data()
     clean_df = clean_df.copy()
@@ -222,6 +286,8 @@ def predict_symbols(symbols: list[str]) -> list[dict]:
             f"{horizon} phiên giao dịch kế tiếp là {prediction_label_vi} "
             f"(điểm lớp UP của model: {prob_text})."
         )
+        # horizon + 1 phiên: 1 phiên mốc (reference) + horizon phiên trước đó, để
+        # biểu đồ có đủ đoạn giá quá khứ nối liền với phần dự báo phía sau.
         history = (
             symbol_rows[symbol_rows["symbol"] == symbol]
             .sort_values("trading_date")

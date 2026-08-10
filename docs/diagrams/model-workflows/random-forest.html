@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Random Forest Tuning - Protocol v3</h1>
       </div>
-      <p class="subtitle">Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold</p>
+      <p class="subtitle">Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 528" role="img" aria-label="Random Forest Tuning - Protocol v3 — Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold (workflow diagram)">
+      <svg viewBox="0 0 720 652" role="img" aria-label="Random Forest Tuning - Protocol v3 — Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -526,71 +526,94 @@
 
         <!-- Swimlanes -->
         <rect x="40" y="52" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Highlighted RF hyperparameters</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / 1. Tuning Lab form (user input)</text>
 
         <rect x="40" y="176" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / TRAIN cross-validation</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / 2. Purged CV on TRAIN</text>
 
         <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Ranking + manual selection</text>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / 3. One threshold from pooled OOF</text>
+
+        <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / 4. Provenance, history</text>
 
         <!-- Edge paths -->
-        <path d="M 133 119 L 248 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 352 119 L 384 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 476 119 L 573 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 134 119 L 238 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 362 119 L 573 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path d="M 625 145 L 625 166 L 300 166 L 300 209" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 134 243 L 235 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 365 243 L 573 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path d="M 625 269 L 625 290 L 300 290 L 300 341" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 363 367 L 573 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 243 L 223 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path d="M 377 243 L 573 243" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 269 L 625 290 L 300 290 L 300 333" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 367 L 223 367" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 377 367 L 573 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 625 393 L 625 414 L 300 414 L 300 457" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 134 491 L 223 491" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path d="M 377 491 L 573 491" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
-        <rect x="43" y="93" width="90" height="52" rx="6" class="c-mask"/>
-        <rect x="43" y="93" width="90" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <rect x="42" y="93" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="93" width="92" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
         <text x="88" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">RF model</text>
-        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">balanced trees</text>
+        <text x="88" y="131" class="t-muted" font-size="8" text-anchor="middle">balanced_subsample</text>
 
-        <rect x="248" y="93" width="104" height="52" rx="6" class="c-mask"/>
-        <rect x="248" y="93" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <rect x="238" y="93" width="124" height="52" rx="6" class="c-mask"/>
+        <rect x="238" y="93" width="124" height="52" rx="6" class="c-security" stroke-width="1.5"/>
         <text x="300" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">n_estimators</text>
-        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">&gt;= 1 (baseline 130)</text>
-
-        <rect x="384" y="93" width="92" height="52" rx="6" class="c-mask"/>
-        <rect x="384" y="93" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="430" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">max_depth</text>
-        <text x="430" y="131" class="t-muted" font-size="8" text-anchor="middle">int/None (base 6)</text>
+        <text x="300" y="131" class="t-muted" font-size="8" text-anchor="middle">int &gt;= 1 (form 130)</text>
 
         <rect x="573" y="93" width="104" height="52" rx="6" class="c-mask"/>
         <rect x="573" y="93" width="104" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="625" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">min leaf</text>
-        <text x="625" y="131" class="t-muted" font-size="8" text-anchor="middle">&gt;= 1 (baseline 40)</text>
+        <text x="625" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">max_features</text>
+        <text x="625" y="131" class="t-muted" font-size="8" text-anchor="middle">sqrt/log2 or 0.25</text>
 
         <rect x="42" y="217" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="42" y="217" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">max features</text>
-        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">0.25; sqrt/log2</text>
+        <text x="88" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">depth + leaf</text>
+        <text x="88" y="255" class="t-muted" font-size="8" text-anchor="middle">None/int, &gt;= 1</text>
 
-        <rect x="235" y="209" width="130" height="68" rx="6" class="c-mask"/>
-        <rect x="235" y="209" width="130" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">One config x 4 folds</text>
-        <text x="300" y="247" class="t-muted" font-size="8" text-anchor="middle">repeat without limit</text>
-        <text x="300" y="265" class="t-backend" font-size="7" text-anchor="middle">OOF threshold</text>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="209" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="230" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">4 purged folds</text>
+        <text x="300" y="247" class="t-muted" font-size="8" text-anchor="middle">dates &gt;= 2021, gap 5</text>
+        <text x="300" y="265" class="t-backend" font-size="7" text-anchor="middle">fresh clone x4</text>
 
         <rect x="573" y="217" width="104" height="52" rx="6" class="c-mask"/>
         <rect x="573" y="217" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Fold details</text>
-        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">dates + F1/P/R</text>
+        <text x="625" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pooled OOF</text>
+        <text x="625" y="255" class="t-muted" font-size="8" text-anchor="middle">y + P(UP)</text>
 
-        <rect x="237" y="341" width="126" height="52" rx="6" class="c-mask"/>
-        <rect x="237" y="341" width="126" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="300" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Deterministic rank</text>
-        <text x="300" y="379" class="t-muted" font-size="8" text-anchor="middle">mean, std, run_id</text>
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="341" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">2 hard gates</text>
+        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">ratio, precision</text>
 
-        <rect x="573" y="333" width="104" height="68" rx="6" class="c-mask"/>
-        <rect x="573" y="333" width="104" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="625" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Best RF run</text>
-        <text x="625" y="371" class="t-muted" font-size="8" text-anchor="middle">user chooses when done</text>
-        <text x="625" y="389" class="t-database" font-size="7" text-anchor="middle">no run limit</text>
+        <rect x="223" y="333" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="333" width="154" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="300" y="354" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Pick 1 threshold</text>
+        <text x="300" y="371" class="t-muted" font-size="8" text-anchor="middle">max F1_UP, no 0.5 fallback</text>
+        <text x="300" y="389" class="t-backend" font-size="7" text-anchor="middle">0.05..0.95 step 0.01</text>
+
+        <rect x="573" y="341" width="104" height="52" rx="6" class="c-mask"/>
+        <rect x="573" y="341" width="104" height="52" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="625" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Re-score folds</text>
+        <text x="625" y="379" class="t-muted" font-size="8" text-anchor="middle">F1/P/R + std</text>
+
+        <rect x="42" y="465" width="92" height="52" rx="6" class="c-mask"/>
+        <rect x="42" y="465" width="92" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="88" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provenance</text>
+        <text x="88" y="503" class="t-muted" font-size="8" text-anchor="middle">4-fold recheck</text>
+
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-mask"/>
+        <rect x="223" y="457" width="154" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="300" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">History row</text>
+        <text x="300" y="495" class="t-muted" font-size="8" text-anchor="middle">tuning_history.csv</text>
+        <text x="300" y="513" class="t-database" font-size="7" text-anchor="middle">status ok / error</text>
+
+        <rect x="573" y="457" width="104" height="68" rx="6" class="c-mask"/>
+        <rect x="573" y="457" width="104" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="625" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">User picks run</text>
+        <text x="625" y="495" class="t-muted" font-size="8" text-anchor="middle">manual_config</text>
+        <text x="625" y="513" class="t-frontend" font-size="7" text-anchor="middle">no run limit</text>
 
         <!-- Edge labels -->
 
@@ -602,18 +625,22 @@
 
 
 
+        <rect x="163.5" y="471" width="30" height="14" rx="3" class="c-mask"/>
+        <text x="178.5" y="481" class="t-security" font-size="8" text-anchor="middle">pass</text>
+
+
         <!-- Legend -->
-        <text x="175" y="428" class="t-primary" font-size="10" font-weight="600">Legend</text>
-        <rect x="175" y="440" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="195" y="448" class="t-muted" font-size="7">User UI</text>
-        <rect x="260" y="440" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="280" y="448" class="t-muted" font-size="7">Agent logic</text>
-        <rect x="370" y="440" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="390" y="448" class="t-muted" font-size="7">Policy</text>
-        <rect x="455" y="440" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-        <text x="475" y="448" class="t-muted" font-size="7">Tool action</text>
-        <rect x="565" y="440" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="585" y="448" class="t-muted" font-size="7">Context / trace</text>
+        <text x="175" y="552" class="t-primary" font-size="10" font-weight="600">Legend</text>
+        <rect x="175" y="564" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="195" y="572" class="t-muted" font-size="7">User UI</text>
+        <rect x="260" y="564" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="280" y="572" class="t-muted" font-size="7">Agent logic</text>
+        <rect x="370" y="564" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="390" y="572" class="t-muted" font-size="7">Policy</text>
+        <rect x="455" y="564" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+        <text x="475" y="572" class="t-muted" font-size="7">Tool action</text>
+        <rect x="565" y="564" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="585" y="572" class="t-muted" font-size="7">Context / trace</text>
       </svg>
     </div>
 
@@ -622,24 +649,48 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Manual trials</h3>
+          <h3>Four tunable params</h3>
         </div>
         <ul>
-          <li>&bull; Enter any valid parameters</li>
-          <li>&bull; Repeat until satisfied</li>
-          <li>&bull; No fixed run count</li>
+          <li>&bull; n_estimators, max_depth, min_samples_leaf</li>
+          <li>&bull; max_features: sqrt, log2 or float in (0,1]</li>
+          <li>&bull; Blank max_depth means None (unbounded)</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot emerald"></div>
-          <h3>Selection</h3>
+          <div class="card-dot cyan"></div>
+          <h3>Fold contract</h3>
         </div>
         <ul>
-          <li>&bull; Only current policy and content fingerprint</li>
-          <li>&bull; Highest CV F1_UP mean wins</li>
-          <li>&bull; Lower std and lower run_id break ties</li>
+          <li>&bull; clone() per fold, fitted models discarded</li>
+          <li>&bull; Whole trading dates move together</li>
+          <li>&bull; Train labels must close before validation</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>Threshold gates</h3>
+        </div>
+        <ul>
+          <li>&bull; predicted UP ratio &lt;= 0.50</li>
+          <li>&bull; precision &gt;= OOF up_rate</li>
+          <li>&bull; No valid threshold raises, run logged as error</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot slate"></div>
+          <h3>Fixed, not tunable</h3>
+        </div>
+        <ul>
+          <li>&bull; class_weight balanced_subsample</li>
+          <li>&bull; n_jobs -1</li>
+          <li>&bull; random_state 42</li>
         </ul>
       </div>
     </div>

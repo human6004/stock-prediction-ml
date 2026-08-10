@@ -3,46 +3,64 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Final Model Selection - Protocol v3",
-    "subtitle": "CV chooses configs, VALIDATION chooses family, TEST reports once at per-model threshold"
+    "subtitle": "CV picks configs, VALIDATION picks the family, TEST is opened once at the artifact threshold"
   },
   "lanes": [
-    {"id": "tuning", "label": "TRAIN tuning"},
-    {"id": "candidates", "label": "Full TRAIN candidates"},
-    {"id": "validation", "label": "VALIDATION selection"},
-    {"id": "test", "label": "Final TEST"},
-    {"id": "release", "label": "Release and inference"}
+    {"id": "pinned", "label": "1. Pinned configs"},
+    {"id": "gate", "label": "2. Gates before fit"},
+    {"id": "cand", "label": "3. Fit on TRAIN"},
+    {"id": "valid", "label": "4. VALIDATION picks"},
+    {"id": "test", "label": "5. Refit, TEST once"},
+    {"id": "rel", "label": "6. Release, serve"}
   ],
   "nodes": [
-    {"id": "lrbest", "lane": "tuning", "col": 0, "type": "backend", "label": "Chosen LR", "sublabel": "user-picked CV run"},
-    {"id": "rfbest", "lane": "tuning", "col": 2, "type": "cloud", "label": "Chosen RF", "sublabel": "user-picked CV run"},
-    {"id": "gbbest", "lane": "tuning", "col": 5, "type": "backend", "label": "Chosen GB", "sublabel": "user-picked CV run"},
-    {"id": "lr", "lane": "candidates", "col": 0, "type": "backend", "label": "LR candidate", "sublabel": "fit all TRAIN"},
-    {"id": "rf", "lane": "candidates", "col": 2, "type": "cloud", "label": "RF candidate", "sublabel": "fit all TRAIN"},
-    {"id": "gb", "lane": "candidates", "col": 5, "type": "backend", "label": "GB candidate", "sublabel": "fit all TRAIN"},
-    {"id": "compare", "lane": "validation", "col": 2, "type": "frontend", "label": "Compare on VALIDATION", "sublabel": "F1, Recall, simplicity LR→RF→GB", "tag": "each at own threshold", "width": 154},
-    {"id": "baselinesv", "lane": "validation", "col": 5, "type": "database", "label": "Val baselines", "sublabel": "always-UP / NOT_UP", "width": 104},
-    {"id": "refit", "lane": "test", "col": 0, "type": "backend", "label": "Fresh refit", "sublabel": "TRAIN + VALIDATION", "width": 92},
-    {"id": "once", "lane": "test", "col": 2, "type": "security", "label": "TEST exactly once", "sublabel": "at artifact threshold", "tag": "locked", "width": 122},
-    {"id": "baselinest", "lane": "test", "col": 5, "type": "database", "label": "TEST baselines", "sublabel": "pass flag", "width": 104},
-    {"id": "atomic", "lane": "release", "col": 2, "type": "database", "label": "Atomic promotion", "sublabel": "exact tested artifact", "tag": "no post-TEST refit", "width": 132},
-    {"id": "ui", "lane": "release", "col": 5, "type": "frontend", "label": "UI / CLI", "sublabel": "score >= threshold is UP", "width": 104}
+    {"id": "lrsel", "lane": "pinned", "col": 0, "type": "backend", "label": "Pinned LR", "sublabel": "params + threshold", "width": 92},
+    {"id": "rfsel", "lane": "pinned", "col": 2, "type": "cloud", "label": "Pinned RF", "sublabel": "params + threshold", "width": 124},
+    {"id": "gbsel", "lane": "pinned", "col": 5, "type": "backend", "label": "Pinned GB", "sublabel": "params + threshold", "width": 104},
+
+    {"id": "lock", "lane": "gate", "col": 0, "type": "security", "label": "pipeline.lock", "sublabel": "single run", "width": 92},
+    {"id": "fpr", "lane": "gate", "col": 2, "type": "security", "label": "Fingerprint gates", "sublabel": "policy + dataset + content", "tag": "abort on mismatch", "width": 154},
+    {"id": "snap", "lane": "gate", "col": 5, "type": "security", "label": "Snapshot guard", "sublabel": "TEST not opened yet", "width": 104},
+
+    {"id": "replay", "lane": "cand", "col": 0, "type": "database", "label": "Replay CV", "sublabel": "no re-CV here", "width": 92},
+    {"id": "fit3", "lane": "cand", "col": 2, "type": "backend", "label": "Fit LR / RF / GB", "sublabel": "full TRAIN, own threshold", "tag": "GB balanced weights", "width": 154},
+    {"id": "feat", "lane": "cand", "col": 5, "type": "database", "label": "20 features", "sublabel": "fixed order", "width": 104},
+
+    {"id": "vbase", "lane": "valid", "col": 0, "type": "database", "label": "Val baselines", "sublabel": "always UP / NOT_UP", "width": 92},
+    {"id": "rank", "lane": "valid", "col": 2, "type": "frontend", "label": "Rank on VALIDATION", "sublabel": "F1_UP, Recall_UP, LR<RF<GB", "tag": "each at own threshold", "width": 154},
+    {"id": "abort", "lane": "valid", "col": 5, "type": "security", "label": "Abort run", "sublabel": "no TEST touched", "width": 104},
+
+    {"id": "started", "lane": "test", "col": 0, "type": "security", "label": "Registry", "sublabel": "started", "width": 92},
+    {"id": "refit", "lane": "test", "col": 2, "type": "backend", "label": "Fresh refit of winner", "sublabel": "TRAIN + VALIDATION", "tag": "same threshold", "width": 154},
+    {"id": "once", "lane": "test", "col": 5, "type": "security", "label": "TEST once", "sublabel": "warn on baseline", "width": 104},
+
+    {"id": "reports", "lane": "rel", "col": 1, "type": "database", "label": "Reports", "sublabel": "written first", "width": 92},
+    {"id": "release", "lane": "rel", "col": 3, "type": "cloud", "label": "Atomic release", "sublabel": "pkl + metadata together", "tag": "registry: published", "width": 154},
+    {"id": "serve", "lane": "rel", "col": 5, "type": "frontend", "label": "UI / CLI", "sublabel": "P(UP) >= threshold", "width": 104}
   ],
   "edges": [
-    {"from": "lrbest", "to": "lr", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "rfbest", "to": "rf", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "gbbest", "to": "gb", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "lr", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "rf", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "gb", "to": "compare", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "baselinesv", "to": "compare", "variant": "dashed"},
-    {"from": "compare", "to": "refit", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "lrsel", "to": "rfsel"},
+    {"from": "rfsel", "to": "gbsel"},
+    {"from": "gbsel", "to": "fpr", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "lock", "to": "fpr", "variant": "security"},
+    {"from": "fpr", "to": "snap", "variant": "security"},
+    {"from": "snap", "to": "fit3", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "replay", "to": "fit3"},
+    {"from": "fit3", "to": "feat", "variant": "dashed"},
+    {"from": "fit3", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "vbase", "to": "rank", "variant": "dashed"},
+    {"from": "rank", "to": "abort", "variant": "security", "label": "not better"},
+    {"from": "rank", "to": "refit", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "label": "winner", "labelDy": 20},
+    {"from": "started", "to": "refit", "variant": "security"},
     {"from": "refit", "to": "once", "variant": "emphasis"},
-    {"from": "once", "to": "baselinest"},
-    {"from": "once", "to": "atomic", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "atomic", "to": "ui", "variant": "emphasis"}
+    {"from": "once", "to": "release", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "reports", "to": "release", "variant": "dashed"},
+    {"from": "release", "to": "serve", "variant": "emphasis"}
   ],
   "cards": [
-    {"dot": "emerald", "title": "Selection boundary", "items": ["CV selects one config inside each family", "VALIDATION selects the family", "TEST never participates in ranking"]},
-    {"dot": "rose", "title": "Release rules", "items": ["Winner is fit fresh on TRAIN plus VALIDATION", "The exact tested object is promoted", "A failed pipeline keeps the active final model"]}
+    {"dot": "emerald", "title": "Selection boundary", "items": ["CV picks one config inside each family", "VALIDATION picks the family, TEST never ranks", "No refit and no threshold tuning after TEST"]},
+    {"dot": "rose", "title": "Baselines are asymmetric", "items": ["VALIDATION: losing to a constant baseline aborts", "TEST: losing only writes a warning flag", "Re-running on TEST would leak, so it never happens"]},
+    {"dot": "amber", "title": "One-shot registry", "items": ["started is written before TEST is scored", "started, evaluated, published, release_failed all count as opened", "A crash burns the snapshot; new data is required to retry"]},
+    {"dot": "violet", "title": "Release ordering gap", "items": ["Reports land before the artifact is published", "A failed release keeps the old pkl but stale reports", "Metadata identity is cross-checked at load time"]}
   ]
 }

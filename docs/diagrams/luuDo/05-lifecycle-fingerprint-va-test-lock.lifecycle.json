@@ -3,7 +3,7 @@
   "diagram_type": "lifecycle",
   "meta": {
     "title": "Lifecycle — Snapshot dataset đến release",
-    "subtitle": "Vòng đời fingerprint: refresh, CV/config, VALIDATION gate, TEST một lần và các trạng thái evaluation_registry",
+    "subtitle": "Vòng đời fingerprint: refresh, CV/config ở Tuning Lab, VALIDATION gate, TEST một lần và 4 trạng thái evaluation_registry (không còn file TEST lock riêng)",
     "output": "docs/diagrams/luuDo/05-lifecycle-fingerprint-va-test-lock.html",
     "viewBox": [1000, 700]
   },
@@ -44,18 +44,18 @@
       "dot": "cyan",
       "title": "Hai fingerprint khác scope",
       "items": [
-        "TRAIN fingerprint gắn tuning history và manual_config.json",
-        "Experiment fingerprint gắn snapshot TRAIN+VALIDATION+TEST và evaluation_registry.json",
-        "Dataset refresh mới sinh fingerprint mới; config cũ stale, phải CV và chọn lại 3 run"
+        "TRAIN fingerprint (scope train) gắn tuning history và manual_config.json",
+        "Experiment fingerprint (scope experiment) gắn snapshot TRAIN+VALIDATION+TEST và evaluation_registry.json",
+        "Boundary rolling tính từ phiên mới nhất (TEST 94 ngày, VALIDATION 274 ngày) nên refresh mới sinh fingerprint mới; config cũ stale, phải CV và chọn lại 3 run ở Tuning Lab"
       ]
     },
     {
       "dot": "rose",
       "title": "Gate trước khi chạm TEST",
       "items": [
-        "Preflight cần đủ 3 config đúng schema/policy và khớp TRAIN fingerprint hiện tại",
-        "Snapshot đã có entry trong registry (started/evaluated/published/release_failed) không chạy lại TEST",
-        "Winner không vượt baseline tốt nhất trên VALIDATION → dừng trước TEST, release cũ vẫn phục vụ"
+        "Preflight cần đủ 3 config đúng schema_version 4 / policy rolling_recent_cv_oof_threshold và khớp TRAIN fingerprint hiện tại",
+        "Snapshot đã có entry trong registry (started/evaluated/published/release_failed) không chạy lại TEST — guard chạy 2 lần, trước và sau khi ghi ml_dataset.csv",
+        "Không còn file TEST lock riêng và không còn env escape hatch; registry là gate duy nhất"
       ]
     },
     {
@@ -64,7 +64,8 @@
       "items": [
         "started: đã qua VALIDATION gate, chuẩn bị chạm TEST",
         "evaluated: refit TRAIN+VALIDATION và chấm TEST đúng một lần",
-        "published: atomic release model + metadata; lỗi promotion → rollback và release_failed"
+        "published: atomic release model + metadata; lỗi bất kỳ sau started → release_failed",
+        "Cả 4 status đều bị coi là snapshot đã tiêu: release_failed cháy fingerprint vĩnh viễn, chạy lại phải sửa tay evaluation_registry.json hoặc refresh dataset"
       ]
     }
   ]

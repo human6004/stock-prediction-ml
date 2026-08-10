@@ -3,36 +3,48 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Gradient Boosting Tuning - Protocol v3",
-    "subtitle": "Unlimited manual trials, 4-fold purged date CV, OOF-tuned decision threshold"
+    "subtitle": "Tuning Lab: unlimited manual trials, 4-fold purged date CV, one OOF decision threshold"
   },
   "lanes": [
-    {"id": "params", "label": "Highlighted GB hyperparameters"},
-    {"id": "cv", "label": "TRAIN cross-validation"},
-    {"id": "result", "label": "Ranking + manual selection"}
+    {"id": "form", "label": "1. Tuning Lab form (user input)"},
+    {"id": "cv", "label": "2. Purged CV on TRAIN"},
+    {"id": "thr", "label": "3. One threshold from pooled OOF"},
+    {"id": "store", "label": "4. Provenance, history"}
   ],
   "nodes": [
-    {"id": "gb", "lane": "params", "col": 0, "type": "backend", "label": "GB model", "sublabel": "balanced weights", "width": 90},
-    {"id": "trees", "lane": "params", "col": 2, "type": "security", "label": "n_estimators", "sublabel": "120; 60/180/240", "width": 104},
-    {"id": "rate", "lane": "params", "col": 3, "type": "security", "label": "learning_rate", "sublabel": "(0,1] (baseline 0.2)", "width": 96},
-    {"id": "depth", "lane": "params", "col": 5, "type": "security", "label": "max_depth", "sublabel": ">= 1 (baseline 2)", "width": 104},
-    {"id": "sample", "lane": "cv", "col": 0, "type": "security", "label": "subsample", "sublabel": "(0,1] (baseline 0.9)", "width": 92},
-    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "One config x 4 folds", "sublabel": "repeat without limit", "tag": "OOF threshold", "width": 130},
-    {"id": "metrics", "lane": "cv", "col": 5, "type": "frontend", "label": "Fold details", "sublabel": "dates + F1/P/R", "width": 104},
-    {"id": "rank", "lane": "result", "col": 2, "type": "backend", "label": "Deterministic rank", "sublabel": "mean, std, run_id", "width": 126},
-    {"id": "best", "lane": "result", "col": 5, "type": "database", "label": "Best GB run", "sublabel": "user chooses when done", "tag": "no run limit", "width": 104}
+    {"id": "gb", "lane": "form", "col": 0, "type": "backend", "label": "GB model", "sublabel": "sample_weight fit", "width": 92},
+    {"id": "trees", "lane": "form", "col": 2, "type": "security", "label": "n_estimators", "sublabel": "int >= 1 (form 120)", "width": 124},
+    {"id": "sub", "lane": "form", "col": 5, "type": "security", "label": "subsample", "sublabel": "(0,1] (form 0.9)", "width": 104},
+
+    {"id": "depth", "lane": "cv", "col": 0, "type": "security", "label": "rate + depth", "sublabel": "(0,1], int >= 1", "width": 92},
+    {"id": "folds", "lane": "cv", "col": 2, "type": "backend", "label": "4 purged folds", "sublabel": "dates >= 2021, gap 5", "tag": "balanced weights", "width": 154},
+    {"id": "oof", "lane": "cv", "col": 5, "type": "frontend", "label": "Pooled OOF", "sublabel": "y + P(UP)", "width": 104},
+
+    {"id": "gates", "lane": "thr", "col": 0, "type": "security", "label": "2 hard gates", "sublabel": "ratio, precision", "width": 92},
+    {"id": "pick", "lane": "thr", "col": 2, "type": "backend", "label": "Pick 1 threshold", "sublabel": "max F1_UP, no 0.5 fallback", "tag": "0.05..0.95 step 0.01", "width": 154},
+    {"id": "refold", "lane": "thr", "col": 5, "type": "frontend", "label": "Re-score folds", "sublabel": "F1/P/R + std", "width": 104},
+
+    {"id": "prov", "lane": "store", "col": 0, "type": "security", "label": "Provenance", "sublabel": "4-fold recheck", "width": 92},
+    {"id": "hist", "lane": "store", "col": 2, "type": "database", "label": "History row", "sublabel": "tuning_history.csv", "tag": "status ok / error", "width": 154},
+    {"id": "use", "lane": "store", "col": 5, "type": "frontend", "label": "User picks run", "sublabel": "manual_config", "tag": "no run limit", "width": 104}
   ],
   "edges": [
     {"from": "gb", "to": "trees"},
-    {"from": "trees", "to": "rate"},
-    {"from": "rate", "to": "depth"},
-    {"from": "depth", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "sample", "to": "folds"},
-    {"from": "folds", "to": "metrics"},
-    {"from": "metrics", "to": "rank", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
-    {"from": "rank", "to": "best", "variant": "emphasis"}
+    {"from": "trees", "to": "sub"},
+    {"from": "sub", "to": "folds", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "depth", "to": "folds"},
+    {"from": "folds", "to": "oof", "variant": "emphasis"},
+    {"from": "oof", "to": "pick", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "gates", "to": "pick", "variant": "security"},
+    {"from": "pick", "to": "refold", "variant": "emphasis"},
+    {"from": "refold", "to": "hist", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop"},
+    {"from": "prov", "to": "hist", "variant": "security", "label": "pass"},
+    {"from": "hist", "to": "use", "variant": "emphasis"}
   ],
   "cards": [
-    {"dot": "rose", "title": "Parameters highlighted", "items": ["n_estimators sets boosting stages", "learning_rate scales each stage", "max_depth and subsample control complexity"]},
-    {"dot": "cyan", "title": "Fold contract", "items": ["Fresh clone in every fold", "Five trading-session gap", "No label overlap with validation"]}
+    {"dot": "rose", "title": "Four tunable params", "items": ["n_estimators sets boosting stages", "learning_rate scales each stage", "max_depth and subsample control complexity"]},
+    {"dot": "violet", "title": "Class balance is special", "items": ["GradientBoosting has no class_weight param", "Balance comes from sample_weight at fit time", "Same weighting in CV folds and full-TRAIN fit"]},
+    {"dot": "amber", "title": "Threshold gates", "items": ["predicted UP ratio <= 0.50", "precision >= OOF up_rate", "No valid threshold raises, run logged as error"]},
+    {"dot": "slate", "title": "Fixed, not tunable", "items": ["random_state 42", "Fresh clone per fold, models discarded", "Only (y, P(UP)) survives the fold loop"]}
   ]
 }
