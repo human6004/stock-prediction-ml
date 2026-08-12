@@ -31,6 +31,9 @@ Thumbs.db
 # Bản sao thủ công do Explorer sinh ra
 * - Copy.*
 
+# File khóa tạm của Microsoft Word khi đang mở .docx
+~$*
+
 # Generated pipeline outputs kept out unless intentionally committed
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
