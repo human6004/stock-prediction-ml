@@ -2,7 +2,8 @@
 
 Repo khong cai duoc python-docx (pip khong co temp dir kha dung), nen module nay
 sinh truc tiep WordprocessingML: styles theo guideline CT239H, heading 4 cap,
-field TOC/PAGE tu dong, bang co border va anh PNG nhung kem caption SEQ.
+field TOC/PAGE tu dong, bang kieu booktabs, cong thuc toan OMML (Word equation)
+va anh PNG nhung kem caption SEQ.
 """
 
 from __future__ import annotations
@@ -16,14 +17,91 @@ from xml.sax.saxutils import escape
 
 EMU_PER_CM = 360000
 MAX_IMAGE_WIDTH_CM = 15.5
+# Chieu rong vung chu voi le trai 3cm / phai 2cm tren kho A4 (twips).
+TEXT_WIDTH_TWIPS = 9072
 
 NS = (
     'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
     'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+    'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" '
     'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
     'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
     'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"'
 )
+
+MATH_FONT = '<w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr>'
+
+
+class M:
+    """Cac khoi OMML co ban, dung nhu mini-DSL kieu LaTeX cho content_*.py.
+
+    Moi ham tra ve mot chuoi XML OMML; ghep chuoi la ghep bieu thuc theo chieu
+    ngang. Quy uoc: bien viet nghieng (mac dinh cua math run), ten ham va chu
+    tieng Viet dung ``M.t`` de ra chu dung (upright).
+    """
+
+    @staticmethod
+    def r(text: str) -> str:
+        """Math run nghieng mac dinh (bien, toan tu)."""
+        return f'<m:r>{MATH_FONT}<m:t xml:space="preserve">{escape(text)}</m:t></m:r>'
+
+    @staticmethod
+    def t(text: str) -> str:
+        """Math run CHU DUNG cho ten ham (log, std, max) va chu thich."""
+        return (
+            '<m:r><m:rPr><m:sty m:val="p"/></m:rPr>'
+            f'{MATH_FONT}<m:t xml:space="preserve">{escape(text)}</m:t></m:r>'
+        )
+
+    @staticmethod
+    def frac(num: str, den: str) -> str:
+        return f"<m:f><m:num>{num}</m:num><m:den>{den}</m:den></m:f>"
+
+    @staticmethod
+    def sub(base: str, subscript: str) -> str:
+        return f"<m:sSub><m:e>{base}</m:e><m:sub>{subscript}</m:sub></m:sSub>"
+
+    @staticmethod
+    def sup(base: str, superscript: str) -> str:
+        return f"<m:sSup><m:e>{base}</m:e><m:sup>{superscript}</m:sup></m:sSup>"
+
+    @staticmethod
+    def subsup(base: str, subscript: str, superscript: str) -> str:
+        return (
+            f"<m:sSubSup><m:e>{base}</m:e><m:sub>{subscript}</m:sub>"
+            f"<m:sup>{superscript}</m:sup></m:sSubSup>"
+        )
+
+    @staticmethod
+    def paren(body: str, *, beg: str = "(", end: str = ")") -> str:
+        pr = ""
+        if beg != "(" or end != ")":
+            pr = f'<m:begChr m:val="{escape(beg)}"/><m:endChr m:val="{escape(end)}"/>'
+        return f"<m:d><m:dPr>{pr}</m:dPr><m:e>{body}</m:e></m:d>"
+
+    @staticmethod
+    def total(lo: str, hi: str, body: str) -> str:
+        """Tong sigma voi can duoi/tren dat tren-duoi (nhu \\sum cua LaTeX)."""
+        sup_hide = '<m:supHide m:val="1"/>' if not hi else ""
+        sup_part = f"<m:sup>{hi}</m:sup>" if hi else "<m:sup/>"
+        return (
+            '<m:nary><m:naryPr><m:chr m:val="\u2211"/><m:limLoc m:val="undOvr"/>'
+            f'<m:grow m:val="1"/>{sup_hide}</m:naryPr>'
+            f"<m:sub>{lo}</m:sub>{sup_part}<m:e>{body}</m:e></m:nary>"
+        )
+
+    @staticmethod
+    def cases(rows: list[str]) -> str:
+        """Dinh nghia theo truong hop, dau ngoac nhon mot ben nhu \\begin{cases}."""
+        arr = "".join(f"<m:e>{row}</m:e>" for row in rows)
+        return (
+            '<m:d><m:dPr><m:begChr m:val="{"/><m:endChr m:val=""/></m:dPr>'
+            f"<m:e><m:eqArr>{arr}</m:eqArr></m:e></m:d>"
+        )
+
+    @staticmethod
+    def norm(body: str) -> str:
+        return M.paren(body, beg="\u2016", end="\u2016")
 
 
 def png_size(path: Path) -> tuple[int, int]:
@@ -41,7 +119,6 @@ class DocxBuilder:
     body: list[str] = field(default_factory=list)
     images: list[tuple[str, Path]] = field(default_factory=list)
     _image_ids: dict[str, str] = field(default_factory=dict)
-    header_text: str = "De tai: "
     _drawing_id: int = 0
     _caption_prefix: str | None = None
     _caption_reset: set[str] = field(default_factory=set)
@@ -113,10 +190,44 @@ class DocxBuilder:
     def page_break(self) -> None:
         self.body.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
 
+    # ---------- math ----------
+    def equation(self, body: str, number: str | None = None) -> None:
+        """Cong thuc hien thi kieu LaTeX: can giua dong, so thu tu can phai.
+
+        ``body`` la chuoi OMML ghep tu cac khoi ``M.*``. Tab giua (vi tri nua
+        chieu rong vung chu) can giua bieu thuc, tab phai day so cong thuc ra
+        sat le phai — dung layout cua \\begin{equation}.
+        """
+        center = TEXT_WIDTH_TWIPS // 2
+        tabs = (
+            f'<w:tabs><w:tab w:val="center" w:pos="{center}"/>'
+            f'<w:tab w:val="right" w:pos="{TEXT_WIDTH_TWIPS}"/></w:tabs>'
+        )
+        number_runs = ""
+        if number:
+            number_runs = "<w:r><w:tab/></w:r>" + self._run(f"({number})")
+        self.body.append(
+            f'<w:p><w:pPr><w:pStyle w:val="Equation"/>{tabs}</w:pPr>'
+            f"<w:r><w:tab/></w:r><m:oMath>{body}</m:oMath>{number_runs}</w:p>"
+        )
+
+    def where(self, text: str) -> None:
+        """Dong 'trong do ...' giai thich ky hieu ngay duoi cong thuc."""
+        self.body.append(
+            '<w:p><w:pPr><w:ind w:left="284" w:right="0" w:firstLine="0"/>'
+            '<w:spacing w:after="80"/></w:pPr>'
+            + self._run(text, italic=False)
+            + "</w:p>"
+        )
+
     # ---------- fields ----------
     def _field(self, instruction: str, placeholder: str) -> str:
+        # KHONG dat w:dirty="true": co nay bat Word tinh lai field ngay trong
+        # luc dan trang, voi field PAGE o footer se gay vong lap repagination
+        # lam ExportAsFixedFormat (xuat PDF) treo vo han. settings.xml da co
+        # <w:updateFields w:val="true"/> de Word tu cap nhat field khi mo file.
         return (
-            '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
+            '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
             f'<w:r><w:instrText xml:space="preserve"> {escape(instruction)} </w:instrText></w:r>'
             '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
             f'<w:r><w:t>{escape(placeholder)}</w:t></w:r>'
@@ -169,13 +280,17 @@ class DocxBuilder:
         self._caption_reset = {"Bang", "Hinh"}
         self._caption_counter = {}
 
-    def caption(self, seq_name: str, text: str) -> None:
+    def caption(self, seq_name: str, text: str, *, keep_next: bool = False) -> None:
         """Caption dung field SEQ nen Word tu danh so va sinh danh muc.
 
         So thu tu ke thua so chuong theo quy dinh CT239H: caption in ra
         "Bang 2.1" bang cach ghep tien to chuong (van ban thuong) voi field SEQ
         duoc reset o dau moi chuong. Doan van van chua field SEQ nen truong
         TOC \\c "Bang" va TOC \\c "Hinh" tiep tuc sinh duoc danh muc.
+
+        Kieu LaTeX: nhan va so ("Bang 2.1.") in dam, phan mo ta chu thuong.
+        ``keep_next`` dung cho caption DAT TREN bang de caption khong bi tach
+        khoi bang khi sang trang.
         """
         label = self.LABELS.get(seq_name, seq_name)
         instruction = f"SEQ {seq_name} \\* ARABIC"
@@ -187,11 +302,20 @@ class DocxBuilder:
             self._caption_counter[seq_name] = self._caption_counter.get(seq_name, 0) + 1
         number = str(self._caption_counter[seq_name])
         prefix = f"{self._caption_prefix}." if self._caption_prefix else ""
+        keep = "<w:keepNext/>" if keep_next else ""
+        bold_field = (
+            '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>'
+            f'<w:r><w:rPr><w:b/></w:rPr><w:instrText xml:space="preserve"> {escape(instruction)} </w:instrText></w:r>'
+            '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>'
+            f'<w:r><w:rPr><w:b/></w:rPr><w:t>{escape(number)}</w:t></w:r>'
+            '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>'
+        )
         self.body.append(
-            '<w:p><w:pPr><w:pStyle w:val="Caption"/><w:jc w:val="center"/></w:pPr>'
-            + self._run(f"{label} {prefix}")
-            + self._field(instruction, number)
-            + self._run(f". {text}")
+            f'<w:p><w:pPr><w:pStyle w:val="Caption"/>{keep}<w:jc w:val="center"/></w:pPr>'
+            + self._run(f"{label} {prefix}", bold=True)
+            + bold_field
+            + self._run(".", bold=True)
+            + self._run(f" {text}")
             + "</w:p>"
         )
 
@@ -204,8 +328,12 @@ class DocxBuilder:
         widths: list[int] | None = None,
         caption: str | None = None,
     ) -> None:
+        """Bang kieu booktabs cua LaTeX: chi co ba duong ke ngang (toprule dam,
+        midrule manh duoi hang tieu de, bottomrule dam), khong ke doc, khong to
+        nen. Caption dat TREN bang theo dung quy uoc bang cua LaTeX.
+        """
         if caption:
-            self.caption("Bang", caption)
+            self.caption("Bang", caption, keep_next=True)
         column_count = len(header)
         widths = widths or [round(9070 / column_count)] * column_count
         grid = "".join(f'<w:gridCol w:w="{w}"/>' for w in widths)
@@ -213,13 +341,13 @@ class DocxBuilder:
             "<w:tbl><w:tblPr>"
             '<w:tblW w:w="5000" w:type="pct"/>'
             "<w:tblBorders>"
-            '<w:top w:val="single" w:sz="4" w:color="808080"/>'
-            '<w:left w:val="single" w:sz="4" w:color="808080"/>'
-            '<w:bottom w:val="single" w:sz="4" w:color="808080"/>'
-            '<w:right w:val="single" w:sz="4" w:color="808080"/>'
-            '<w:insideH w:val="single" w:sz="4" w:color="808080"/>'
-            '<w:insideV w:val="single" w:sz="4" w:color="808080"/>'
+            '<w:top w:val="single" w:sz="12" w:color="000000"/>'
+            '<w:bottom w:val="single" w:sz="12" w:color="000000"/>'
             "</w:tblBorders>"
+            '<w:tblCellMar>'
+            '<w:top w:w="50" w:type="dxa"/><w:bottom w:w="50" w:type="dxa"/>'
+            '<w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/>'
+            "</w:tblCellMar>"
             '<w:tblLayout w:type="fixed"/>'
             "</w:tblPr>"
             f"<w:tblGrid>{grid}</w:tblGrid>"
@@ -234,13 +362,16 @@ class DocxBuilder:
     def _table_row(self, cells: list[str], widths: list[int], *, header=False) -> str:
         parts = ["<w:tr>"]
         if header:
-            parts.insert(1, '<w:trPr><w:tblHeader/></w:trPr>')
+            parts.insert(1, "<w:trPr><w:tblHeader/></w:trPr>")
         for index, cell in enumerate(cells):
-            shading = (
-                '<w:shd w:val="clear" w:color="auto" w:fill="EDEDED"/>' if header else ""
+            # Midrule cua booktabs: duong ke manh duy nhat nam duoi hang tieu de.
+            borders = (
+                '<w:tcBorders><w:bottom w:val="single" w:sz="6" w:color="000000"/></w:tcBorders>'
+                if header
+                else ""
             )
             parts.append(
-                f'<w:tc><w:tcPr><w:tcW w:w="{widths[index]}" w:type="dxa"/>{shading}'
+                f'<w:tc><w:tcPr><w:tcW w:w="{widths[index]}" w:type="dxa"/>{borders}'
                 "</w:tcPr>"
                 '<w:p><w:pPr><w:pStyle w:val="TableText"/></w:pPr>'
                 f"{self._run(cell, bold=header)}</w:p></w:tc>"
@@ -300,14 +431,15 @@ class DocxBuilder:
 
     # ---------- package ----------
     def _document_xml(self) -> str:
+        # Le theo dung template CT239H: trai 3cm, tren/phai/duoi 2cm, kho A4.
         sect_pr = (
             "<w:sectPr>"
             '<w:headerReference w:type="default" r:id="rIdHeader"/>'
             '<w:footerReference w:type="default" r:id="rIdFooter"/>'
             '<w:titlePg/>'
-            '<w:pgSz w:w="11906" w:h="16838"/>'
-            '<w:pgMar w:top="1189" w:right="1018" w:bottom="1080" w:left="1980" '
-            'w:header="586" w:footer="432" w:gutter="0"/>'
+            '<w:pgSz w:w="11907" w:h="16840"/>'
+            '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1701" '
+            'w:header="720" w:footer="576" w:gutter="0"/>'
             '<w:pgNumType w:start="1"/><w:cols w:space="720"/>'
             "</w:sectPr>"
         )
@@ -433,12 +565,12 @@ STYLES_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:rFonts w:ascii="Times New Roman" w:eastAsia="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
 <w:color w:val="000000"/><w:sz w:val="26"/><w:szCs w:val="26"/><w:lang w:val="vi-VN"/>
 </w:rPr></w:rPrDefault>
-<w:pPrDefault><w:pPr><w:spacing w:after="5" w:line="303" w:lineRule="auto"/>
+<w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/>
 <w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
 <w:name w:val="Normal"/><w:qFormat/>
-<w:pPr><w:spacing w:after="5" w:line="303" w:lineRule="auto"/>
-<w:ind w:left="0" w:right="0" w:firstLine="537"/><w:jc w:val="both"/></w:pPr>
+<w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/>
+<w:ind w:left="0" w:right="0" w:firstLine="567"/><w:jc w:val="both"/></w:pPr>
 <w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
 <w:color w:val="000000"/><w:sz w:val="26"/></w:rPr>
 </w:style>
@@ -472,14 +604,38 @@ STYLES_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </w:style>
 <w:style w:type="paragraph" w:styleId="TOC1">
 <w:name w:val="toc 1"/><w:uiPriority w:val="39"/>
-<w:pPr><w:spacing w:after="95"/><w:ind w:left="25" w:right="129" w:hanging="10"/></w:pPr>
+<w:pPr><w:spacing w:after="95" w:line="240" w:lineRule="auto"/>
+<w:ind w:left="25" w:right="129" w:hanging="10"/></w:pPr>
 <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="24"/></w:rPr>
+</w:style>
+<w:style w:type="paragraph" w:styleId="TOC2">
+<w:name w:val="toc 2"/><w:uiPriority w:val="39"/>
+<w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+<w:ind w:left="240" w:right="129" w:firstLine="0"/></w:pPr>
+<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="24"/></w:rPr>
+</w:style>
+<w:style w:type="paragraph" w:styleId="TOC3">
+<w:name w:val="toc 3"/><w:uiPriority w:val="39"/>
+<w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+<w:ind w:left="480" w:right="129" w:firstLine="0"/></w:pPr>
+<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="24"/></w:rPr>
+</w:style>
+<w:style w:type="paragraph" w:styleId="TOC4">
+<w:name w:val="toc 4"/><w:uiPriority w:val="39"/>
+<w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/>
+<w:ind w:left="720" w:right="129" w:firstLine="0"/></w:pPr>
+<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="24"/></w:rPr>
 </w:style>
 <w:style w:type="paragraph" w:styleId="Caption">
 <w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>
 <w:pPr><w:jc w:val="center"/><w:ind w:left="0" w:right="0" w:firstLine="0"/>
 <w:spacing w:before="60" w:after="180" w:line="240" w:lineRule="auto"/></w:pPr>
-<w:rPr><w:i/><w:sz w:val="24"/></w:rPr>
+<w:rPr><w:sz w:val="24"/></w:rPr>
+</w:style>
+<w:style w:type="paragraph" w:styleId="Equation">
+<w:name w:val="Equation"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+<w:pPr><w:jc w:val="left"/><w:ind w:left="0" w:right="0" w:firstLine="0"/>
+<w:spacing w:before="80" w:after="120" w:line="276" w:lineRule="auto"/></w:pPr>
 </w:style>
 <w:style w:type="paragraph" w:styleId="TableText">
 <w:name w:val="Table Text"/><w:basedOn w:val="Normal"/>
@@ -491,7 +647,8 @@ STYLES_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:name w:val="Code Block"/><w:basedOn w:val="Normal"/>
 <w:pPr><w:jc w:val="left"/><w:ind w:left="284" w:right="0" w:firstLine="0"/>
 <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
-<w:shd w:val="clear" w:color="auto" w:fill="F4F4F4"/></w:pPr>
+<w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="BFBFBF"/></w:pBdr>
+<w:shd w:val="clear" w:color="auto" w:fill="F7F7F7"/></w:pPr>
 <w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/></w:rPr>
 </w:style>
 <w:style w:type="paragraph" w:styleId="CoverTitle">

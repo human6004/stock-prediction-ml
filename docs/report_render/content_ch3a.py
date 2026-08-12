@@ -110,7 +110,8 @@ def build_srs(doc: DocxBuilder, assets) -> None:
 
     doc.heading(3, "3.1.3. Yêu cầu cụ thể")
     doc.paragraph(
-        "Bài toán được đặc tả bằng bốn quy tắc bắt buộc, mọi thành phần trong hệ thống đều "
+        "Bài toán được đặc tả bằng bốn quy tắc bắt buộc, chính là các công thức (2.1) đến "
+        "(2.3) ở chương 2 viết dưới dạng hợp đồng cài đặt; mọi thành phần trong hệ thống đều "
         "phải tuân theo cùng một định nghĩa:"
     )
     doc.code_block(

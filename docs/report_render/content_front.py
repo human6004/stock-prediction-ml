@@ -79,16 +79,16 @@ def build_work_assignment(doc: DocxBuilder) -> None:
     doc.paragraph(
         "Niên luận do một sinh viên thực hiện, nên toàn bộ các công việc dưới đây đều thuộc "
         "trách nhiệm của cá nhân. Bảng này ghi lại các nhóm công việc chính và sản phẩm "
-        "tương ứng để thuần tiện đối chiếu với nội dung báo cáo."
+        "tương ứng để thuận tiện đối chiếu với nội dung báo cáo."
     )
     doc.table(
         ["STT", "Công việc", "Người thực hiện", "Sản phẩm"],
         [
-            ["1", "Thu thập và làm sạch dự liệu OHLCV HOSE",
+            ["1", "Thu thập và làm sạch dữ liệu OHLCV HOSE",
              f"{SINH_VIEN} ({MSSV})", "scripts/fetch_hose_data.py, services/preprocessing.py"],
             ["2", "Sinh 20 đặc trưng kỹ thuật và gán nhãn t+5",
              f"{SINH_VIEN} ({MSSV})", "services/feature_engineering.py, ml_dataset.csv"],
-            ["3", "Thiết kế giao thức chống rò rỉ và chia dự liệu",
+            ["3", "Thiết kế giao thức chống rò rỉ và chia dữ liệu",
              f"{SINH_VIEN} ({MSSV})", "services/protocol_dates.py, services/time_splitting.py"],
             ["4", "Tinh chỉnh siêu tham số ba mô hình",
              f"{SINH_VIEN} ({MSSV})", "services/model_tuning.py, services/tuning_lab.py"],
@@ -96,8 +96,8 @@ def build_work_assignment(doc: DocxBuilder) -> None:
              f"{SINH_VIEN} ({MSSV})", "services/model_evaluation.py, scripts/run_pipeline.py"],
             ["6", "Xây dựng ứng dụng web Flask và chatbot",
              f"{SINH_VIEN} ({MSSV})", "app.py, templates/, services/chatbot_*.py"],
-            ["7", "Viết kiểm thứ tự động và tài liệu",
-             f"{SINH_VIEN} ({MSSV})", "tests/ (183 ca), docs/, báo cáo này"],
+            ["7", "Viết kiểm thử tự động và tài liệu",
+             f"{SINH_VIEN} ({MSSV})", "tests/ (153 ca kiểm thử), docs/, báo cáo này"],
         ],
         widths=[700, 3500, 2100, 2670],
         caption="Phân công công việc trong niên luận",

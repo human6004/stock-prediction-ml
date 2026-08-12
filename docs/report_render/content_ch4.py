@@ -73,7 +73,7 @@ def build_chapter4(doc: DocxBuilder) -> None:
             "Mã nguồn hệ thống gồm config, services, scripts, templates, static và app.py.",
             "Bộ dữ liệu đã xử lý: hose_stock_clean.csv, hose_stock_features.csv, ml_dataset.csv.",
             "Hiện vật mô hình: models/final_model.pkl và models/model_metadata.json.",
-            "Mười bốn tệp báo cáo trong thư mục reports, gồm tuning_results.csv, "
+            "Mười bảy tệp báo cáo trong thư mục reports, gồm tuning_results.csv, "
             "cv_fold_results.csv, model_comparison.csv, final_model_evaluation.csv, "
             "classification_report.csv, confusion_matrix.csv/png, feature_importance.csv, "
             "split_summary.csv, pipeline_summary.json và model_selection_report.txt.",
@@ -171,11 +171,12 @@ def build_appendices(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
     doc.code_block(
         "python -m venv .venv\n"
         ".\\.venv\\Scripts\\Activate.ps1\n"
-        "pip install -r requirements.txt"
+        "pip install -r requirements.txt        # hoac requirements.lock.txt\n"
+        "                                       # de tai tao dung moi truong da kiem chung"
     )
     doc.paragraph(
-        "Tệp .env cần hai biến LLM_BASE_URL và LLM_API_KEY nếu muốn dùng chatbot; các chức "
-        "năng dự báo, so sánh, xếp hạng và đánh giá không cần cấu hình này."
+        "Tệp .env cần ba biến LLM_BASE_URL, LLM_API_KEY và LLM_MODEL nếu muốn dùng chatbot; "
+        "các chức năng dự báo, so sánh, xếp hạng và đánh giá không cần cấu hình này."
     )
 
     doc.heading(3, "A.2. Chạy pipeline huấn luyện")
@@ -249,7 +250,7 @@ def build_appendices(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
         "scripts/           lenh chay tung buoc va pipeline chinh thuc\n"
         "services/          preprocessing, feature, tuning, evaluation, prediction, chatbot\n"
         "static/            CSS, theme va Chart.js dong goi san\n"
-        "templates/         sau trang HTML ke thua base.html\n"
+        "templates/         bay trang HTML ke thua base.html\n"
         "tests/             bo kiem thu tu dong\n"
         "app.py             Flask backend va cac route"
     )

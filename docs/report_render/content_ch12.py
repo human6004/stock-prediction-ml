@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
-from docx_builder import DocxBuilder
+from docx_builder import DocxBuilder, M
+
+
+def _C(arg: str) -> str:
+    """C(arg) — gia dong cua."""
+    return M.r("C") + M.paren(M.r(arg))
+
+
+def _fn(name: str, arg: str) -> str:
+    """Ten dac trung dang chu dung kem doi so, vd close_vs_sma20(t)."""
+    return M.t(name) + M.paren(M.r(arg))
+
+
+def _sma(n: str, arg: str = "t") -> str:
+    return M.sub(M.t("SMA"), M.r(n)) + M.paren(M.r(arg))
 
 
 def build_chapter1(doc: DocxBuilder, assets) -> None:
@@ -148,16 +162,46 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
         "Cách phát biểu này cho phép dùng các độ đo phân loại rõ ràng (precision, recall, F1) "
         "và cho phép so sánh với baseline hằng số."
     )
-    doc.paragraph("Định nghĩa nhãn và quy tắc quyết định của hệ thống:")
-    doc.code_block(
-        "target = 1 (UP)  neu  close(t+5 phien thi truong) / close(t) - 1 > 0.01\n"
-        "target = 0 (NOT_UP) trong cac truong hop con lai\n"
-        "du bao   = UP  neu  score_up >= decision_threshold"
+    doc.paragraph(
+        "Gọi C(t) là giá đóng cửa của một mã tại phiên t và t+5 là phiên giao dịch thứ năm "
+        "sau t trên lịch phiên chung của toàn thị trường. Lợi suất tương lai năm phiên được "
+        "định nghĩa:"
+    )
+    doc.equation(
+        M.sub(M.r("r"), M.r("5")) + M.paren(M.r("t")) + M.r(" = ")
+        + M.frac(_C("t+5"), _C("t")) + M.r(" − 1"),
+        "2.1",
     )
     doc.paragraph(
-        "Điểm cần nhấn mạnh: NOT_UP không đồng nghĩa với giá giảm. NOT_UP chỉ nghĩa là mức "
-        "tăng không vượt 1% trong năm phiên. Toàn bộ giao diện và chatbot của hệ thống đều "
-        "phải diễn đạt đúng nghĩa này để tránh gây hiểu sai cho người đọc kết quả."
+        "Nhãn của bài toán và quy tắc quyết định khi suy luận lần lượt là:"
+    )
+    doc.equation(
+        M.t("target") + M.paren(M.r("t")) + M.r(" = ")
+        + M.cases(
+            [
+                M.r("1") + M.t("  (UP)") + M.r(",   ")
+                + M.sub(M.r("r"), M.r("5")) + M.paren(M.r("t")) + M.r(" > θ"),
+                M.r("0") + M.t("  (NOT_UP)") + M.r(",   ") + M.t("ngược lại"),
+            ]
+        ),
+        "2.2",
+    )
+    doc.equation(
+        M.t("dự báo") + M.paren(M.r("x")) + M.r(" = ")
+        + M.cases(
+            [
+                M.t("UP") + M.r(",   s") + M.paren(M.r("x")) + M.r(" ≥ τ"),
+                M.t("NOT_UP") + M.r(",   s") + M.paren(M.r("x")) + M.r(" < τ"),
+            ]
+        ),
+        "2.3",
+    )
+    doc.where(
+        "trong đó θ = 1% là ngưỡng tăng giá để gán nhãn UP, s(x) là Điểm UP do mô hình trả "
+        "về và τ là ngưỡng quyết định được chọn từ dự báo ngoài fold (mục 2.4). Điểm cần "
+        "nhấn mạnh: NOT_UP không đồng nghĩa với giá giảm, mà chỉ nghĩa là mức tăng không "
+        "vượt 1% trong năm phiên. Toàn bộ giao diện và chatbot của hệ thống đều phải diễn "
+        "đạt đúng nghĩa này để tránh gây hiểu sai cho người đọc kết quả."
     )
 
     doc.heading(2, "2.2. Đặc trưng kỹ thuật")
@@ -189,34 +233,117 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
         "và bước suy luận. Nhờ vậy mô hình không bao giờ nhận sai thứ tự cột khi dự báo."
     )
     doc.paragraph(
-        "Công thức của các đặc trưng chính được liệt kê dưới đây, với P(t) là giá đóng cửa "
+        "Công thức của các đặc trưng chính được liệt kê dưới đây, với C(t) là giá đóng cửa "
         "phiên t, O(t) là giá mở cửa, H(t) và L(t) là giá cao nhất và thấp nhất, V(t) là khối "
-        "lượng giao dịch, n là độ dài cửa sổ trượt:"
+        "lượng giao dịch, n là độ dài cửa sổ trượt. Nhóm lợi suất và biên độ trong phiên:"
     )
-    doc.code_block(
-        "(1)  Loi suat n phien:      return_nd(t) = P(t) / P(t-n) - 1\n"
-        "(2)  Bien do trong phien:   close_open_return(t) = P(t) / O(t) - 1\n"
-        "(3)  Trung binh dong:       SMA_n(t) = (1/n) * SUM_{i=0..n-1} P(t-i)\n"
-        "(4)  Vi the so voi SMA:     close_vs_sma20(t) = P(t) / SMA_20(t) - 1\n"
-        "(5)  Do doc xu huong:       sma20_vs_sma50(t) = SMA_20(t) / SMA_50(t) - 1\n"
-        "(6)  Loi suat ngay:         r(t) = P(t) / P(t-1) - 1\n"
-        "(7)  Do bien dong:          volatility_nd(t) = std({ r(t-i) : i = 0..n-1 })\n"
-        "(8)  Bien do gia:           price_range(t) = (H(t) - L(t)) / P(t)\n"
-        "(9)  Thay doi khoi luong:   volume_change_1d(t) = V(t) / V(t-1) - 1\n"
-        "(10) Khoi luong tuong doi:  volume_ratio_20(t) = V(t) / ((1/20) * SUM V(t-i))\n"
-        "(11) Khoang cach dinh 20:   dist_high20(t) = P(t) / max{ H(t-i) : i<20 } - 1\n"
-        "(12) Khoang cach day 20:    dist_low20(t)  = P(t) / min{ L(t-i) : i<20 } - 1\n"
-        "(13) RSI n phien:           RS(t)  = AvgGain_n(t) / AvgLoss_n(t)\n"
-        "                            RSI(t) = 100 - 100 / (1 + RS(t))\n"
-        "     voi AvgGain_n(t) = trung binh n phien cua max(P(t)-P(t-1), 0)\n"
-        "         AvgLoss_n(t) = trung binh n phien cua max(P(t-1)-P(t), 0)"
+    doc.equation(
+        M.sub(M.t("return"), M.r("n")) + M.paren(M.r("t")) + M.r(" = ")
+        + M.frac(_C("t"), _C("t−n")) + M.r(" − 1"),
+        "2.4",
+    )
+    doc.equation(
+        _fn("close_open_return", "t") + M.r(" = ")
+        + M.frac(_C("t"), M.r("O") + M.paren(M.r("t"))) + M.r(" − 1"),
+        "2.5",
+    )
+    doc.paragraph("Nhóm xu hướng dựa trên trung bình động:")
+    doc.equation(
+        _sma("n") + M.r(" = ")
+        + M.frac(M.r("1"), M.r("n"))
+        + M.total(M.r("i=0"), M.r("n−1"), _C("t−i")),
+        "2.6",
+    )
+    doc.equation(
+        _fn("close_vs_sma20", "t") + M.r(" = ")
+        + M.frac(_C("t"), _sma("20")) + M.r(" − 1"),
+        "2.7",
+    )
+    doc.equation(
+        _fn("sma20_vs_sma50", "t") + M.r(" = ")
+        + M.frac(_sma("20"), _sma("50")) + M.r(" − 1"),
+        "2.8",
     )
     doc.paragraph(
-        "Các công thức (1) đến (13) chỉ dùng dữ liệu tại phiên t và các phiên trước đó, nên "
-        "không có đặc trưng nào nhìn vào tương lai. Riêng công thức (13) có hai trường hợp "
-        "biên cần xử lý riêng: khi AvgLoss bằng 0 thì RSI được đặt bằng 100, khi cả AvgGain và "
-        "AvgLoss đều bằng 0 (giá không đổi trong toàn cửa sổ) thì RSI được đặt bằng 50. Vì vậy "
-        "chỉ số RSI được cài đặt trực tiếp thay vì dùng thư viện ngoài:"
+        "Nhóm động lượng và rủi ro, với r(t) là lợi suất ngày và std là độ lệch chuẩn mẫu:"
+    )
+    doc.equation(
+        M.r("r") + M.paren(M.r("t")) + M.r(" = ")
+        + M.frac(_C("t"), _C("t−1")) + M.r(" − 1"),
+        "2.9",
+    )
+    doc.equation(
+        M.sub(M.t("volatility"), M.r("n")) + M.paren(M.r("t")) + M.r(" = ")
+        + M.t("std")
+        + M.paren(M.r("r") + M.paren(M.r("t−n+1")) + M.r(", …, r") + M.paren(M.r("t"))),
+        "2.10",
+    )
+    doc.equation(
+        _fn("price_range", "t") + M.r(" = ")
+        + M.frac(
+            M.r("H") + M.paren(M.r("t")) + M.r(" − L") + M.paren(M.r("t")),
+            _C("t"),
+        ),
+        "2.11",
+    )
+    doc.paragraph("Nhóm khối lượng và vị thế giá trong vùng đỉnh - đáy 20 phiên:")
+    doc.equation(
+        _fn("volume_change_1d", "t") + M.r(" = ")
+        + M.frac(M.r("V") + M.paren(M.r("t")), M.r("V") + M.paren(M.r("t−1")))
+        + M.r(" − 1"),
+        "2.12",
+    )
+    doc.equation(
+        _fn("volume_ratio_20", "t") + M.r(" = ")
+        + M.frac(
+            M.r("V") + M.paren(M.r("t")),
+            M.frac(M.r("1"), M.r("20"))
+            + M.total(M.r("i=0"), M.r("19"), M.r("V") + M.paren(M.r("t−i"))),
+        ),
+        "2.13",
+    )
+    doc.equation(
+        _fn("dist_high20", "t") + M.r(" = ")
+        + M.frac(
+            _C("t"),
+            M.sub(M.t("max"), M.r("0≤i<20")) + M.r(" H") + M.paren(M.r("t−i")),
+        )
+        + M.r(" − 1"),
+        "2.14",
+    )
+    doc.equation(
+        _fn("dist_low20", "t") + M.r(" = ")
+        + M.frac(
+            _C("t"),
+            M.sub(M.t("min"), M.r("0≤i<20")) + M.r(" L") + M.paren(M.r("t−i")),
+        )
+        + M.r(" − 1"),
+        "2.15",
+    )
+    doc.paragraph("Chỉ số sức mạnh tương đối RSI với cửa sổ n = 14 phiên:")
+    doc.equation(
+        M.t("RS") + M.paren(M.r("t")) + M.r(" = ")
+        + M.frac(
+            M.sub(M.t("AvgGain"), M.r("n")) + M.paren(M.r("t")),
+            M.sub(M.t("AvgLoss"), M.r("n")) + M.paren(M.r("t")),
+        ),
+        "2.16",
+    )
+    doc.equation(
+        M.t("RSI") + M.paren(M.r("t")) + M.r(" = 100 − ")
+        + M.frac(M.r("100"), M.r("1 + ") + M.t("RS") + M.paren(M.r("t"))),
+        "2.17",
+    )
+    doc.where(
+        "trong đó AvgGain là trung bình n phiên của max(C(t) − C(t−1), 0) và AvgLoss là "
+        "trung bình n phiên của max(C(t−1) − C(t), 0)."
+    )
+    doc.paragraph(
+        "Các công thức (2.4) đến (2.17) chỉ dùng dữ liệu tại phiên t và các phiên trước đó, "
+        "nên không có đặc trưng nào nhìn vào tương lai. Riêng RSI ở (2.16) - (2.17) có hai "
+        "trường hợp biên cần xử lý riêng: khi AvgLoss bằng 0 thì RSI được đặt bằng 100, khi "
+        "cả AvgGain và AvgLoss đều bằng 0 (giá không đổi trong toàn cửa sổ) thì RSI được đặt "
+        "bằng 50. Vì vậy chỉ số RSI được cài đặt trực tiếp thay vì dùng thư viện ngoài:"
     )
     doc.code_block(
         "delta = close.diff()\n"
@@ -240,23 +367,53 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
         "Với vector đặc trưng x đã chuẩn hóa, trọng số w và hệ số chệch b, mô hình và hàm mất "
         "mát có dạng:"
     )
-    doc.code_block(
-        "(14) Chuan hoa dac trung:  z_j = (x_j - mean_j) / std_j\n"
-        "                           mean_j, std_j chi tinh tren TRAIN cua tung fold\n"
-        "(15) Ham sigmoid:          sigma(u) = 1 / (1 + exp(-u))\n"
-        "(16) Xac suat lop UP:      score_up(x) = sigma(w . z + b)\n"
-        "(17) Ham mat mat (L2):     J(w, b) = -(1/N) * SUM_i c_{y_i} * [\n"
-        "                               y_i * log(p_i) + (1-y_i) * log(1-p_i) ]\n"
-        "                             + (1 / (2*C)) * ||w||^2\n"
-        "     voi p_i = score_up(x_i), c_{y} = trong so lop tu class_weight='balanced',\n"
-        "         c_y = N / (2 * N_y), C = nghich dao cuong do chinh quy hoa"
+    doc.equation(
+        M.sub(M.r("z"), M.r("j")) + M.r(" = ")
+        + M.frac(
+            M.sub(M.r("x"), M.r("j")) + M.r(" − ") + M.sub(M.r("μ"), M.r("j")),
+            M.sub(M.r("σ"), M.r("j")),
+        ),
+        "2.18",
+    )
+    doc.equation(
+        M.r("σ") + M.paren(M.r("u")) + M.r(" = ")
+        + M.frac(M.r("1"), M.r("1 + ") + M.sup(M.r("e"), M.r("−u"))),
+        "2.19",
+    )
+    doc.equation(
+        M.sub(M.r("s"), M.t("UP")) + M.paren(M.r("x")) + M.r(" = σ")
+        + M.paren(M.sup(M.r("w"), M.r("T")) + M.r("z + b")),
+        "2.20",
+    )
+    doc.equation(
+        M.r("J") + M.paren(M.r("w, b")) + M.r(" = −")
+        + M.frac(M.r("1"), M.r("N"))
+        + M.total(M.r("i=1"), M.r("N"),
+                  M.sub(M.r("c"), M.sub(M.r("y"), M.r("i")))
+                  + M.paren(
+                      M.sub(M.r("y"), M.r("i")) + M.t(" log ") + M.sub(M.r("p"), M.r("i"))
+                      + M.r(" + ")
+                      + M.paren(M.r("1 − ") + M.sub(M.r("y"), M.r("i")))
+                      + M.t(" log")
+                      + M.paren(M.r("1 − ") + M.sub(M.r("p"), M.r("i"))),
+                      beg="[", end="]",
+                  ))
+        + M.r(" + ")
+        + M.frac(M.r("1"), M.r("2C"))
+        + M.sup(M.norm(M.r("w")), M.r("2")),
+        "2.21",
+    )
+    doc.where(
+        "trong đó μ_j và σ_j chỉ được tính trên phần TRAIN của từng fold, p_i = s_UP(x_i), "
+        "c_y = N / (2·N_y) là trọng số lớp sinh từ class_weight='balanced' và C là nghịch "
+        "đảo cường độ chính quy hóa L2."
     )
     doc.paragraph(
-        "Công thức (14) giải thích lý do phải đặt StandardScaler bên trong Pipeline thay vì "
-        "chuẩn hóa toàn bộ dữ liệu trước khi chia fold: nếu tính mean và std trên cả tập dữ"
-        "liệu thì thống kê của tập kiểm định đã rò rỉ vào bước huấn luyện. Trọng số c_y trong "
-        "(17) khiến mỗi dòng thuộc lớp thiểu số UP đóng góp nhiều hơn vào hàm mất mát, bù cho "
-        "tỷ lệ UP chỉ 37,6%."
+        "Công thức (2.18) giải thích lý do phải đặt StandardScaler bên trong Pipeline thay vì "
+        "chuẩn hóa toàn bộ dữ liệu trước khi chia fold: nếu tính trung bình và độ lệch chuẩn "
+        "trên cả tập dữ liệu thì thống kê của tập kiểm định đã rò rỉ vào bước huấn luyện. "
+        "Trọng số c_y trong (2.21) khiến mỗi dòng thuộc lớp thiểu số UP đóng góp nhiều hơn "
+        "vào hàm mất mát, bù cho tỷ lệ UP chỉ 37,6%."
     )
     doc.heading(3, "2.3.2. Random Forest")
     doc.paragraph(
@@ -270,23 +427,52 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
         "Mỗi cây được nuôi bằng cách chọn điểm chia làm giảm mạnh nhất độ vẩn Gini của nút; "
         "xác suất của rừng là bình quân xác suất của các cây:"
     )
-    doc.code_block(
-        "(18) Do van Gini cua nut m:  G(m) = 1 - SUM_k p_{m,k}^2\n"
-        "     voi p_{m,k} = ty le (co trong so lop) cua lop k trong nut m\n"
-        "(19) Do giam do van:         dG = G(m) - (N_L/N_m) * G(L) - (N_R/N_m) * G(R)\n"
-        "     diem chia duoc chon la diem lam cuc dai dG tren tap con dac trung\n"
-        "     co kich thuoc max_features * 20\n"
-        "(20) Xac suat cua rung:      score_up(x) = (1/T) * SUM_{t=1..T} p_t(UP | x)\n"
-        "     voi T = n_estimators, p_t = ty le lop UP tai la ma x roi vao o cay t\n"
-        "(21) Do quan trong dac trung: imp(j) = (1/T) * SUM_t SUM_{m: chia theo j}\n"
-        "                                        (N_m / N) * dG(m)"
+    doc.equation(
+        M.r("G") + M.paren(M.r("m")) + M.r(" = 1 − ")
+        + M.total(M.r("k"), "",
+                  M.sup(M.sub(M.r("p"), M.r("m,k")), M.r("2"))),
+        "2.22",
+    )
+    doc.equation(
+        M.r("ΔG = G") + M.paren(M.r("m"))
+        + M.r(" − ")
+        + M.frac(M.sub(M.r("N"), M.r("L")), M.sub(M.r("N"), M.r("m")))
+        + M.r("G") + M.paren(M.r("L"))
+        + M.r(" − ")
+        + M.frac(M.sub(M.r("N"), M.r("R")), M.sub(M.r("N"), M.r("m")))
+        + M.r("G") + M.paren(M.r("R")),
+        "2.23",
+    )
+    doc.equation(
+        M.sub(M.r("s"), M.t("UP")) + M.paren(M.r("x")) + M.r(" = ")
+        + M.frac(M.r("1"), M.r("T"))
+        + M.total(M.r("t=1"), M.r("T"),
+                  M.sub(M.r("p"), M.r("t"))
+                  + M.paren(M.t("UP") + M.r(" | x"))),
+        "2.24",
+    )
+    doc.equation(
+        M.t("imp") + M.paren(M.r("j")) + M.r(" = ")
+        + M.frac(M.r("1"), M.r("T"))
+        + M.total(M.r("t=1"), M.r("T"),
+                  M.total(M.r("m ∈ ") + M.sub(M.r("S"), M.r("j")), "",
+                          M.frac(M.sub(M.r("N"), M.r("m")), M.r("N"))
+                          + M.r("ΔG") + M.paren(M.r("m")))),
+        "2.25",
+    )
+    doc.where(
+        "trong đó p_{m,k} là tỷ lệ (có trọng số lớp) của lớp k trong nút m; N_m, N_L, N_R là "
+        "số mẫu của nút và hai nút con; T = n_estimators; p_t(UP | x) là tỷ lệ lớp UP tại lá "
+        "mà x rơi vào ở cây t; S_j là tập các nút chia theo đặc trưng j. Điểm chia tại mỗi "
+        "nút được chọn để cực đại ΔG trên một tập con đặc trưng ngẫu nhiên kích thước "
+        "max_features × 20."
     )
     doc.paragraph(
-        "Công thức (19) cho thấy vai trò của max_features: chỉ một tập con đặc trưng được xét "
-        "tại mỗi nút, nhờ đó các cây trong rừng ít tương quan với nhau và phương sai của bình "
-        "quân (20) giảm. Công thức (21) là cơ sở của biểu đồ độ quan trọng đặc trưng trình bày "
-        "ở mục 3.2 và trang đánh giá mô hình. Ràng buộc min_samples_leaf đặt sàn cho N_m nên "
-        "cây không tách tới các lá chỉ có vài dòng nhiễu."
+        "Công thức (2.23) cho thấy vai trò của max_features: chỉ một tập con đặc trưng được "
+        "xét tại mỗi nút, nhờ đó các cây trong rừng ít tương quan với nhau và phương sai của "
+        "bình quân (2.24) giảm. Công thức (2.25) là cơ sở của biểu đồ độ quan trọng đặc trưng "
+        "trình bày ở mục 3.3 và trang đánh giá mô hình. Ràng buộc min_samples_leaf đặt sàn "
+        "cho N_m nên cây không tách tới các lá chỉ có vài dòng nhiễu."
     )
     doc.heading(3, "2.3.3. Gradient Boosting")
     doc.paragraph(
@@ -300,23 +486,67 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
         "Mô hình được xây dựng theo từng stage trên thang log-odds. Gọi F_M(x) là tổ hợp sau M "
         "stage, hàm mất mát là log loss có trọng số mẫu:"
     )
-    doc.code_block(
-        "(22) Ham mat mat:        L(y, F) = -[ y * log(sigma(F)) + (1-y) * log(1-sigma(F)) ]\n"
-        "(23) Khoi tao:           F_0(x) = log( p_UP / (1 - p_UP) )\n"
-        "(24) Phan du gia (gradient am tai stage m):\n"
-        "                         g_i = y_i - sigma(F_{m-1}(x_i))\n"
-        "(25) Cap nhat:           F_m(x) = F_{m-1}(x) + nu * h_m(x)\n"
-        "     voi h_m = cay hoi quy fit tren { (x_i, g_i) } co trong so w_i,\n"
-        "         nu = learning_rate, so stage m = 1..n_estimators\n"
-        "(26) Xac suat cuoi:      score_up(x) = sigma(F_M(x))\n"
-        "(27) Trong so mau can bang lop:  w_i = N / (2 * N_{y_i})"
+    doc.equation(
+        M.r("L") + M.paren(M.r("y, F")) + M.r(" = −")
+        + M.paren(
+            M.r("y") + M.t(" log ") + M.r("σ") + M.paren(M.r("F"))
+            + M.r(" + ")
+            + M.paren(M.r("1 − y")) + M.t(" log")
+            + M.paren(M.r("1 − σ") + M.paren(M.r("F"))),
+            beg="[", end="]",
+        ),
+        "2.26",
+    )
+    doc.equation(
+        M.sub(M.r("F"), M.r("0")) + M.paren(M.r("x")) + M.r(" = ")
+        + M.t("log")
+        + M.paren(
+            M.frac(
+                M.sub(M.r("p"), M.t("UP")),
+                M.r("1 − ") + M.sub(M.r("p"), M.t("UP")),
+            )
+        ),
+        "2.27",
+    )
+    doc.equation(
+        M.sub(M.r("g"), M.r("i")) + M.r(" = ")
+        + M.sub(M.r("y"), M.r("i")) + M.r(" − σ")
+        + M.paren(
+            M.sub(M.r("F"), M.r("m−1"))
+            + M.paren(M.sub(M.r("x"), M.r("i")))
+        ),
+        "2.28",
+    )
+    doc.equation(
+        M.sub(M.r("F"), M.r("m")) + M.paren(M.r("x")) + M.r(" = ")
+        + M.sub(M.r("F"), M.r("m−1")) + M.paren(M.r("x"))
+        + M.r(" + ν · ")
+        + M.sub(M.r("h"), M.r("m")) + M.paren(M.r("x")),
+        "2.29",
+    )
+    doc.equation(
+        M.sub(M.r("s"), M.t("UP")) + M.paren(M.r("x")) + M.r(" = σ")
+        + M.paren(M.sub(M.r("F"), M.r("M")) + M.paren(M.r("x"))),
+        "2.30",
+    )
+    doc.equation(
+        M.sub(M.r("w"), M.r("i")) + M.r(" = ")
+        + M.frac(
+            M.r("N"),
+            M.r("2 · ") + M.sub(M.r("N"), M.sub(M.r("y"), M.r("i"))),
+        ),
+        "2.31",
+    )
+    doc.where(
+        "trong đó h_m là cây hồi quy được fit trên các cặp (x_i, g_i) với trọng số mẫu w_i, "
+        "ν = learning_rate và số stage m chạy từ 1 đến n_estimators."
     )
     doc.paragraph(
-        "Công thức (24) là điểm khác biệt cốt lõi so với Random Forest: cây thứ m không học lại "
-        "nhãn gốc mà học phần sai số còn lại của tổ hợp trước đó, nên các cây phụ thuộc nhau và "
-        "phải huấn luyện tuần tự. Hệ số nu trong (25) co nhỏ mức đóng góp của mỗi cây; nu lớn "
-        "kết hợp nhiều stage khiến mô hình khớp cả nhiễu, đó là lý do learning_rate và "
-        "n_estimators phải được tinh chỉnh cùng nhau. Công thức (27) thay cho tham số "
+        "Công thức (2.28) là điểm khác biệt cốt lõi so với Random Forest: cây thứ m không học "
+        "lại nhãn gốc mà học phần sai số còn lại của tổ hợp trước đó, nên các cây phụ thuộc "
+        "nhau và phải huấn luyện tuần tự. Hệ số ν trong (2.29) co nhỏ mức đóng góp của mỗi "
+        "cây; ν lớn kết hợp nhiều stage khiến mô hình khớp cả nhiễu, đó là lý do learning_rate "
+        "và n_estimators phải được tinh chỉnh cùng nhau. Công thức (2.31) thay cho tham số "
         "class_weight mà GradientBoostingClassifier không có."
     )
 
@@ -361,26 +591,64 @@ def build_chapter2(doc: DocxBuilder, assets) -> None:
     doc.paragraph(
         "Gọi TP là số dòng nhãn UP được dự báo UP, FP là số dòng nhãn NOT_UP bị dự báo UP, FN "
         "là số dòng nhãn UP bị dự báo NOT_UP, TN là số dòng NOT_UP được dự báo đúng, N là tổng "
-        "số dòng và pi_UP là tỷ lệ UP thực tế. Các độ đo được định nghĩa:"
+        "số dòng và π_UP là tỷ lệ UP thực tế. Các độ đo được định nghĩa:"
     )
-    doc.code_block(
-        "(28) Precision lop UP:  precision_up = TP / (TP + FP)\n"
-        "(29) Recall lop UP:     recall_up    = TP / (TP + FN)\n"
-        "(30) F1 lop UP:         F1_UP = 2 * precision_up * recall_up\n"
-        "                                / (precision_up + recall_up)\n"
-        "(31) Accuracy:          accuracy = (TP + TN) / N\n"
-        "(32) Ty le du bao UP:   up_rate = (TP + FP) / N\n"
-        "(33) Baseline luon UP:      precision = pi_UP, recall = 1,\n"
-        "                            F1_UP = 2 * pi_UP / (1 + pi_UP)\n"
-        "(34) Baseline luon NOT_UP:  TP = 0 nen F1_UP = 0,\n"
-        "                            accuracy = 1 - pi_UP"
+    doc.equation(
+        M.sub(M.t("precision"), M.t("UP")) + M.r(" = ")
+        + M.frac(M.t("TP"), M.t("TP") + M.r(" + ") + M.t("FP")),
+        "2.32",
+    )
+    doc.equation(
+        M.sub(M.t("recall"), M.t("UP")) + M.r(" = ")
+        + M.frac(M.t("TP"), M.t("TP") + M.r(" + ") + M.t("FN")),
+        "2.33",
+    )
+    doc.equation(
+        M.sub(M.t("F1"), M.t("UP")) + M.r(" = ")
+        + M.frac(
+            M.r("2 · ") + M.sub(M.t("precision"), M.t("UP"))
+            + M.r(" · ") + M.sub(M.t("recall"), M.t("UP")),
+            M.sub(M.t("precision"), M.t("UP")) + M.r(" + ")
+            + M.sub(M.t("recall"), M.t("UP")),
+        ),
+        "2.34",
+    )
+    doc.equation(
+        M.t("accuracy") + M.r(" = ")
+        + M.frac(M.t("TP") + M.r(" + ") + M.t("TN"), M.r("N")),
+        "2.35",
+    )
+    doc.equation(
+        M.t("up_rate") + M.r(" = ")
+        + M.frac(M.t("TP") + M.r(" + ") + M.t("FP"), M.r("N")),
+        "2.36",
     )
     doc.paragraph(
-        "Thay pi_UP = 0,376 vào (33) cho F1_UP của baseline luôn UP bằng 0,546, còn (34) cho "
-        "accuracy 0,624 với F1_UP bằng 0. Hai con số này là mốc so sánh bắt buộc trong chương 3: "
-        "một mô hình có accuracy 0,60 và F1_UP 0,45 tuy nghe khá nhưng thực chất còn kém cả hai "
-        "baseline. Ràng buộc up_rate ở (32) được dùng khi chọn ngưỡng quyết định để mô hình "
-        "không suy biến thành luôn dự báo UP nhằm ăn điểm recall."
+        "Hai baseline hằng số có dạng đóng. Baseline luôn dự báo UP có precision bằng π_UP và "
+        "recall bằng 1, nên:"
+    )
+    doc.equation(
+        M.sup(M.sub(M.t("F1"), M.t("UP")), M.t("luôn UP")) + M.r(" = ")
+        + M.frac(
+            M.r("2") + M.sub(M.r("π"), M.t("UP")),
+            M.r("1 + ") + M.sub(M.r("π"), M.t("UP")),
+        ),
+        "2.37",
+    )
+    doc.paragraph(
+        "Baseline luôn dự báo NOT_UP có TP bằng 0 nên F1_UP bằng 0, trong khi accuracy đạt:"
+    )
+    doc.equation(
+        M.sup(M.t("accuracy"), M.t("luôn NOT_UP")) + M.r(" = 1 − ")
+        + M.sub(M.r("π"), M.t("UP")),
+        "2.38",
+    )
+    doc.paragraph(
+        "Thay π_UP = 0,376 vào (2.37) cho F1_UP của baseline luôn UP bằng 0,546, còn (2.38) "
+        "cho accuracy 0,624 với F1_UP bằng 0. Hai con số này là mốc so sánh bắt buộc trong "
+        "chương 3: một mô hình có accuracy 0,60 và F1_UP 0,45 tuy nghe khá nhưng thực chất còn "
+        "kém cả hai baseline. Ràng buộc up_rate ở (2.36) được dùng khi chọn ngưỡng quyết định "
+        "để mô hình không suy biến thành luôn dự báo UP nhằm ăn điểm recall."
     )
 
     doc.heading(2, "2.6. Công cụ và công nghệ sử dụng")
