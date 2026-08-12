@@ -50,7 +50,7 @@ def build_srs(doc: DocxBuilder, assets) -> None:
             ["Suy luận", "services/prediction_service.py, scripts/predict_stock.py",
              "Nạp artifact, tính đặc trưng mới nhất, trả nhãn và Điểm UP"],
             ["Chatbot", "services/chatbot_service.py, services/chatbot_tools.py",
-             "Định tuyến bằng luật, dựng context có cấu trúc từ dữ liệu nội bộ, gọi mô hình một lần"],
+             "Gọi LLM một lần để chọn action, dispatcher cố định đọc dữ liệu nội bộ, formatter soạn câu trả lời"],
             ["Giao diện web", "app.py, templates/, static/",
              "Bảy trang giao diện và các endpoint POST cho tuning, fetch, chat"],
         ],
@@ -93,8 +93,8 @@ def build_srs(doc: DocxBuilder, assets) -> None:
              "Xem tách biệt kết quả CV, VALIDATION và TEST một lần, ma trận nhầm lẫn, độ "
              "quan trọng đặc trưng"],
             ["UC-05", "Tra cứu qua chatbot", "Người dùng",
-             "Đặt câu hỏi bằng ngôn ngữ tự nhiên, hệ thống trả lời dựa trên dữ liệu nội bộ "
-             "được nạp sẵn vào ngữ cảnh"],
+             "Đặt câu hỏi bằng ngôn ngữ tự nhiên, LLM chọn action rồi hệ thống trả lời bằng "
+             "số liệu đọc từ dữ liệu nội bộ"],
             ["UC-06", "Tinh chỉnh siêu tham số", "Người quản trị",
              "Nhập cấu hình cho từng họ mô hình tại Tuning Lab, chạy CV 4 fold có purge, lưu "
              "kết quả kèm fingerprint dữ liệu"],
@@ -175,8 +175,8 @@ def build_srs(doc: DocxBuilder, assets) -> None:
              "Nút fetch chạy tiến trình nền tải OHLCV bổ sung theo từng mã, có retry và báo "
              "tiến độ tại /tuning/fetch-status"],
             ["FR-15", "Chatbot trả lời trên dữ liệu nội bộ",
-             "Trang /chat và endpoint /api/chat định tuyến câu hỏi bằng luật, gọi handler dữ "
-             "liệu nội bộ để dựng context rồi gọi mô hình ngôn ngữ đúng một lượt"],
+             "Trang /chat và endpoint /api/chat gọi mô hình ngôn ngữ đúng một lượt để chọn "
+             "action, validate quyết định rồi gọi handler dữ liệu nội bộ và format câu trả lời"],
         ],
         widths=[900, 2600, 5570],
         caption="Danh sách yêu cầu chức năng",

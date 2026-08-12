@@ -24,16 +24,16 @@ def build_testing(doc: DocxBuilder, assets: Path) -> None:
              "test_data_protocol.py, test_recent_cv.py, test_decision_policy.py, test_tuning_lab.py"],
             ["Kiểm thử tích hợp", "Chọn mô hình, refit, khóa TEST, sổ đăng ký, khóa pipeline",
              "test_model_selection.py, test_unified_pipeline.py, test_tuning_history.py"],
-            ["Kiểm thử hệ thống", "Luồng suy luận đầu cuối, route Flask, chatbot và tool",
-             "test_prediction_flow.py, test_chatbot.py, test_chatbot_tools_upgrade.py"],
-            ["Kiểm thử chấp nhận", "Giao diện, điều hướng, khả năng truy cập, đối thoại tự nhiên",
-             "test_ui_shell.py, test_chatbot_ui_upgrade.py, test_chatbot_upgrade_integration.py"],
+            ["Kiểm thử hệ thống", "Luồng suy luận đầu cuối, route Flask, chatbot và handler dữ liệu",
+             "test_prediction_flow.py, test_chatbot.py"],
+            ["Kiểm thử chấp nhận", "Giao diện, điều hướng, khả năng truy cập",
+             "test_ui_shell.py"],
         ],
         widths=[1900, 3300, 3870],
         caption="Bốn mức kiểm thử và phạm vi tương ứng",
     )
     doc.paragraph(
-        "Bộ kiểm thử hiện có 14 tệp với 183 hàm kiểm thử, chạy bằng lệnh "
+        "Bộ kiểm thử hiện có 10 tệp với 153 ca kiểm thử (kèm 42 subtest), chạy bằng lệnh "
         "python -m pytest tests/ hoặc python -m unittest discover -s tests. Toàn bộ kiểm thử "
         "chạy trên dữ liệu tổng hợp nhỏ được sinh ngay trong tệp kiểm thử, không phụ thuộc tệp "
         "CSV thật, nên thời gian chạy ngắn và kết quả không thay đổi theo dữ liệu."
@@ -87,9 +87,9 @@ def build_testing(doc: DocxBuilder, assets: Path) -> None:
             ["test_inference_exposes_baseline_warning_from_metadata",
              "Cảnh báo baseline phải hiển thị ra ngoài",
              "Kết quả dự báo kèm cảnh báo khi baseline_passed sai"],
-            ["test_stock_signals_reject_duplicates_and_out_of_scope_before_inference",
-             "Tool chatbot chặn mã trùng và mã ngoài phạm vi",
-             "Trả lỗi có mã lỗi rõ ràng, không suy luận"],
+            ["test_symbol_scope_is_all_or_nothing_before_inference",
+             "Handler chatbot chặn mã ngoài phạm vi trước khi suy luận",
+             "Một mã ngoài phạm vi làm cả yêu cầu bị chặn, không suy luận"],
             ["test_page_has_exactly_one_h1",
              "Mỗi trang có đúng một tiêu đề cấp một",
              "Cấu trúc tiêu đề hợp chuẩn truy cập"],

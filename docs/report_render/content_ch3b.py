@@ -49,7 +49,7 @@ def build_design(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
             ["Trạng thái thí nghiệm", "services/experiment_state.py", "Fingerprint, lịch sử, khóa pipeline, sổ đăng ký TEST"],
             ["Đánh giá", "services/model_evaluation.py", "Chấm VALIDATION, baseline, refit, TEST một lần, xuất báo cáo"],
             ["Dự báo", "services/prediction_service.py", "Nạp hiện vật, sinh đặc trưng mới nhất, suy luận"],
-            ["Chatbot", "services/chatbot_service.py, chatbot_tools.py", "Dựng context server, gọi LLM một lần và kiểm grounding"],
+            ["Chatbot", "services/chatbot_service.py, chatbot_tools.py", "Gọi LLM một lần chọn action, validate quyết định, dispatcher và formatter cố định"],
             ["Giao diện", "app.py, templates/, static/", "Route Flask, HTML, CSS, biểu đồ Chart.js"],
         ],
         widths=[1900, 3100, 4070],
@@ -289,7 +289,7 @@ def build_design(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
 
     doc.heading(4, "3.2.3.6. Luồng suy luận trên giao diện và dòng lệnh")
     doc.paragraph(
-        "Hàm predict_symbols nhận một đến hai mã, đọc dữ liệu đã làm sạch, sinh đặc trưng cho "
+        "Hàm predict_symbols nhận một đến năm mã, đọc dữ liệu đã làm sạch, sinh đặc trưng cho "
         "riêng các mã đó, lấy dòng mới nhất của từng mã rồi gọi mô hình. Thứ tự cột đầu vào "
         "được lấy từ feature_order trong metadata, không lấy theo thứ tự cột của DataFrame, "
         "nên không thể xảy ra lệch cột giữa lúc huấn luyện và lúc suy luận."
@@ -317,25 +317,30 @@ def build_design(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
 
     doc.heading(4, "3.2.3.7. Chatbot chỉ trả lời trên dữ liệu nội bộ")
     doc.paragraph(
-        "Chatbot dùng kiến trúc structured context injection (SCI) với context do máy chủ dựng. "
-        "Máy chủ định tuyến bằng luật (rule-based intent routing) để tự chọn và gọi "
-        "trực tiếp các handler dữ liệu cần thiết, chỉ lấy artifact, report và tín hiệu đã công "
-        "bố hoặc suy ra; không gửi raw CSV, mã nguồn hay pickle tới nhà cung cấp LLM."
+        "Chatbot dùng kiến trúc action decision: mô hình ngôn ngữ lớn được gọi đúng một lần "
+        "mỗi lượt và chỉ trả về một JSON thuần gồm hai khóa action và arguments, trong đó "
+        "action là một trong năm giá trị cố định GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, "
+        "PROJECT_INFO và OUT_OF_SCOPE. Máy chủ kiểm tra chặt schema của quyết định (đúng hai "
+        "khóa, action hợp lệ, arguments đúng kiểu và miền giá trị) rồi mới gọi handler dữ liệu "
+        "tương ứng qua một dispatcher cố định; không gửi raw CSV, mã nguồn hay pickle tới nhà "
+        "cung cấp LLM."
     )
     doc.paragraph(
-        "Mọi lượt, kể cả chào hỏi, gọi mô hình đúng một lần mà không gửi tools hoặc "
-        "tool_choice. Context tối đa 16.000 ký tự, thời hạn toàn lượt 60 giây, câu hỏi và câu "
-        "trả lời tối đa 1.000 ký tự, lịch sử gửi kèm tối đa 6 tin nhắn. Máy chủ kiểm release, "
-        "nguồn, cảnh báo và các cặp mã-trường-giá trị; cho nhận định xu hướng phù hợp dữ liệu "
-        "nhưng chặn khuyến nghị mua bán trực tiếp. Dock và trang chat dùng chung sessionStorage."
+        "Request không gửi tools, tool_choice hoặc response_format; không retry và không có "
+        "lần gọi thứ hai. Câu hỏi tối đa 1.000 ký tự, lịch sử gửi kèm tối đa 6 tin nhắn, thời "
+        "hạn toàn lượt 60 giây. Mọi câu chữ tới người dùng do máy chủ soạn: câu xã giao và câu "
+        "từ chối là chuỗi cố định theo kind hoặc reason, câu trả lời dữ liệu do formatter ghép "
+        "từ kết quả suy luận thật kèm khuyến cáo dữ liệu offline; yêu cầu khuyên mua bán được "
+        "định tuyến sang OUT_OF_SCOPE và nhận câu từ chối cố định. Khung chat nổi và trang "
+        "chat dùng chung sessionStorage."
     )
     sequence_chatbot = assets / "sequence_chatbot.png"
     if sequence_chatbot.exists():
-        doc.image(sequence_chatbot, "Lược đồ tuần tự một lượt hỏi đáp của chatbot theo kiến trúc SCI")
+        doc.image(sequence_chatbot, "Lược đồ tuần tự một lượt hỏi đáp của chatbot theo kiến trúc action decision")
     doc.paragraph(
-        "Điểm đáng lưu ý trong lược đồ là thứ tự: máy chủ dựng xong context từ dữ liệu nội bộ "
-        "rồi mới gọi nhà cung cấp LLM đúng một lần, và câu trả lời còn phải qua bước kiểm tính "
-        "hợp lệ trước khi tới người dùng. Nhà cung cấp LLM không có đường nào chạm tới tệp CSV, "
-        "mã nguồn hay tệp pickle của mô hình; phần duy nhất nó nhận được là đoạn context đã "
-        "được cắt gọn dưới 16.000 ký tự."
+        "Điểm đáng lưu ý trong lược đồ là ranh giới tin cậy: nhà cung cấp LLM chỉ nhận câu hỏi "
+        "cùng lịch sử ngắn và chỉ trả về quyết định action; toàn bộ số liệu trong câu trả lời "
+        "do máy chủ đọc từ artifact và report đã công bố, sau khi quyết định đã qua bước kiểm "
+        "tính hợp lệ. Nhà cung cấp LLM không có đường nào chạm tới tệp CSV, mã nguồn hay tệp "
+        "pickle của mô hình."
     )

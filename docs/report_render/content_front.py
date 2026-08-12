@@ -151,7 +151,6 @@ ABBREVIATIONS = [
     ["OOF", "Out Of Fold", "Dự báo ngoài fold trong kiểm định chéo"],
     ["RF", "Random Forest", "Rừng ngẫu nhiên"],
     ["RSI", "Relative Strength Index", "Chỉ số sức mạnh tương đối"],
-    ["SCI", "Structured Context Injection", "Server dựng context có cấu trúc rồi tiêm vào prompt"],
     ["SRS", "Software Requirement Specification", "Đặc tả yêu cầu phần mềm"],
     ["UI", "User Interface", "Giao diện người dùng"],
 ]

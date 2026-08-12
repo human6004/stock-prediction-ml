@@ -124,7 +124,7 @@ flowchart LR
     J --> K["Render bằng textContent"]
 ```
 
-LLM hiểu câu hỏi, chọn action và chỉ viết `direct_answer` cho hội thoại chung hoặc câu hỏi làm rõ. Backend chọn handler cố định, kiểm symbol scope, gọi ML model và format số liệu thật. Provider không nhận CSV, report, code hoặc artifact; không có keyword router dự phòng, tool loop, LLM call thứ hai hay regex grounding lớn. `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua dispatcher dữ liệu.
+LLM hiểu câu hỏi và chỉ trả JSON `{action, arguments}`; hội thoại chung hoặc câu hỏi làm rõ dùng câu cố định phía backend, LLM không tự viết câu trả lời. Backend chọn handler cố định, kiểm symbol scope, gọi ML model và format số liệu thật. Provider không nhận CSV, report, code hoặc artifact; không có keyword router dự phòng, tool loop, LLM call thứ hai hay regex grounding lớn. `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua dispatcher dữ liệu.
 
 ## 7. Report contract
 

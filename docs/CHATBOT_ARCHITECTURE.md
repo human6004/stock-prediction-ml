@@ -190,7 +190,7 @@ Trang `/chat` và floating dock dùng chung `/api/chat`, transcript `sessionStor
 | 25 | “Tin FPT hôm nay?” | `OUT_OF_SCOPE {reason:news}` | Từ chối cố định, không data handler |
 | 26 | “Có nên mua FPT?” | `OUT_OF_SCOPE {reason:trading_advice}` | Không đưa lời khuyên |
 
-Scenario evaluator dùng provider thật chạy ngoài CI. `25/25` là target chất lượng prompt, không phải hard gate và không được ép bằng keyword router/hard-code.
+Bảng trên là bản đại diện; bộ evaluator đầy đủ trong `scripts/evaluate_chatbot_decisions.py` có 33 scenario, dùng provider thật và chạy ngoài CI. `33/33` là target chất lượng prompt, không phải hard gate và không được ép bằng keyword router/hard-code.
 
 ## 10. Phạm vi cố ý không làm
 
@@ -211,7 +211,7 @@ services/chatbot_tools.py
 services/prediction_service.py
   data/features/model inference
 
-static/chat-client.js + templates/chat.html + floating dock
+static/chat-client.js + templates/chat.html + static/chat-dock.js (floating dock)
   transcript, last-6 history, transport, safe DOM
 ```
 
@@ -219,16 +219,16 @@ static/chat-client.js + templates/chat.html + floating dock
 
 Nội dung chatbot trong các đường dẫn sau là **LEGACY/STALE**, chỉ dùng tham khảo lịch sử; không dùng làm source of truth:
 
-- `docs/GIAI_THICH_PROJECT.md`;
-- `docs/SO_DO_KIEN_TRUC_HE_THONG.md`, gồm mô tả SCI cũ;
-- `docs/bao_cao_project_hose_stock_prediction*.docx`;
-- `docs/slides/`.
+- `docs/slides/` (slide, outline và script thuyết trình còn mô tả SCI cũ);
+- `docs/diagrams/soDoKienTruc/huong2-chatbot-rag.*` (sơ đồ SCI/RAG cũ).
+
+`docs/GIAI_THICH_PROJECT.md`, `docs/SO_DO_KIEN_TRUC_HE_THONG.md`, bộ generator `docs/report_render/` cùng DOCX build từ nó đã được đồng bộ theo kiến trúc action-decision hiện hành, không còn LEGACY.
 
 Canonical hiện hành: `docs/CHATBOT_ARCHITECTURE.md`, `docs/diagrams/luuDo/06-sequence-chatbot-action-decision.sequence.json`, HTML render cùng tên và index `docs/diagrams/luuDo/README.md`.
 
 `docs/diagrams/pipeline-worklow/chatbot.workflow.json` và `chatbot-workflow.html` đã được render lại theo kiến trúc action-decision hiện hành, nên không còn LEGACY: workflow diagram này bổ sung góc nhìn swimlane cho sequence diagram canonical.
 
-Notice tại nguồn cũ: `docs/slides/LEGACY_STALE_CHATBOT.md`, `docs/report_render/LEGACY_STALE_CHATBOT.md` và `docs/diagrams/soDoKienTruc/LEGACY_STALE_CHATBOT.md`. Nội dung legacy bên dưới các nguồn đó không bị viết lại.
+Notice tại nguồn cũ: `docs/slides/LEGACY_STALE_CHATBOT.md` và `docs/diagrams/soDoKienTruc/LEGACY_STALE_CHATBOT.md`. Nội dung legacy bên dưới hai nguồn đó không bị viết lại.
 
 ## 13. Test và nghiệm thu
 

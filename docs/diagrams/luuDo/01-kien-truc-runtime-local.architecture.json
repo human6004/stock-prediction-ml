@@ -27,15 +27,15 @@
     { "id": "prediction", "type": "backend", "label": "prediction_service", "sublabel": "predict_symbols()", "pos": [555, 770], "size": [190, 58], "tag": "load artifact · không retrain" },
 
     { "id": "chatapi", "type": "frontend", "label": "/chat · /api/chat", "sublabel": "app.py JSON REST", "pos": [305, 950], "size": [190, 58], "tag": "JSON endpoint" },
-    { "id": "chatservice", "type": "backend", "label": "chatbot_service", "sublabel": "build_context + one call", "pos": [555, 950], "size": [190, 58], "tag": "SCI · 60s" },
-    { "id": "chattools", "type": "backend", "label": "chatbot_tools", "sublabel": "direct read-only handlers", "pos": [800, 950], "size": [195, 58], "tag": "published / derived" },
-    { "id": "releasegate", "type": "security", "label": "Release Gate", "sublabel": "get_release_state()", "pos": [1055, 950], "size": [190, 58], "tag": "status + warning" }
+    { "id": "chatservice", "type": "backend", "label": "chatbot_service", "sublabel": "decide + format · one call", "pos": [555, 950], "size": [190, 58], "tag": "action decision · 60s" },
+    { "id": "chattools", "type": "backend", "label": "chatbot_tools", "sublabel": "fixed read-only handlers", "pos": [800, 950], "size": [195, 58], "tag": "published / derived" },
+    { "id": "releasegate", "type": "security", "label": "Readiness check", "sublabel": "_load_runtime_state()", "pos": [1055, 950], "size": [190, 58], "tag": "status + warning" }
   ],
   "boundaries": [
     { "kind": "region", "label": "External · dịch vụ bên ngoài", "wraps": ["vnstock", "extllm"] },
     { "kind": "region", "label": "Offline ML · fetch + official pipeline + tuning (bên ghi artifact)", "wraps": ["refresh", "dataservices", "pipeline", "experiments", "tuninglab"] },
     { "kind": "region", "label": "Published Release · điểm nối read-only", "wraps": ["finalmodel", "metadata", "summary", "reports"] },
-    { "kind": "region", "label": "Runtime · Flask single-process (prediction + chatbot SCI)", "wraps": ["browser", "flask", "prediction", "chatapi", "chatservice", "chattools", "releasegate"] }
+    { "kind": "region", "label": "Runtime · Flask single-process (prediction + chatbot action decision)", "wraps": ["browser", "flask", "prediction", "chatapi", "chatservice", "chattools", "releasegate"] }
   ],
   "connections": [
     { "from": "vnstock", "to": "refresh", "label": "OHLCV 1D", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "via": [[152, 128], [152, 250]], "labelAt": [178, 190] },
@@ -50,10 +50,10 @@
     { "from": "flask", "to": "prediction", "label": "predict_symbols()", "variant": "emphasis", "labelAt": [525, 752] },
     { "from": "browser", "to": "chatapi", "label": "POST /api/chat (JSON)", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "orthogonal-v", "via": [[152, 895], [280, 895], [280, 979]], "labelAt": [200, 878] },
     { "from": "chatapi", "to": "chatservice", "label": "chat()", "variant": "emphasis", "labelAt": [525, 932] },
-    { "from": "chatservice", "to": "chattools", "label": "build_context · direct handlers", "variant": "default", "labelAt": [772, 932] },
-    { "from": "chattools", "to": "releasegate", "label": "get_release_state", "variant": "security", "labelAt": [1025, 932] },
+    { "from": "chatservice", "to": "chattools", "label": "execute_action · fixed dispatcher", "variant": "default", "labelAt": [772, 932] },
+    { "from": "chattools", "to": "releasegate", "label": "readiness + scope", "variant": "security", "labelAt": [1025, 932] },
 
-    { "from": "chatservice", "to": "extllm", "label": "1 Chat Completion · context JSON", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 935], [1300, 935], [1300, 128]], "labelAt": [1330, 520] },
+    { "from": "chatservice", "to": "extllm", "label": "1 Chat Completion · JSON decision", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 935], [1300, 935], [1300, 128]], "labelAt": [1330, 520] },
 
     { "from": "chattools", "to": "prediction", "label": "reuse predict / ranking", "variant": "default", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[897, 905], [650, 905]], "labelAt": [790, 888] },
 
@@ -66,7 +66,7 @@
       "dot": "cyan",
       "title": "Bốn boundary, một điểm nối",
       "items": [
-        "External: vnstock cấp OHLCV; External LLM chỉ nhận context đã rút gọn từ chatbot_service — không nối trực tiếp với artifact",
+        "External: vnstock cấp OHLCV; External LLM chỉ nhận câu hỏi + history ngắn và trả JSON action — không nối trực tiếp với artifact",
         "Offline ML (refresh_data.py + run_pipeline.py + Tuning Lab) là bên duy nhất GHI artifact vào Published Release",
         "Runtime Prediction và Chatbot chỉ ĐỌC release đã publish"
       ]
@@ -82,11 +82,11 @@
     },
     {
       "dot": "violet",
-      "title": "Runtime chatbot SCI",
+      "title": "Runtime chatbot action decision",
       "items": [
         "Mọi lượt, kể cả greeting, gọi LLM đúng một lần; request không có tools hoặc tool_choice; deadline 60 giây",
-        "Server dựng context từ handler read-only qua Release Gate; Chatbot không train và không chạy run_pipeline.py",
-        "External LLM chỉ diễn giải; server giữ routing, grounding, release metadata, canonical state và budget"
+        "LLM chỉ chọn 1 trong 5 action; dispatcher cố định gọi handler read-only sau readiness check; chatbot không train và không chạy run_pipeline.py",
+        "Server soạn mọi câu chữ (formatter deterministic, câu xã giao cố định); số liệu chỉ lấy từ artifact và report đã publish"
       ]
     },
     {

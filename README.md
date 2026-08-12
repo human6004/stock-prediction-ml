@@ -42,10 +42,14 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-`requirements.txt` liệt kê 9 dependency (`pandas`, `numpy`, `scikit-learn`, `joblib`, `Flask`,
-`matplotlib`, `vnstock`, `openai`, `python-dotenv`) nhưng **chưa pin version** nào. Cài lại ở máy
-khác sẽ lấy bản mới nhất trên PyPI, nên môi trường chưa reproducible; muốn dựng lại đúng bản đã
-dùng thì phải tự pin (ví dụ `pip freeze > requirements.lock.txt`).
+`requirements.txt` liệt kê 9 dependency trực tiếp (`pandas`, `numpy`, `scikit-learn`, `joblib`,
+`Flask`, `matplotlib`, `vnstock`, `openai`, `python-dotenv`), không pin version.
+`requirements.lock.txt` là bản `pip freeze` của môi trường đã kiểm chứng lúc freeze project;
+muốn tái tạo đúng môi trường đó thì cài bằng file lock:
+
+```powershell
+pip install -r requirements.lock.txt
+```
 
 Chatbot cần cấu hình LLM qua `.env` ở gốc repo (`config/settings.py` đọc bằng python-dotenv).
 Copy từ `.env.example` rồi điền 3 biến:
@@ -58,7 +62,7 @@ LLM_MODEL=
 
 Thiếu `.env` thì pipeline và các trang dự báo vẫn chạy, chỉ riêng chatbot không gọi được LLM.
 
-Chatbot gọi LLM đúng một lần để chọn một trong 5 action cố định bằng JSON. Backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi format câu trả lời dữ liệu bằng code. Provider không nhận raw CSV, report, source code hoặc model artifact; không có tool loop hay LLM call thứ hai. Chỉ có UI `/chat`; transcript lưu trong `sessionStorage` và request gửi tối đa 6 message gần nhất.
+Chatbot gọi LLM đúng một lần để chọn một trong 5 action cố định bằng JSON. Backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi format câu trả lời dữ liệu bằng code. Provider không nhận raw CSV, report, source code hoặc model artifact; không có tool loop hay LLM call thứ hai. Có hai UI dùng chung `/api/chat`: trang `/chat` đầy đủ và khung chat nổi trên các trang còn lại; transcript chia sẻ qua `sessionStorage` và request gửi tối đa 6 message gần nhất.
 
 ## Chạy pipeline
 

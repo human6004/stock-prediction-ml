@@ -339,16 +339,15 @@ def make_sequence_chatbot(out: Path) -> None:
     messages = [
         (0, 1, "1. câu hỏi tối đa 1.000 ký tự", "call"),
         (1, 2, "2. POST /api/chat kèm tối đa 6 tin nhắn lịch sử", "call"),
-        (2, 2, "3. định tuyến ý định bằng luật (rule-based)", "self"),
-        (2, 3, "4. gọi trực tiếp handler dữ liệu tương ứng", "call"),
-        (3, 2, "5. artifact, report, tín hiệu đã công bố hoặc suy ra", "ret"),
-        (2, 2, "6. dựng context tối đa 16.000 ký tự", "self"),
-        (2, 4, "7. gọi mô hình đúng một lần, không gửi tools", "call"),
-        (4, 2, "8. câu trả lời tối đa 1.000 ký tự", "ret"),
-        (2, 2, "9. kiểm release, nguồn, cặp mã–trường–giá trị", "self"),
-        (2, 2, "10. chặn khuyến nghị mua bán trực tiếp", "self"),
-        (2, 1, "11. câu trả lời đã kiểm hoặc thông báo từ chối", "ret"),
-        (1, 0, "12. hiển thị, lưu vào sessionStorage dùng chung", "ret"),
+        (2, 2, "3. validate payload: message và history xen kẽ", "self"),
+        (2, 4, "4. gọi mô hình đúng một lần, không gửi tools", "call"),
+        (4, 2, "5. JSON hai khóa: action và arguments", "ret"),
+        (2, 2, "6. validate quyết định: 5 action, schema chặt", "self"),
+        (2, 3, "7. dispatcher cố định gọi handler dữ liệu", "call"),
+        (3, 2, "8. số liệu từ artifact, report đã công bố", "ret"),
+        (2, 2, "9. formatter soạn câu trả lời kèm khuyến cáo", "self"),
+        (2, 1, "10. answer, sources, warnings, hai mốc ngày", "ret"),
+        (1, 0, "11. hiển thị bằng textContent, lưu sessionStorage", "ret"),
     ]
     depth = _sequence(ax, lifelines, messages)
     _finish(fig, ax, out, (-1.5, 11.5), (depth - 0.35, 0.7))

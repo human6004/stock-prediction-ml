@@ -1,6 +1,6 @@
-# LEGACY/STALE — nội dung chatbot
+# Đã cập nhật — nội dung chatbot không còn LEGACY/STALE
 
-Nội dung chatbot trong report generator tại thư mục này chỉ dùng tham khảo lịch sử; không phải source of truth hiện hành. Phase Action-Decision này không regenerate DOCX.
+Nội dung chatbot trong report generator (`content_ch3a.py`, `content_ch3b.py`, `content_ch3c.py`, `content_front.py`, `make_flow_figures.py`) đã được viết lại theo kiến trúc Action-Decision hiện hành và DOCX đã được build lại từ nguồn này. Tên file này giữ nguyên làm dấu vết lịch sử.
 
 Canonical:
 

@@ -194,13 +194,14 @@ def build_appendices(doc: DocxBuilder, assets: Path, diagrams: Path) -> None:
     doc.heading(3, "A.3. Dự báo")
     doc.code_block(
         "python scripts/predict_stock.py --symbol FPT\n"
-        "python scripts/predict_stock.py --symbol SSI --log-db\n"
+        "python scripts/predict_stock.py --symbol SSI\n"
         "python app.py                          # mo http://127.0.0.1:5000"
     )
     doc.paragraph(
-        "Trang chủ nhận một đến hai mã và trả về nhãn UP hoặc NOT_UP kèm Điểm UP. Trang "
-        "/evaluation trình bày ba khối kết quả tách biệt: kiểm định chéo trên TRAIN, chọn họ "
-        "mô hình trên VALIDATION và đánh giá một lần trên TEST."
+        "Trang chủ nhận một mã, trang /compare so sánh đúng hai mã; cả hai trả về nhãn UP "
+        "hoặc NOT_UP kèm Điểm UP. Trang /evaluation trình bày ba khối kết quả tách biệt: "
+        "kiểm định chéo trên TRAIN, chọn họ mô hình trên VALIDATION và đánh giá một lần "
+        "trên TEST."
     )
 
     doc.heading(3, "A.4. Chạy kiểm thử")
