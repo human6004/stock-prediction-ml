@@ -450,9 +450,6 @@ def _format_project_info(data: dict, topic: str) -> str:
                     values.append(f"{name}: {value}%")
             if values:
                 lines.append(f"{heading}: " + ", ".join(values))
-        baseline = _display_number(data.get("always_up_baseline_f1_up_percent"))
-        if baseline is not None:
-            lines.append(f"Baseline Always UP F1_UP trên TEST: {baseline}%")
         baselines = data.get("final_test_baselines")
         if isinstance(baselines, list):
             for row in baselines:
@@ -509,8 +506,6 @@ def _format_response(decision: dict, action_result: dict | None = None) -> dict:
 
     error = result.get("error")
     unsupported = data.get("unsupported_symbols")
-    if isinstance(error, dict) and error.get("code") == "symbol_out_of_scope":
-        unsupported = decision.get("arguments", {}).get("symbols")
     if isinstance(unsupported, list) and unsupported:
         symbols = ", ".join(str(symbol) for symbol in unsupported)
         answer = f"Mã {symbols} nằm ngoài phạm vi model đang phục vụ."

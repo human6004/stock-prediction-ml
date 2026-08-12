@@ -31,8 +31,8 @@ if hasattr(sys.stderr, "reconfigure"):
 def main() -> None:
     """Chạy tuần tự 3 bước làm mới dữ liệu; mỗi bước in marker cho UI đọc tiến độ.
 
-    Ba bước phụ thuộc nhau theo dây: fetch ghi ``hose_stock.csv`` → preprocess đọc
-    file đó để ghi bản sạch → build_features đọc bản sạch để ghi
+    Ba bước phụ thuộc nhau theo dây: fetch ghi ``hose_stock_raw.csv`` → preprocess
+    đọc file đó để ghi bản sạch → build_features đọc bản sạch để ghi
     ``ml_dataset.csv``. Vì vậy không thể song song hoá, và một bước lỗi thì các
     bước sau vô nghĩa (không try/except: exception thoát ngay, exit code khác 0).
 

@@ -1,7 +1,4 @@
-"""Contract tests for the redesigned shared app shell.
-
-Test-first (plan §6 bước 1): these lock the UI redesign contract and MUST fail
-until base.html exists and every page inherits it.
+"""Contract tests for the shared app shell (base.html).
 
 Contract locked here:
 - One base.html shell shared by all 8 templates.

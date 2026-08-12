@@ -84,9 +84,6 @@ _HISTORY_LOCK = threading.Lock()
 _FINGERPRINT_LOCK = threading.Lock()
 _FINGERPRINT_CACHE: dict[str, tuple[tuple[int, int], dict]] = {}
 
-# A pipeline.lock older than this (and/or with a dead PID) is treated as stale.
-PIPELINE_LOCK_STALE_SECONDS = 3 * 60 * 60
-
 
 def ensure_experiments_dir() -> None:
     EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)

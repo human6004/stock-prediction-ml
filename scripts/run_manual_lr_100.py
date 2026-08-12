@@ -1,7 +1,6 @@
 """Run exactly 100 manual Logistic Regression configs on current TRAIN."""
 
 import json
-from pathlib import Path
 
 from services.experiment_state import compute_dataset_fingerprint, read_history
 from services.tuning_lab import evaluate_single_config, load_train

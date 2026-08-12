@@ -146,7 +146,7 @@ def write_clean_outputs(
 ) -> None:
     """Ghi 4 output của bước làm sạch, mỗi file một mục đích riêng.
 
-    - ``cleaned_hose_stock.csv``: TOÀN BỘ dòng đã sạch (không lọc mã). Đây là
+    - ``hose_stock_clean.csv``: TOÀN BỘ dòng đã sạch (không lọc mã). Đây là
       nguồn duy nhất cho các bước sau; ``cleaned_for_training`` được tính LẠI từ
       file này ở ``scripts/build_features.py`` nên không ghi ra đĩa.
     - ``data_quality_report.csv``: thống kê từng mã, gồm cờ ``eligible_for_training``.

@@ -207,7 +207,7 @@ def merge_and_save(existing: pd.DataFrame, new_rows: pd.DataFrame) -> pd.DataFra
 
 
 def main() -> None:
-    """Cập nhật tăng dần ``hose_stock.csv``: chỉ fetch phần dữ liệu còn thiếu.
+    """Cập nhật tăng dần ``hose_stock_raw.csv``: chỉ fetch phần dữ liệu còn thiếu.
 
     Thiết kế "incremental", không tải lại từ đầu:
     - Danh sách mã lấy TỪ CHÍNH file raw hiện có, không từ config. File raw là
