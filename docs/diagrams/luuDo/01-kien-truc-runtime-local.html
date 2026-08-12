@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime</h1>
       </div>
-      <p class="subtitle">Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact</p>
+      <p class="subtitle">Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM hai lần (decision + grounded compose), LLM không chạm artifact</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1620 1180" role="img" aria-label="Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime — Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact (architecture diagram)">
+      <svg viewBox="0 0 1620 1300" role="img" aria-label="Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime — Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM hai lần (decision + grounded compose), LLM không chạm artifact (architecture diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -534,8 +534,8 @@
         <rect x="330" y="530" width="885" height="108" rx="12" class="c-region" stroke-width="1"/>
         <text x="338" y="548" class="t-cloud" font-size="9" font-weight="600">Published Release · điểm nối read-only</text>
 
-        <rect x="30" y="740" width="1245" height="288" rx="12" class="c-region" stroke-width="1"/>
-        <text x="38" y="758" class="t-cloud" font-size="9" font-weight="600">Runtime · Flask single-process (prediction + chatbot action decision)</text>
+        <rect x="30" y="740" width="1245" height="468" rx="12" class="c-region" stroke-width="1"/>
+        <text x="38" y="758" class="t-cloud" font-size="9" font-weight="600">Runtime · Flask single-process (prediction + chatbot decision + compose)</text>
 
         <!-- Connection paths (before components for correct z-order) -->
         <path d="M 152.5 128 L 152 128 L 152 250 L 152.5 250" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
@@ -551,6 +551,10 @@
         <path d="M 745 979 L 800 979" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         <path d="M 995 979 L 1055 979" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path d="M 650 950 L 650 942.5 Q 650 935 657.5 935 L 1292 935 Q 1300 935 1300 927 L 1300 133 Q 1300 128 1295 128 L 1290 128" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 650 1008 L 650 1052 Q 650 1060 642 1060 L 513 1060 Q 505 1060 505 1068 L 505 1151 Q 505 1159 513 1159 L 555 1159" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 745 1159 L 800 1159" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 897.5 1130 L 897.0888834024285 1092.9995062185596 Q 897 1085 889 1085 L 658 1085 Q 650 1085 650 1093 L 650 1130" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 995 1159 L 1442 1159 Q 1450 1159 1450 1151 L 1450 107 Q 1450 99 1442 99 L 1395 99" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 897.5 950 L 897.0888834024285 912.9995062185595 Q 897 905 889 905 L 658 905 Q 650 905 650 897 L 650 828" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         <path d="M 650 770 L 650 708 Q 650 700 642 700 L 455 700 Q 447 700 447.0487795809948 692.0001487168524 L 447.5 618" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path d="M 897.5 950 L 897.019047565058 747.9999773243594 Q 897 740 905 740 L 1089 740 Q 1097 740 1097.032786609896 732.0000671853938 L 1097.5 618" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
@@ -567,7 +571,7 @@
         <rect x="1185" y="70" width="210" height="58" rx="6" class="c-external" stroke-width="1.5"/>
         <text x="1290" y="97" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">External LLM</text>
         <text x="1290" y="113" class="t-muted" font-size="9" text-anchor="middle">OpenAI-compatible provider</text>
-        <text x="1290" y="120" class="t-external" font-size="7" text-anchor="middle">1 call / lượt</text>
+        <text x="1290" y="120" class="t-external" font-size="7" text-anchor="middle">2 call / lượt: decision + compose</text>
 
         <rect x="60" y="250" width="185" height="58" rx="6" class="c-mask"/>
         <rect x="60" y="250" width="185" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -645,8 +649,8 @@
         <rect x="555" y="950" width="190" height="58" rx="6" class="c-mask"/>
         <rect x="555" y="950" width="190" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="650" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">chatbot_service</text>
-        <text x="650" y="993" class="t-muted" font-size="9" text-anchor="middle">decide + format · one call</text>
-        <text x="650" y="1000" class="t-backend" font-size="7" text-anchor="middle">action decision · 60s</text>
+        <text x="650" y="993" class="t-muted" font-size="9" text-anchor="middle">decide + format + compose</text>
+        <text x="650" y="1000" class="t-backend" font-size="7" text-anchor="middle">2 LLM call · deadline 60s</text>
 
         <rect x="800" y="950" width="195" height="58" rx="6" class="c-mask"/>
         <rect x="800" y="950" width="195" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
@@ -659,6 +663,18 @@
         <text x="1150" y="977" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Readiness check</text>
         <text x="1150" y="993" class="t-muted" font-size="9" text-anchor="middle">_load_runtime_state()</text>
         <text x="1150" y="1000" class="t-security" font-size="7" text-anchor="middle">status + warning</text>
+
+        <rect x="555" y="1130" width="190" height="58" rx="6" class="c-mask"/>
+        <rect x="555" y="1130" width="190" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="650" y="1157" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Deterministic formatter</text>
+        <text x="650" y="1173" class="t-muted" font-size="9" text-anchor="middle">nguồn số liệu · answer gốc</text>
+        <text x="650" y="1180" class="t-backend" font-size="7" text-anchor="middle">không gọi provider</text>
+
+        <rect x="800" y="1130" width="195" height="58" rx="6" class="c-mask"/>
+        <rect x="800" y="1130" width="195" height="58" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="897.5" y="1157" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Grounded compose</text>
+        <text x="897.5" y="1173" class="t-muted" font-size="9" text-anchor="middle">LLM call thứ hai (compose)</text>
+        <text x="897.5" y="1180" class="t-cloud" font-size="7" text-anchor="middle">lỗi/timeout → giữ formatter</text>
 
         <!-- Connection labels -->
         <rect x="153.8" y="180" width="48.4" height="14" rx="3" class="c-mask"/>
@@ -685,8 +701,16 @@
         <text x="772" y="932" class="t-muted" font-size="8" text-anchor="middle">execute_action · fixed dispatcher</text>
         <rect x="979.2" y="922" width="91.6" height="14" rx="3" class="c-mask"/>
         <text x="1025" y="932" class="t-security" font-size="8" text-anchor="middle">readiness + scope</text>
-        <rect x="1245.8" y="510" width="168.4" height="14" rx="3" class="c-mask"/>
-        <text x="1330" y="520" class="t-backend" font-size="8" text-anchor="middle">1 Chat Completion · JSON decision</text>
+        <rect x="1262.6" y="510" width="134.8" height="14" rx="3" class="c-mask"/>
+        <text x="1330" y="520" class="t-backend" font-size="8" text-anchor="middle">LLM call 1 · JSON decision</text>
+        <rect x="522.6" y="1040" width="134.8" height="14" rx="3" class="c-mask"/>
+        <text x="590" y="1050" class="t-backend" font-size="8" text-anchor="middle">action result → answer gốc</text>
+        <rect x="723.8" y="1102" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
+        <text x="772" y="1112" class="t-backend" font-size="8" text-anchor="middle">answer + data JSON</text>
+        <rect x="684" y="1065" width="178" height="14" rx="3" class="c-mask"/>
+        <text x="773" y="1075" class="t-messagebus" font-size="8" text-anchor="middle">compose lỗi/timeout → giữ formatter</text>
+        <rect x="1405.4" y="630" width="149.2" height="14" rx="3" class="c-mask"/>
+        <text x="1480" y="640" class="t-backend" font-size="8" text-anchor="middle">LLM call 2 · grounded compose</text>
         <rect x="729.8" y="878" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
         <text x="790" y="888" class="t-muted" font-size="8" text-anchor="middle">reuse predict / ranking</text>
         <rect x="471" y="680" width="178" height="14" rx="3" class="c-mask"/>
@@ -697,17 +721,19 @@
         <text x="1010" y="708" class="t-backend" font-size="8" text-anchor="middle">read identity · read-only</text>
 
         <!-- Legend -->
-        <text x="40" y="1151" class="t-primary" font-size="9" font-weight="600">Legend</text>
-        <rect x="40" y="1156" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
-        <text x="60" y="1164" class="t-muted" font-size="8">External</text>
-        <rect x="138" y="1156" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="158" y="1164" class="t-muted" font-size="8">Backend</text>
-        <rect x="231" y="1156" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="251" y="1164" class="t-muted" font-size="8">Security</text>
-        <rect x="329" y="1156" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="349" y="1164" class="t-muted" font-size="8">Database</text>
-        <rect x="427" y="1156" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="447" y="1164" class="t-muted" font-size="8">Frontend</text>
+        <text x="40" y="1271" class="t-primary" font-size="9" font-weight="600">Legend</text>
+        <rect x="40" y="1276" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
+        <text x="60" y="1284" class="t-muted" font-size="8">External</text>
+        <rect x="138" y="1276" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="158" y="1284" class="t-muted" font-size="8">Backend</text>
+        <rect x="231" y="1276" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="251" y="1284" class="t-muted" font-size="8">Security</text>
+        <rect x="329" y="1276" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="349" y="1284" class="t-muted" font-size="8">Database</text>
+        <rect x="427" y="1276" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="447" y="1284" class="t-muted" font-size="8">Frontend</text>
+        <rect x="525" y="1276" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
+        <text x="545" y="1284" class="t-muted" font-size="8">Cloud</text>
       </svg>
     </div>
 
@@ -719,7 +745,7 @@
           <h3>Bốn boundary, một điểm nối</h3>
         </div>
         <ul>
-          <li>&bull; External: vnstock cấp OHLCV; External LLM chỉ nhận câu hỏi + history ngắn và trả JSON action — không nối trực tiếp với artifact</li>
+          <li>&bull; External: vnstock cấp OHLCV; External LLM nhận câu hỏi + history ngắn (call 1 decision) rồi JSON số liệu backend (call 2 compose) — không nối trực tiếp với artifact</li>
           <li>&bull; Offline ML (refresh_data.py + run_pipeline.py + Tuning Lab) là bên duy nhất GHI artifact vào Published Release</li>
           <li>&bull; Runtime Prediction và Chatbot chỉ ĐỌC release đã publish</li>
         </ul>
@@ -740,12 +766,13 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot violet"></div>
-          <h3>Runtime chatbot action decision</h3>
+          <h3>Runtime chatbot: decision + grounded compose</h3>
         </div>
         <ul>
-          <li>&bull; Mọi lượt, kể cả greeting, gọi LLM đúng một lần; request không có tools hoặc tool_choice; deadline 60 giây</li>
+          <li>&bull; Mỗi lượt đúng hai LLM call: call 1 quyết định {action, arguments}, call 2 (compose) diễn đạt lại answer; không tools, không tool_choice, không tool loop</li>
           <li>&bull; LLM chỉ chọn 1 trong 5 action; dispatcher cố định gọi handler read-only sau readiness check; chatbot không train và không chạy run_pipeline.py</li>
-          <li>&bull; Server soạn mọi câu chữ (formatter deterministic, câu xã giao cố định); số liệu chỉ lấy từ artifact và report đã publish</li>
+          <li>&bull; Deterministic formatter luôn chạy trước và là fallback: compose lỗi, timeout, sai protocol hoặc quá dài thì giữ nguyên answer formatter</li>
+          <li>&bull; Số liệu chỉ đến từ artifact và report đã publish; compose chỉ diễn đạt lại đúng các con số backend đã tính, deadline 60 giây bao trùm cả hai call</li>
         </ul>
       </div>
 
@@ -755,7 +782,7 @@
           <h3>Giới hạn triển khai</h3>
         </div>
         <ul>
-          <li>&bull; Không SQLite, embedding index, LangChain hoặc database chat; dock và /chat dùng chung sessionStorage trong tab</li>
+          <li>&bull; Không SQLite, embedding index, LangChain hoặc database chat; CHATBOT_COMPOSE=0 tắt call 2 và rơi hẳn về formatter; dock và /chat dùng chung sessionStorage trong tab</li>
           <li>&bull; Không auth trên bất kỳ route nào — kể cả POST /tuning/run-pipeline (spawn training) và /tuning/fetch-data (spawn fetch mạng); an toàn chỉ nhờ bind 127.0.0.1:5000</li>
           <li>&bull; Lock pipeline/tuning chỉ an toàn single-process; raw path hard-code theo máy hiện tại</li>
         </ul>

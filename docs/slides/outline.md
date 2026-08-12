@@ -18,7 +18,7 @@ Vi vay slide di theo dung thu tu 4 chuong cua guideline, moi chuong mot khoi sli
 | 7 | Nhãn t+5 tính trên lịch phiên chung, tỷ lệ UP chỉ 37,6% | Chương 3 - Định nghĩa nhãn chống rò rỉ | services/feature_engineering.py, reports/pipeline_summary.json |
 | 8 | 20 feature kỹ thuật, mỗi feature chỉ dùng dòng hiện tại và quá khứ | Chương 3 - Feature engineering | config/settings.py (FEATURE_COLUMNS), services/feature_engineering.py |
 | 9 | Kiến trúc: pipeline offline tách khỏi tầng phục vụ dự báo | Chương 3.2.1 - Kiến trúc ứng dụng | docs/report_assets/architecture_overview.png, app.py |
-| 10 | Chatbot dùng structured context injection (SCI) | Chương 3 - Chức năng chatbot | services/chatbot_tools.py, services/chatbot_service.py, tests/test_chatbot*.py |
+| 10 | Chatbot Action-Decision: LLM chọn action, backend giữ số liệu | Chương 3 - Chức năng chatbot | docs/CHATBOT_ARCHITECTURE.md, services/chatbot_service.py, services/chatbot_tools.py |
 | 11 | Demo: chatbot trả lời có số liệu, từ chối câu ngoài phạm vi | Chương 3 - Ảnh chụp phiên làm việc thật | ảnh chụp 127.0.0.1:5000/chat, docs/slides/shoot_chat.py |
 | 12 | Chia theo thời gian, purge nhãn vắt biên và khóa TEST bằng fingerprint | Chương 3 - Giao thức thực nghiệm | reports/split_summary.csv, reports/pipeline_summary.json |
 | 13 | Tuning bằng CV 4 fold theo ngày, purge 5 phiên, ngưỡng chọn từ OOF | Chương 3 - Thiết lập thực nghiệm | reports/tuning_results.csv, reports/cv_fold_results.csv, config/settings.py |

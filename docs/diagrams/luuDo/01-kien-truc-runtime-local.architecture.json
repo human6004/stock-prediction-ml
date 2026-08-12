@@ -3,13 +3,13 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Kiến trúc tổng quan — External · Offline ML · Published Release · Runtime",
-    "subtitle": "Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM, LLM không chạm artifact",
+    "subtitle": "Published Release là điểm nối: Offline ML ghi artifact; Prediction và Chatbot chỉ đọc · Chatbot gọi External LLM hai lần (decision + grounded compose), LLM không chạm artifact",
     "output": "docs/diagrams/luuDo/01-kien-truc-runtime-local.html",
-    "viewBox": [1620, 1180]
+    "viewBox": [1620, 1300]
   },
   "components": [
     { "id": "vnstock", "type": "external", "label": "vnstock", "sublabel": "OHLCV 1D KBS", "pos": [60, 70], "size": [185, 58], "tag": "nguồn dữ liệu" },
-    { "id": "extllm", "type": "external", "label": "External LLM", "sublabel": "OpenAI-compatible provider", "pos": [1185, 70], "size": [210, 58], "tag": "1 call / lượt" },
+    { "id": "extllm", "type": "external", "label": "External LLM", "sublabel": "OpenAI-compatible provider", "pos": [1185, 70], "size": [210, 58], "tag": "2 call / lượt: decision + compose" },
 
     { "id": "refresh", "type": "backend", "label": "refresh_data.py", "sublabel": "Popen nền", "pos": [60, 250], "size": [185, 58], "tag": "fetch job" },
     { "id": "dataservices", "type": "backend", "label": "Data / ML services", "sublabel": "clean · features · labels · protocol_dates", "pos": [305, 250], "size": [200, 58], "tag": "processed CSV" },
@@ -27,15 +27,18 @@
     { "id": "prediction", "type": "backend", "label": "prediction_service", "sublabel": "predict_symbols()", "pos": [555, 770], "size": [190, 58], "tag": "load artifact · không retrain" },
 
     { "id": "chatapi", "type": "frontend", "label": "/chat · /api/chat", "sublabel": "app.py JSON REST", "pos": [305, 950], "size": [190, 58], "tag": "JSON endpoint" },
-    { "id": "chatservice", "type": "backend", "label": "chatbot_service", "sublabel": "decide + format · one call", "pos": [555, 950], "size": [190, 58], "tag": "action decision · 60s" },
+    { "id": "chatservice", "type": "backend", "label": "chatbot_service", "sublabel": "decide + format + compose", "pos": [555, 950], "size": [190, 58], "tag": "2 LLM call · deadline 60s" },
     { "id": "chattools", "type": "backend", "label": "chatbot_tools", "sublabel": "fixed read-only handlers", "pos": [800, 950], "size": [195, 58], "tag": "published / derived" },
-    { "id": "releasegate", "type": "security", "label": "Readiness check", "sublabel": "_load_runtime_state()", "pos": [1055, 950], "size": [190, 58], "tag": "status + warning" }
+    { "id": "releasegate", "type": "security", "label": "Readiness check", "sublabel": "_load_runtime_state()", "pos": [1055, 950], "size": [190, 58], "tag": "status + warning" },
+
+    { "id": "formatter", "type": "backend", "label": "Deterministic formatter", "sublabel": "nguồn số liệu · answer gốc", "pos": [555, 1130], "size": [190, 58], "tag": "không gọi provider" },
+    { "id": "compose", "type": "cloud", "label": "Grounded compose", "sublabel": "LLM call thứ hai (compose)", "pos": [800, 1130], "size": [195, 58], "tag": "lỗi/timeout → giữ formatter" }
   ],
   "boundaries": [
     { "kind": "region", "label": "External · dịch vụ bên ngoài", "wraps": ["vnstock", "extllm"] },
     { "kind": "region", "label": "Offline ML · fetch + official pipeline + tuning (bên ghi artifact)", "wraps": ["refresh", "dataservices", "pipeline", "experiments", "tuninglab"] },
     { "kind": "region", "label": "Published Release · điểm nối read-only", "wraps": ["finalmodel", "metadata", "summary", "reports"] },
-    { "kind": "region", "label": "Runtime · Flask single-process (prediction + chatbot action decision)", "wraps": ["browser", "flask", "prediction", "chatapi", "chatservice", "chattools", "releasegate"] }
+    { "kind": "region", "label": "Runtime · Flask single-process (prediction + chatbot decision + compose)", "wraps": ["browser", "flask", "prediction", "chatapi", "chatservice", "chattools", "releasegate", "formatter", "compose"] }
   ],
   "connections": [
     { "from": "vnstock", "to": "refresh", "label": "OHLCV 1D", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "via": [[152, 128], [152, 250]], "labelAt": [178, 190] },
@@ -53,7 +56,12 @@
     { "from": "chatservice", "to": "chattools", "label": "execute_action · fixed dispatcher", "variant": "default", "labelAt": [772, 932] },
     { "from": "chattools", "to": "releasegate", "label": "readiness + scope", "variant": "security", "labelAt": [1025, 932] },
 
-    { "from": "chatservice", "to": "extllm", "label": "1 Chat Completion · JSON decision", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 935], [1300, 935], [1300, 128]], "labelAt": [1330, 520] },
+    { "from": "chatservice", "to": "extllm", "label": "LLM call 1 · JSON decision", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[650, 935], [1300, 935], [1300, 128]], "labelAt": [1330, 520] },
+
+    { "from": "chatservice", "to": "formatter", "label": "action result → answer gốc", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "via": [[650, 1060], [505, 1060], [505, 1159]], "labelAt": [590, 1050] },
+    { "from": "formatter", "to": "compose", "label": "answer + data JSON", "variant": "emphasis", "labelAt": [772, 1112] },
+    { "from": "compose", "to": "formatter", "label": "compose lỗi/timeout → giữ formatter", "variant": "dashed", "fromSide": "top", "toSide": "top", "via": [[897, 1085], [650, 1085]], "labelAt": [773, 1075] },
+    { "from": "compose", "to": "extllm", "label": "LLM call 2 · grounded compose", "variant": "emphasis", "fromSide": "right", "toSide": "right", "via": [[1450, 1159], [1450, 99]], "labelAt": [1480, 640] },
 
     { "from": "chattools", "to": "prediction", "label": "reuse predict / ranking", "variant": "default", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "via": [[897, 905], [650, 905]], "labelAt": [790, 888] },
 
@@ -66,7 +74,7 @@
       "dot": "cyan",
       "title": "Bốn boundary, một điểm nối",
       "items": [
-        "External: vnstock cấp OHLCV; External LLM chỉ nhận câu hỏi + history ngắn và trả JSON action — không nối trực tiếp với artifact",
+        "External: vnstock cấp OHLCV; External LLM nhận câu hỏi + history ngắn (call 1 decision) rồi JSON số liệu backend (call 2 compose) — không nối trực tiếp với artifact",
         "Offline ML (refresh_data.py + run_pipeline.py + Tuning Lab) là bên duy nhất GHI artifact vào Published Release",
         "Runtime Prediction và Chatbot chỉ ĐỌC release đã publish"
       ]
@@ -82,18 +90,19 @@
     },
     {
       "dot": "violet",
-      "title": "Runtime chatbot action decision",
+      "title": "Runtime chatbot: decision + grounded compose",
       "items": [
-        "Mọi lượt, kể cả greeting, gọi LLM đúng một lần; request không có tools hoặc tool_choice; deadline 60 giây",
+        "Mỗi lượt đúng hai LLM call: call 1 quyết định {action, arguments}, call 2 (compose) diễn đạt lại answer; không tools, không tool_choice, không tool loop",
         "LLM chỉ chọn 1 trong 5 action; dispatcher cố định gọi handler read-only sau readiness check; chatbot không train và không chạy run_pipeline.py",
-        "Server soạn mọi câu chữ (formatter deterministic, câu xã giao cố định); số liệu chỉ lấy từ artifact và report đã publish"
+        "Deterministic formatter luôn chạy trước và là fallback: compose lỗi, timeout, sai protocol hoặc quá dài thì giữ nguyên answer formatter",
+        "Số liệu chỉ đến từ artifact và report đã publish; compose chỉ diễn đạt lại đúng các con số backend đã tính, deadline 60 giây bao trùm cả hai call"
       ]
     },
     {
       "dot": "amber",
       "title": "Giới hạn triển khai",
       "items": [
-        "Không SQLite, embedding index, LangChain hoặc database chat; dock và /chat dùng chung sessionStorage trong tab",
+        "Không SQLite, embedding index, LangChain hoặc database chat; CHATBOT_COMPOSE=0 tắt call 2 và rơi hẳn về formatter; dock và /chat dùng chung sessionStorage trong tab",
         "Không auth trên bất kỳ route nào — kể cả POST /tuning/run-pipeline (spawn training) và /tuning/fetch-data (spawn fetch mạng); an toàn chỉ nhờ bind 127.0.0.1:5000",
         "Lock pipeline/tuning chỉ an toàn single-process; raw path hard-code theo máy hiện tại"
       ]

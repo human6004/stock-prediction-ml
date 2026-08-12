@@ -256,29 +256,37 @@ nhau. Mốc thực tế của bản đã publish nằm trong model_metadata.json
 
 ---
 
-## SLIDE 10 - Chatbot dùng structured context injection (45 giây)
+## SLIDE 10 - Chatbot kiến trúc Action-Decision (45 giây)
 
 NÓI:
-"Hệ thống có một chatbot trả lời câu hỏi về chính dự án này. Kiến trúc là structured context
-injection, viết tắt SCI: không vector database, không embedding, và không để LLM tự gọi tool.
+"Hệ thống có một chatbot trả lời câu hỏi về chính dự án này. Kiến trúc là Action-Decision: không
+vector database, không embedding, không RAG, và không để LLM tự gọi tool trong vòng lặp.
 
-Máy chủ đọc câu hỏi, dựng context từ signal, model metadata và report đã publish, rồi gọi LLM
-đúng một lần. Greeting cũng đi qua cùng luồng; request provider không có tools hay tool_choice.
-Raw CSV chỉ được prediction service xử lý nội bộ, không gửi ra ngoài.
+Một lượt hỏi đi qua bốn bước. Trước hết, LLM được gọi lần thứ nhất chỉ để ra quyết định: chọn đúng
+một trong năm action và trích xuất arguments theo schema cố định. Năm action đó là GENERAL_CHAT cho
+hội thoại ngắn, STOCK_SIGNAL cho tín hiệu một đến năm mã, STOCK_RANKING cho xếp hạng Điểm UP,
+PROJECT_INFO cho bảy chủ đề về đồ án, và OUT_OF_SCOPE cho yêu cầu ngoài phạm vi.
 
-Sau khi LLM trả lời, máy chủ đối chiếu mã, trường và giá trị với context. Sources, warnings,
-release status và ngày dữ liệu cũng lấy từ server, không tin lời LLM. Vì vậy hệ thống cho phép
-nhận định xu hướng phù hợp UP hoặc NOT_UP nhưng chặn khuyến nghị mua bán trực tiếp.
+Bước hai, backend validate lại chính quyết định đó: đúng hai khóa action và arguments, đúng kiểu và
+khoảng giá trị, mã được chuẩn hóa rồi kiểm scope tập trung trước khi chạy inference. Sai schema thì
+trả 502, không hạ xuống router keyword.
 
-Giới hạn runtime gồm context tối đa 16.000 ký tự, 3 cặp hỏi đáp gần nhất và deadline toàn lượt
-60 giây. Dock với trang chat dùng chung sessionStorage. Thiếu API key trả 503, provider lỗi trả
-502, timeout trả 504; không có câu fallback cục bộ. Bộ kiểm thử chatbot phủ service, route,
-grounding, state và giao diện mà không khóa cứng số lượng trong slide."
+Bước ba, một dispatcher cố định gọi handler tương ứng. Mọi prediction, Điểm UP, xếp hạng và metric
+đều do backend tính từ artifact đã publish; LLM không đọc CSV, không gọi model, không tự chọn ngưỡng.
 
-NẾU BỊ HỎI - "Nếu LLM vẫn bịa số thì sao?":
-"Có thêm một lớp hậu kiểm trong services/chatbot_service.py. Validator rút từng cặp mã, trường
-và giá trị trong câu trả lời rồi đối chiếu với grounded facts của context hiện tại. Nếu số không
-có trong context, gán sai mã hoặc nhận định xu hướng trái UP/NOT_UP, câu đó bị chặn."
+Bước bốn, LLM được gọi lần thứ hai để diễn đạt lại câu trả lời từ đúng JSON số liệu backend đưa.
+Nếu call này lỗi, quá deadline hoặc trả sai định dạng, hệ thống giữ nguyên bản formatter
+deterministic. Nhờ vậy văn phong mỗi lần có thể khác nhau nhưng số liệu và disclaimer thì không đổi.
+
+Về runtime: mỗi lượt đúng hai LLM call, gửi kèm ba cặp hỏi đáp gần nhất, và một deadline chung phủ
+cả hai call. Trang /chat với dock nổi dùng chung API và transcript trong sessionStorage."
+
+NẾU BỊ HỎI - "Nếu LLM chọn sai action hoặc bịa số thì sao?":
+"Đây là hai chuyện khác nhau. Bịa số thì bị chặn ngay từ cấu trúc: LLM không cầm dữ liệu, mọi con
+số đến từ backend, và call compose chỉ nhận đúng JSON kết quả nên không có nguồn nào để bịa; compose
+lỗi thì rơi về bản formatter cố định. Còn chọn sai action thì validator chỉ chặn được sai schema,
+không chặn được sai ý; em xử lý bằng bộ scenario evaluator 37 tình huống chạy với provider thật để
+chỉnh prompt, chứ không thêm router thứ hai."
 
 ---
 
@@ -287,17 +295,20 @@ có trong context, gán sai mã hoặc nhận định xu hướng trái UP/NOT_U
 NÓI:
 "Đây là ảnh chụp từ phiên làm việc thật với Flask đang chạy, không phải ảnh minh họa.
 
-Câu thứ nhất hỏi về mô hình và kết quả TEST. Chatbot trả về đúng Random Forest với F1_UP 0,3754,
-trùng khớp bảng kết quả ở slide 17.
+Câu thứ nhất hỏi về mô hình và kết quả TEST. Decision chọn PROJECT_INFO, backend đọc metadata và
+report nên trả về đúng Random Forest với F1_UP 0,3754, trùng khớp bảng kết quả ở slide 17.
 
-Câu thứ hai hỏi tín hiệu của FPT. Chatbot trả về điểm UP kèm ngưỡng quyết định, và nói rõ đây là
-dữ liệu offline theo phiên gần nhất trong dataset, không phải giá hiện tại.
+Câu thứ hai hỏi tín hiệu của FPT. Decision chọn STOCK_SIGNAL với đúng một mã; backend kiểm scope
+rồi chạy inference, trả về Điểm UP kèm ngưỡng quyết định, và nói rõ đây là dữ liệu offline theo
+phiên gần nhất trong dataset, không phải giá hiện tại.
 
-Câu thứ ba hỏi về P/E và tin tức doanh nghiệp. Chatbot từ chối và nêu lại đúng phạm vi hỗ trợ.
-Đó chính là cơ chế chống bịa số liệu đang hoạt động, vì hai thông tin đó không có trong dataset.
+Câu thứ ba hỏi về P/E và tin tức doanh nghiệp. Decision chọn OUT_OF_SCOPE, chatbot từ chối và mời
+lại đúng những việc nó làm được. Đó chính là ranh giới phạm vi đang hoạt động, vì hai thông tin đó
+không có trong dataset.
 
-Ba cảnh báo phía dưới luôn đi kèm mọi câu trả lời: policy đang dùng, cảnh báo chưa vượt baseline,
-và ghi chú symbol scope chưa được verify."
+Điểm cần nhấn: cả ba câu đều không có con số nào do LLM tự viết ra. Thanh trạng thái phía trên ghi
+rõ dữ liệu offline đến ngày nào, và dòng cuối trang là disclaimer do backend gắn, nói rõ kết quả
+chỉ để tham khảo chứ không phải khuyến nghị đầu tư."
 
 ---
 
@@ -706,23 +717,28 @@ là hạng mục em sẽ kiểm tra bằng cách chạy lại không có month �
 ## A4. Nhóm câu hỏi về hệ thống
 
 HỎI: "Chatbot có thể bịa số liệu không?"
-ĐÁP: "Kiến trúc được thiết kế để giảm khả năng đó. Server tự dựng context từ dữ liệu đã publish,
-gọi LLM đúng một lần rồi kiểm chứng câu trả lời bằng _validate_grounded_answer. Validator đối
-chiếu từng mã, trường và giá trị; sources, warnings và release metadata không lấy từ lời LLM.
-Câu hỏi realtime, P/E được trả theo limitation context; khuyến nghị mua bán trực tiếp bị chặn.
-Không có API key thì trả 503 chứ không sinh câu fallback."
+ĐÁP: "Kiến trúc chặn việc đó từ cấu trúc chứ không chỉ bằng hậu kiểm. LLM chỉ làm hai việc: call
+thứ nhất chọn một trong năm action và trích arguments, call thứ hai diễn đạt lại câu trả lời từ
+đúng JSON số liệu backend đã tính. Prediction, Điểm UP, ranking và metric đều do backend lấy từ
+artifact đã publish; call compose không nhận history, không nhận CSV, không nhận source code nên
+không có nguồn nào để bịa. Nếu compose lỗi, quá deadline hoặc trả sai định dạng thì hệ thống giữ
+nguyên bản formatter deterministic. Nhánh chào hỏi và từ chối còn bị bỏ đói dữ liệu: phần data gửi
+cho compose chỉ có kind hoặc reason cùng danh sách năng lực, không có mã và không có con số nào."
 
-HỎI: "Vì sao không dùng vector database?"
+HỎI: "Vì sao không dùng RAG hay vector database?"
 ĐÁP: "Vì dữ liệu cần đọc là số có cấu trúc trong JSON và CSV, không phải văn bản dài. Với
-loại dữ liệu này, tìm kiếm ngữ nghĩa vừa kém chính xác hơn vừa có nguy cơ lấy sai con số. Đọc
-trực tiếp đúng trường trong artifact cho kết quả xác định và truy nguồn được. Đó là lý do em chọn
-structured context injection. Nếu sau này thêm tài liệu văn bản như báo cáo phân tích thì vector
-store mới có lý do tồn tại."
+loại dữ liệu này, tìm kiếm ngữ nghĩa vừa kém chính xác hơn vừa có nguy cơ lấy sai con số. Phạm vi
+nghiệp vụ cũng đóng: năm action đã phủ hết các nhóm câu hỏi, và mỗi action đọc thẳng đúng trường
+trong artifact nên kết quả xác định và truy nguồn được. Nếu sau này thêm tài liệu văn bản như báo
+cáo phân tích thì vector store mới có lý do tồn tại."
 
-HỎI: "Thuật toán retrieval của em là gì?"
-ĐÁP: "Rule-based intent routing. Có 8 bảng keyword, khớp cụm trên text đã normalize là casefold và
-bỏ dấu, rồi chọn 1 trong 6 handler đóng. Em chọn rule vì domain đóng, 6 loại câu hỏi cố định, dữ
-liệu là số có cấu trúc. Similarity search không thêm được gì mà còn sinh sai số."
+HỎI: "Vậy chatbot định tuyến câu hỏi bằng gì?"
+ĐÁP: "Bằng đúng một LLM call decision, không có bảng keyword nào. LLM trả về JSON hai khóa là
+action và arguments; backend validate exact schema, chuẩn hóa mã, giới hạn top_n, rồi một dispatcher
+cố định gọi handler tương ứng. Em cố ý không giữ router keyword làm dự phòng, vì hai đường định
+tuyến song song sẽ khiến hành vi khó giải thích và khó kiểm thử; decision sai protocol thì trả 502
+luôn. Cái đánh đổi là chatbot phụ thuộc provider, nên em bù bằng scenario evaluator để đo chất
+lượng decision."
 
 HỎI: "Web có bảo mật không?"
 ĐÁP: "Chưa có xác thực người dùng, em nêu rõ trong phần hạn chế. Ứng dụng hiện chạy cục bộ cho
@@ -757,8 +773,8 @@ TEST: RF F1_UP 0,3754, precision 0,2890, recall 0,5356, accuracy 0,5766; always-
 always-NOT_UP accuracy 0,7625.
 Confusion TEST: TP 2.589, FP 6.371, FN 2.245, TN 9.145; tỷ lệ UP trên TEST 23,8%.
 Feature top: volatility_20d 19,7%, month 9,1%, volatility_5d 7,0%.
-Hệ thống: 6 trang web, chatbot SCI dùng một call mỗi lượt, bộ kiểm thử tự động,
-350 run tuning (LR 269, RF 51, GB 30).
+Hệ thống: 6 trang web, chatbot Action-Decision với 5 action và 2 LLM call mỗi lượt (decision +
+compose), bộ kiểm thử tự động, 350 run tuning (LR 269, RF 51, GB 30).
 Siêu tham số RF: n_estimators 130, max_depth 8, min_samples_leaf 100, max_features 0,2,
 class_weight balanced_subsample, random_state 42.
 

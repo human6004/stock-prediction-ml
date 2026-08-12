@@ -528,23 +528,23 @@ add_note(
     "Tuning Lab là nơi thử siêu tham số và chốt cấu hình trước khi chạy pipeline chính thức.",
 )
 
-# ---------- 9b. Chatbot structured context injection ----------
+# ---------- 9b. Chatbot action-decision ----------
 s = new_slide()
 add_title(
     s,
-    "Chatbot dùng structured context injection (SCI)",
+    "Chatbot Action-Decision: LLM chọn action, backend giữ số liệu",
     "Chương 3 - Chức năng chatbot",
 )
 box = add_box(s, Inches(0.7), Inches(1.75), Inches(5.5), Inches(4.5))
 set_text(
     box.text_frame,
     [
-        "Server chọn context trước, LLM diễn giải sau",
-        "Đúng một LLM call, không tools/tool_choice",
-        "Chỉ đọc artifact đã publish, không train lại",
-        "Mã ngoài symbol scope bị từ chối",
-        "Grounding chặn số sai và tư vấn mua bán",
-        "Không có API key thì trả 503, không bịa",
+        "LLM decision chọn đúng một trong năm action",
+        "Backend validate schema và kiểm symbol scope",
+        "Dispatcher cố định gọi handler, không tool loop",
+        "Mọi số liệu do backend tính, LLM không tạo",
+        "Compose diễn đạt lại, lỗi thì giữ formatter",
+        "Không RAG, không vector DB, không embedding",
     ],
     size=16,
     space=11,
@@ -553,10 +553,10 @@ add_table(
     s,
     [
         ["Ràng buộc runtime", "Giá trị"],
-        ["LLM call mỗi lượt", "1"],
-        ["Context JSON", "Tối đa 16.000 ký tự"],
-        ["History gửi kèm", "3 cặp hỏi đáp"],
-        ["Memory", "sessionStorage dùng chung"],
+        ["LLM call: decision + compose", "2"],
+        ["Action trong whitelist", "5"],
+        ["History gửi kèm", "3 cặp"],
+        ["Fallback khi compose lỗi", "Formatter"],
     ],
     Inches(6.5),
     Inches(1.85),
@@ -566,13 +566,14 @@ add_table(
     col_widths=[4, 2],
 )
 fit_picture(s, IMG / "chatbot_flow.png", Inches(6.5), Inches(4.15), Inches(6.2), Inches(2.1))
-add_source(s, "services/chatbot_tools.py, services/chatbot_service.py, tests/test_chatbot*.py")
+add_source(s, "docs/CHATBOT_ARCHITECTURE.md, services/chatbot_service.py, services/chatbot_tools.py")
 add_note(
     s,
-    "Chatbot dùng structured context injection: không vector database, không embedding, không provider tool-calling. Server khớp keyword để chọn nguồn dữ liệu, dựng context từ signal, metadata và report đã publish, rồi gọi LLM đúng một lần. "
-    "Sources, warnings, release status và canonical state do server giữ riêng; grounding đối chiếu mã, trường và giá trị sau khi LLM trả lời. "
-    "Hệ thống cho phép nhận định xu hướng phù hợp dữ liệu nhưng chặn khuyến nghị mua bán trực tiếp. "
-    "Dock và trang chat dùng chung sessionStorage; provider lỗi trả mã lỗi rõ, không fallback local.",
+    "Chatbot chạy kiến trúc Action-Decision: LLM call thứ nhất chỉ chọn đúng một trong năm action là GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, PROJECT_INFO, OUT_OF_SCOPE kèm arguments theo schema cố định. "
+    "Backend validate lại schema rồi kiểm symbol scope tập trung, sau đó một dispatcher cố định gọi handler tương ứng; mọi prediction, Điểm UP, xếp hạng và metric đều do backend tính từ artifact đã publish. "
+    "LLM call thứ hai chỉ diễn đạt lại câu trả lời từ JSON số liệu backend đưa, không được thêm số mới, và nếu call này lỗi hoặc quá deadline thì hệ thống giữ nguyên bản formatter deterministic. "
+    "Không có vector database, embedding, tool loop hay router keyword; trang /chat và dock nổi dùng chung một API. "
+    "Decision sai protocol trả 502, nguồn dữ liệu chưa sẵn sàng trả 503 và quá deadline trả 504.",
 )
 
 # ---------- 9c. Demo chatbot ----------
@@ -587,10 +588,10 @@ box = add_box(s, Inches(6.6), Inches(1.75), Inches(6.1), Inches(4.6))
 set_text(
     box.text_frame,
     [
-        "Câu 1: model và kết quả TEST, đọc từ metadata",
-        "Câu 2: tín hiệu FPT, kèm Điểm UP và ngưỡng",
-        "Câu 3: hỏi P/E và tin tức thì bị từ chối",
-        "Mọi câu trả lời đều kèm cảnh báo baseline",
+        "Câu 1: PROJECT_INFO, model và kết quả TEST",
+        "Câu 2: STOCK_SIGNAL FPT, Điểm UP và ngưỡng",
+        "Câu 3: OUT_OF_SCOPE, hỏi P/E và tin tức",
+        "Số liệu do backend tính, LLM chỉ diễn đạt",
         "Chatbot nói rõ đây là dữ liệu offline",
     ],
     size=16,
@@ -600,10 +601,10 @@ add_source(s, "ảnh chụp 127.0.0.1:5000/chat, docs/slides/shoot_chat.py")
 add_note(
     s,
     "Đây là ảnh chụp thật từ phiên làm việc với Flask đang chạy, không phải ảnh minh họa. "
-    "Câu đầu tiên cho thấy chatbot trả đúng các số trên TEST, trùng khớp với bảng ở slide kết quả. "
-    "Câu thứ hai trả về Điểm UP của FPT kèm ngưỡng quyết định, và nói rõ đây là dữ liệu offline chứ không phải giá hiện tại. "
-    "Câu thứ ba hỏi về P/E và tin tức thì chatbot từ chối và gợi lại đúng phạm vi hỗ trợ, đó là cơ chế chặn bịa số liệu. "
-    "Ba cảnh báo bên dưới luôn đi kèm: policy legacy, chưa vượt baseline và symbol scope chưa verified.",
+    "Câu đầu hỏi về model và kết quả TEST nên decision chọn PROJECT_INFO, số trả về trùng khớp bảng ở slide kết quả. "
+    "Câu thứ hai hỏi FPT nên decision chọn STOCK_SIGNAL, backend kiểm scope rồi chạy inference và trả Điểm UP kèm ngưỡng quyết định. "
+    "Câu thứ ba hỏi P/E và tin tức nên decision chọn OUT_OF_SCOPE, chatbot từ chối và nêu lại đúng những việc nó làm được. "
+    "Cả ba câu không có con số nào do LLM tự viết ra, và disclaimer dữ liệu offline do backend gắn vào cuối trang.",
 )
 
 

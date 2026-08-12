@@ -1,5 +1,5 @@
 file=D:\study\niên luận\stock-prediction-ml\docs\slides\thuyet_trinh_nien_luan.pptx
-size_bytes=1736020
+size_bytes=1647889
 slides=24
 slide_w_emu=12191695 slide_h_emu=6858000
 aspect_ratio=1.7777 (16:9 = 1.7778)
@@ -114,7 +114,7 @@ aspect_ratio=1.7777 (16:9 = 1.7778)
   BUL(9w): Rolling tính riêng theo từng mã, không trộn mã
   BUL(8w): Bốn cột tương lai bị chặn khỏi feature
   NOTES: Hai mươi feature chia thành bảy nhóm, tất cả tính từ giá và khối lượng theo ngày. Mọi phép rolling đều chạy riêng trong từng mã, không trộn dữ liệu giữa các mã. Bốn cột liên quan tương lai là future_close_5d, future_return_5d, target và label_end_date bị kiểm tra tự động để không lọt vào tập feature. Không có feature nào nhìn thấy giá sau ngày tham chiếu.
-  IMG: image4.png embedded_bytes=693645
+  IMG: image4.png embedded_bytes=322544
 === SLIDE 9 | bullets=5 pics=1 tables=0 notes_sent=4
   TXT: Kiến trúc: pipeline offline tách khỏi tầng phục vụ dự báo
   TXT: Chương 3.2.1 - Kiến trúc ứng dụng
@@ -127,33 +127,33 @@ aspect_ratio=1.7777 (16:9 = 1.7778)
   NOTES: Hệ thống tách hai phần: pipeline offline sinh hiện vật, và tầng phục vụ đọc lại hiện vật đó. Pipeline ghi ra final_model.pkl, model_metadata.json và các tệp báo cáo. Web Flask và CLI chỉ đọc hiện vật, không tự huấn luyện lại, nên kết quả trên web luôn khớp báo cáo. Tuning Lab là nơi thử siêu tham số và chốt cấu hình trước khi chạy pipeline chính thức.
   TABLE 5x2
     | Ràng buộc runtime | Giá trị
-    | LLM call mỗi lượt | 1
-    | Context JSON | Tối đa 16.000 ký tự
-    | History gửi kèm | 3 cặp hỏi đáp
-    | Memory | sessionStorage dùng chung
-  IMG: image5.png embedded_bytes=141105
+    | LLM call: decision + compose | 2
+    | Action trong whitelist | 5
+    | History gửi kèm | 3 cặp
+    | Fallback khi compose lỗi | Formatter
+  IMG: image5.png embedded_bytes=138912
 === SLIDE 10 | bullets=6 pics=1 tables=1 notes_sent=5
-  TXT: Chatbot dùng structured context injection (SCI)
+  TXT: Chatbot Action-Decision: LLM chọn action, backend giữ số liệu
   TXT: Chương 3 - Chức năng chatbot
-  TXT: Nguồn: services/chatbot_tools.py, services/chatbot_service.py, tests/test_chatbot*.py
-  BUL(8w): Server chọn context trước, LLM diễn giải sau
-  BUL(6w): Đúng một LLM call, không tools/tool_choice
-  BUL(8w): Chỉ đọc artifact đã publish, không train lại
-  BUL(7w): Mã ngoài symbol scope bị từ chối
-  BUL(9w): Grounding chặn số sai và tư vấn mua bán
-  BUL(9w): Không có API key thì trả 503, không bịa
-  NOTES: Chatbot dùng structured context injection: không vector database, không embedding, không provider tool-calling. Server khớp keyword để chọn nguồn dữ liệu, dựng context từ signal, metadata và report đã publish, rồi gọi LLM đúng một lần. Sources, warnings, release status và canonical state do server giữ riêng; grounding đối chiếu mã, trường và giá trị sau khi LLM trả lời. Hệ thống cho phép nhận định xu hướng phù hợp dữ liệu nhưng chặn khuyến nghị mua bán trực tiếp. Dock và trang chat dùng chung sessionStorage; provider lỗi trả mã lỗi rõ, không fallback local.
+  TXT: Nguồn: docs/CHATBOT_ARCHITECTURE.md, services/chatbot_service.py, services/chatbot_tools.py
+  BUL(8w): LLM decision chọn đúng một trong năm action
+  BUL(7w): Backend validate schema và kiểm symbol scope
+  BUL(8w): Dispatcher cố định gọi handler, không tool loop
+  BUL(9w): Mọi số liệu do backend tính, LLM không tạo
+  BUL(8w): Compose diễn đạt lại, lỗi thì giữ formatter
+  BUL(7w): Không RAG, không vector DB, không embedding
+  NOTES: Chatbot chạy kiến trúc Action-Decision: LLM call thứ nhất chỉ chọn đúng một trong năm action là GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, PROJECT_INFO, OUT_OF_SCOPE kèm arguments theo schema cố định. Backend validate lại schema rồi kiểm symbol scope tập trung, sau đó một dispatcher cố định gọi handler tương ứng; mọi prediction, Điểm UP, xếp hạng và metric đều do backend tính từ artifact đã publish. LLM call thứ hai chỉ diễn đạt lại câu trả lời từ JSON số liệu backend đưa, không được thêm số mới, và nếu call này lỗi hoặc quá deadline thì hệ thống giữ nguyên bản formatter deterministic. Không có vector database, embedding, tool loop hay router keyword; trang /chat và dock nổi dùng chung một API. Decision sai protocol trả 502, nguồn dữ liệu chưa sẵn sàng trả 503 và quá deadline trả 504.
   IMG: image6.png embedded_bytes=411210
 === SLIDE 11 | bullets=5 pics=1 tables=0 notes_sent=5
   TXT: Demo: chatbot trả lời có số liệu, từ chối câu ngoài phạm vi
   TXT: Chương 3 - Ảnh chụp phiên làm việc thật
   TXT: Nguồn: ảnh chụp 127.0.0.1:5000/chat, docs/slides/shoot_chat.py
-  BUL(10w): Câu 1: model và kết quả TEST, đọc từ metadata
-  BUL(10w): Câu 2: tín hiệu FPT, kèm Điểm UP và ngưỡng
-  BUL(11w): Câu 3: hỏi P/E và tin tức thì bị từ chối
-  BUL(9w): Mọi câu trả lời đều kèm cảnh báo baseline
+  BUL(8w): Câu 1: PROJECT_INFO, model và kết quả TEST
+  BUL(8w): Câu 2: STOCK_SIGNAL FPT, Điểm UP và ngưỡng
+  BUL(8w): Câu 3: OUT_OF_SCOPE, hỏi P/E và tin tức
+  BUL(9w): Số liệu do backend tính, LLM chỉ diễn đạt
   BUL(8w): Chatbot nói rõ đây là dữ liệu offline
-  NOTES: Đây là ảnh chụp thật từ phiên làm việc với Flask đang chạy, không phải ảnh minh họa. Câu đầu tiên cho thấy chatbot trả đúng các số trên TEST, trùng khớp với bảng ở slide kết quả. Câu thứ hai trả về Điểm UP của FPT kèm ngưỡng quyết định, và nói rõ đây là dữ liệu offline chứ không phải giá hiện tại. Câu thứ ba hỏi về P/E và tin tức thì chatbot từ chối và gợi lại đúng phạm vi hỗ trợ, đó là cơ chế chặn bịa số liệu. Ba cảnh báo bên dưới luôn đi kèm: policy legacy, chưa vượt baseline và symbol scope chưa verified.
+  NOTES: Đây là ảnh chụp thật từ phiên làm việc với Flask đang chạy, không phải ảnh minh họa. Câu đầu hỏi về model và kết quả TEST nên decision chọn PROJECT_INFO, số trả về trùng khớp bảng ở slide kết quả. Câu thứ hai hỏi FPT nên decision chọn STOCK_SIGNAL, backend kiểm scope rồi chạy inference và trả Điểm UP kèm ngưỡng quyết định. Câu thứ ba hỏi P/E và tin tức nên decision chọn OUT_OF_SCOPE, chatbot từ chối và nêu lại đúng những việc nó làm được. Cả ba câu không có con số nào do LLM tự viết ra, và disclaimer dữ liệu offline do backend gắn vào cuối trang.
   TABLE 4x4
     | Tập | Số dòng | Từ ngày | Đến ngày
     | TRAIN | 419.807 | 2019-10-23 | 2025-07-03

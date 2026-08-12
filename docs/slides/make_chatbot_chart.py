@@ -1,4 +1,4 @@
-"""Vẽ sơ đồ chatbot structured context injection (SCI) với context do server dựng."""
+"""Vẽ sơ đồ chatbot Action-Decision: LLM chọn action, backend tính số liệu."""
 
 from pathlib import Path
 
@@ -73,29 +73,29 @@ def arrow(x1, y1, x2, y2, label=None, lx=0, ly=0):
         )
 
 
-box(1.5, 32, 17, 10, "Dock + /chat\nmessage hiện tại", "#FFFFFF", NAVY)
-box(23, 32, 18, 10, "Flask /api/chat\nvalidate state")
-box(45.5, 32, 19.5, 10, "build_context\nsnapshot + routing")
-box(70, 32, 22, 10, "Published / derived\nrelease gate + handlers")
+box(1.5, 32, 17, 10, "Dock + /chat\nmessage + history", "#FFFFFF", NAVY)
+box(23, 32, 18, 10, "Flask /api/chat\nvalidate input")
+box(45.5, 32, 19.5, 10, "LLM decision\n1 trong 5 action", "#FFFFFF", TEAL)
+box(70, 32, 22, 10, "Validator\nschema + symbol scope")
 
 arrow(18.5, 37, 23, 37)
-arrow(41, 37, 45.5, 37, "history + state", 0, 4.1)
-arrow(65, 37, 70, 37, "direct calls", 0, 3.4)
+arrow(41, 37, 45.5, 37, "message + history", 0, 6.6)
+arrow(65, 37, 70, 37, "action + args", 0, 6.6)
 
-box(70, 13, 22, 10, "Đúng một LLM call\nkhông tools/tool_choice", "#FFFFFF", TEAL)
-box(45.5, 13, 19.5, 10, "Grounding\nsymbol + field + value")
-box(23, 13, 18, 10, "API response\nanswer + metadata")
+box(70, 13, 22, 10, "Fixed dispatcher\nhandler + prediction")
+box(45.5, 13, 19.5, 10, "LLM compose\nfallback formatter", "#FFFFFF", TEAL)
+box(23, 13, 18, 10, "API response\nanswer + disclaimer")
 box(1.5, 13, 17, 10, "sessionStorage\ndùng chung trong tab", "#FFFFFF", NAVY)
 
-arrow(81, 32, 81, 23, "context ≤ 16k", 8.5, 0)
-arrow(70, 18, 65, 18)
-arrow(45.5, 18, 41, 18)
+arrow(81, 32, 81, 23, "action hợp lệ", 8.5, 0)
+arrow(70, 18, 65, 18, "JSON số liệu", 0, -6.6)
+arrow(45.5, 18, 41, 18, "answer", 0, -6.6)
 arrow(23, 18, 18.5, 18)
 
 ax.text(
     56,
     47,
-    "Structured context injection: server chọn dữ liệu, LLM diễn giải một lần, server kiểm lại",
+    "Action-Decision: LLM chọn action, backend tính số liệu, LLM diễn đạt lại",
     ha="center",
     va="center",
     fontsize=10.4,
@@ -105,7 +105,7 @@ ax.text(
 ax.text(
     56,
     5.2,
-    "Không vector DB/embedding · không raw CSV/code/pickle ra provider · release/source/warning/state do server sở hữu",
+    "Không RAG/vector DB · không tool loop · số liệu và disclaimer do backend sở hữu · compose lỗi thì giữ formatter",
     ha="center",
     va="center",
     fontsize=9.1,

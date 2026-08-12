@@ -1,6 +1,6 @@
 # Trạng thái chatbot workflow
 
-`chatbot.workflow.json` và `chatbot-workflow.html` đã được render lại theo kiến trúc Action-Decision hiện hành (một LLM call trả `{action, arguments}`, validator exact schema, fixed dispatcher, deterministic formatter). Không còn LEGACY/STALE.
+**Đã cập nhật (12/08):** `chatbot.workflow.json` + `chatbot-workflow.html` (thư mục này) và `docs/diagrams/luuDo/01-kien-truc-runtime-local.*`, `06-sequence-chatbot-action-decision.*` đều đã vẽ đúng kiến trúc hai LLM call (decision + grounded compose, fallback formatter — xem `docs/CHATBOT_ARCHITECTURE.md` mục 1 và 7). HTML render lại từ JSON nguồn, card và lane nhất quán "một lượt, hai call".
 
 Canonical:
 

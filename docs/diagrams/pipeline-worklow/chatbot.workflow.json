@@ -3,18 +3,18 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Chatbot Action-Decision — Luồng hoạt động",
-    "subtitle": "/chat và dock dùng chung API → Flask whitelist payload → đúng một LLM call trả {action, arguments} → validator exact schema → fixed dispatcher → deterministic formatter",
+    "subtitle": "/chat và dock dùng chung API → Flask whitelist payload → LLM call 1 trả {action, arguments} → validator exact schema → fixed dispatcher → formatter + compose có fallback",
     "output": "chatbot-workflow.html"
   },
   "lanes": [
     { "id": "ui", "label": "Browser · /chat và floating dock dùng chung ChatClientKit" },
     { "id": "http", "label": "Flask POST /api/chat · whitelist payload trước khi vào service" },
-    { "id": "service", "label": "chatbot_service.chat() · một lượt, một call, một deadline" },
-    { "id": "llm", "label": "Đúng một LLM call · LLM chỉ chọn action và trích arguments" },
+    { "id": "service", "label": "chatbot_service.chat() · một lượt, hai call, một deadline" },
+    { "id": "llm", "label": "LLM call 1 (decision) · LLM chỉ chọn action và trích arguments" },
     { "id": "verify", "label": "Validator · exact schema rồi chuẩn hóa arguments" },
     { "id": "dispatch", "label": "Fixed dispatcher · readiness và scope thuộc backend" },
     { "id": "data", "label": "Data handler read-only · artifact đã publish và ML" },
-    { "id": "format", "label": "Deterministic formatter · response 5 field và render an toàn" }
+    { "id": "format", "label": "Formatter + compose · response 5 field và render an toàn" }
   ],
   "nodes": [
     { "id": "user", "lane": "ui", "col": 0, "type": "external", "label": "Người dùng", "sublabel": "câu hỏi tiếng Việt", "tag": "≤ 1000 ký tự" },
@@ -27,13 +27,13 @@
     { "id": "msgcheck", "lane": "http", "col": 3, "type": "security", "label": "Message", "sublabel": "1–1000 sau strip" },
     { "id": "histcheck", "lane": "http", "col": 5, "type": "security", "label": "History", "sublabel": "≤ 6, chẵn, xen kẽ", "tag": "tổng ≤ 6000 ký tự" },
 
-    { "id": "chatcall", "lane": "service", "col": 0, "type": "backend", "label": "chat()", "sublabel": "một lượt, một call" },
+    { "id": "chatcall", "lane": "service", "col": 0, "type": "backend", "label": "chat()", "sublabel": "một lượt, hai call" },
     { "id": "config", "lane": "service", "col": 1, "type": "security", "label": "Config gate", "sublabel": "base_url http/https", "tag": "thiếu → 503" },
     { "id": "client", "lane": "service", "col": 3, "type": "backend", "label": "OpenAI client", "sublabel": "timeout 60s", "tag": "max_retries = 0" },
     { "id": "deadline", "lane": "service", "col": 5, "type": "security", "label": "Deadline", "sublabel": "time.monotonic 60s", "tag": "quá hạn → 504" },
 
     { "id": "prompt", "lane": "llm", "col": 0, "type": "backend", "label": "Prompt", "sublabel": "DECISION_PROMPT + 6 lượt" },
-    { "id": "call", "lane": "llm", "col": 1, "type": "cloud", "label": "1 LLM call", "sublabel": "no tools, no schema", "tag": "không LLM lần hai" },
+    { "id": "call", "lane": "llm", "col": 1, "type": "cloud", "label": "LLM call 1", "sublabel": "no tools, no schema", "tag": "compose là call 2" },
     { "id": "decision", "lane": "llm", "col": 3, "type": "external", "label": "{action, args}", "sublabel": "JSON thuần 2 khóa" },
     { "id": "parse", "lane": "llm", "col": 5, "type": "security", "label": "Parse", "sublabel": "chặn tool_calls", "tag": "sai protocol → 502" },
 
@@ -104,10 +104,10 @@
       "dot": "violet",
       "title": "LLM chỉ ra quyết định",
       "items": [
-        "Đúng một LLM call cho mỗi lượt; không tools, không tool_choice, SDK max_retries = 0",
+        "Đúng hai LLM call mỗi lượt: decision rồi grounded compose; không tools, không tool_choice, SDK max_retries = 0",
         "Provider trả JSON thuần đúng hai khóa action và arguments, không Markdown hay prose",
         "5 action: GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, PROJECT_INFO, OUT_OF_SCOPE",
-        "LLM không đọc file, không gọi ML, không chọn model/threshold, không viết câu trả lời cuối"
+        "LLM không đọc file, không gọi ML, không chọn model/threshold; compose viết câu chữ cuối từ số liệu backend, lỗi thì giữ answer formatter deterministic"
       ]
     },
     {
@@ -127,7 +127,7 @@
         "message 1–1000 ký tự; history ≤ 6 entry, số chẵn, xen kẽ user/assistant, tổng ≤ 6000",
         "TOTAL_DEADLINE_SECONDS = 60, đo bằng time.monotonic trước và sau provider call",
         "400 payload sai · 502 provider hoặc decision sai · 503 config/nguồn chưa sẵn sàng · 504 quá deadline · 500 lỗi nội bộ",
-        "Không RAG, embedding, Vector DB, agent loop, conversation state hay LLM call thứ hai"
+        "Không RAG, embedding, Vector DB, agent loop hay conversation state riêng"
       ]
     },
     {

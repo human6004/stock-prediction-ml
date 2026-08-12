@@ -496,12 +496,12 @@
         <div class="pulse-dot"></div>
         <h1>Chatbot Action-Decision — Luồng hoạt động</h1>
       </div>
-      <p class="subtitle">/chat và dock dùng chung API → Flask whitelist payload → đúng một LLM call trả {action, arguments} → validator exact schema → fixed dispatcher → deterministic formatter</p>
+      <p class="subtitle">/chat và dock dùng chung API → Flask whitelist payload → LLM call 1 trả {action, arguments} → validator exact schema → fixed dispatcher → formatter + compose có fallback</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 720 1148" role="img" aria-label="Chatbot Action-Decision — Luồng hoạt động — /chat và dock dùng chung API → Flask whitelist payload → đúng một LLM call trả {action, arguments} → validator exact schema → fixed dispatcher → deterministic formatter (workflow diagram)">
+      <svg viewBox="0 0 720 1148" role="img" aria-label="Chatbot Action-Decision — Luồng hoạt động — /chat và dock dùng chung API → Flask whitelist payload → LLM call 1 trả {action, arguments} → validator exact schema → fixed dispatcher → formatter + compose có fallback (workflow diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -532,10 +532,10 @@
         <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Flask POST /api/chat · whitelist payload trước khi vào service</text>
 
         <rect x="40" y="300" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / chatbot_service.chat() · một lượt, một call, một deadline</text>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / chatbot_service.chat() · một lượt, hai call, một deadline</text>
 
         <rect x="40" y="424" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / Đúng một LLM call · LLM chỉ chọn action và trích arguments</text>
+        <text x="54" y="446" class="t-dim" font-size="10" font-weight="600">04 / LLM call 1 (decision) · LLM chỉ chọn action và trích arguments</text>
 
         <rect x="40" y="548" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="570" class="t-dim" font-size="10" font-weight="600">05 / Validator · exact schema rồi chuẩn hóa arguments</text>
@@ -547,7 +547,7 @@
         <text x="54" y="818" class="t-dim" font-size="10" font-weight="600">07 / Data handler read-only · artifact đã publish và ML</text>
 
         <rect x="40" y="920" width="640" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="942" class="t-dim" font-size="10" font-weight="600">08 / Deterministic formatter · response 5 field và render an toàn</text>
+        <text x="54" y="942" class="t-dim" font-size="10" font-weight="600">08 / Formatter + compose · response 5 field và render an toàn</text>
 
         <!-- Edge paths -->
         <path d="M 134 119 L 174 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
@@ -635,7 +635,7 @@
         <rect x="42" y="341" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="42" y="341" width="92" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
         <text x="88" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">chat()</text>
-        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">một lượt, một call</text>
+        <text x="88" y="379" class="t-muted" font-size="8" text-anchor="middle">một lượt, hai call</text>
 
         <rect x="174" y="333" width="92" height="68" rx="6" class="c-mask"/>
         <rect x="174" y="333" width="92" height="68" rx="6" class="c-security" stroke-width="1.5"/>
@@ -662,9 +662,9 @@
 
         <rect x="174" y="457" width="92" height="68" rx="6" class="c-mask"/>
         <rect x="174" y="457" width="92" height="68" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="220" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">1 LLM call</text>
+        <text x="220" y="478" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM call 1</text>
         <text x="220" y="495" class="t-muted" font-size="8" text-anchor="middle">no tools, no schema</text>
-        <text x="220" y="513" class="t-cloud" font-size="7" text-anchor="middle">không LLM lần hai</text>
+        <text x="220" y="513" class="t-cloud" font-size="7" text-anchor="middle">compose là call 2</text>
 
         <rect x="384" y="465" width="92" height="52" rx="6" class="c-mask"/>
         <rect x="384" y="465" width="92" height="52" rx="6" class="c-external" stroke-width="1.5"/>
@@ -834,10 +834,10 @@
           <h3>LLM chỉ ra quyết định</h3>
         </div>
         <ul>
-          <li>&bull; Đúng một LLM call cho mỗi lượt; không tools, không tool_choice, SDK max_retries = 0</li>
+          <li>&bull; Đúng hai LLM call mỗi lượt: decision rồi grounded compose; không tools, không tool_choice, SDK max_retries = 0</li>
           <li>&bull; Provider trả JSON thuần đúng hai khóa action và arguments, không Markdown hay prose</li>
           <li>&bull; 5 action: GENERAL_CHAT, STOCK_SIGNAL, STOCK_RANKING, PROJECT_INFO, OUT_OF_SCOPE</li>
-          <li>&bull; LLM không đọc file, không gọi ML, không chọn model/threshold, không viết câu trả lời cuối</li>
+          <li>&bull; LLM không đọc file, không gọi ML, không chọn model/threshold; compose viết câu chữ cuối từ số liệu backend, lỗi thì giữ answer formatter deterministic</li>
         </ul>
       </div>
 
@@ -863,7 +863,7 @@
           <li>&bull; message 1–1000 ký tự; history ≤ 6 entry, số chẵn, xen kẽ user/assistant, tổng ≤ 6000</li>
           <li>&bull; TOTAL_DEADLINE_SECONDS = 60, đo bằng time.monotonic trước và sau provider call</li>
           <li>&bull; 400 payload sai · 502 provider hoặc decision sai · 503 config/nguồn chưa sẵn sàng · 504 quá deadline · 500 lỗi nội bộ</li>
-          <li>&bull; Không RAG, embedding, Vector DB, agent loop, conversation state hay LLM call thứ hai</li>
+          <li>&bull; Không RAG, embedding, Vector DB, agent loop hay conversation state riêng</li>
         </ul>
       </div>
 
