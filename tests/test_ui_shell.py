@@ -263,7 +263,7 @@ class HeadContractTests(unittest.TestCase):
         self.assertIn("theme.js", self.html)
 
     def test_both_fonts_loaded(self):
-        self.assertIn("Be+Vietnam+Pro", self.html)
+        self.assertIn("Nunito", self.html)
         self.assertIn("IBM+Plex+Mono", self.html)
 
 

@@ -52,7 +52,9 @@
     --glow-1: rgba(255, 255, 255, 0.6);
     --glow-2: rgba(214, 205, 187, 0.28);
 
-    --sans: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;
+    /* Nunito: đầu nét bo tròn, thân chữ mềm — dịu hơn grotesque hình học,
+       hợp nền giấy kem. Fallback vẫn là stack hệ thống. */
+    --sans: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
     --mono: "IBM Plex Mono", "Cascadia Mono", "SF Mono", Consolas, monospace;
     --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
