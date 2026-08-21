@@ -1,36 +1,34 @@
-<!doctype html>
-<!-- Trang theo dõi job nền; khi đang chạy, trình duyệt tải lại mỗi 5 giây. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    {% if running %}
-    <meta http-equiv="refresh" content="5">
-    {% endif %}
-    <title>Tiến độ fetch — HOSE ML</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow fetch-eyebrow-top">Nhánh 1 · Data refresh</p>
-                <h1>Tiến độ làm mới dữ liệu</h1>
-                <p class="subtitle">
-                    Fetch OHLCV → preprocess → build features.
-                    {% if running %}Trang tự làm mới mỗi 5 giây.{% else %}Job đã dừng hoặc chưa khởi chạy.{% endif %}
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('tuning') }}">← Tuning Lab</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
+{# Trang theo dõi job nền. Trước đây dùng <meta http-equiv="refresh" content="5">:
+   fetch chạy 20–25 phút nên trang tải lại ~300 lần, mỗi lần kéo log về đầu và
+   nháy cả shell. Nay static/tuning-lab.js tự poll và chỉ thay 4 vùng dưới đây. #}
 
-        <section class="fetch-hero {% if fetch_progress.status == 'completed' %}fetch-hero-done{% elif fetch_progress.status == 'failed' %}fetch-hero-failed{% elif running %}fetch-hero-running{% endif %}">
-            <div class="fetch-hero-main">
+{% block title %}Tiến độ fetch — HOSE ML{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='tuning-lab.css') }}?v={{ asset_ver }}">
+{% endblock %}
+
+{% block page_header %}
+<p class="eyebrow fetch-eyebrow-top">Nhánh 1 · Data refresh</p>
+<h1>Tiến độ làm mới dữ liệu</h1>
+<p class="subtitle">
+    Fetch OHLCV → preprocess → build features.
+    {% if running %}Trang tự cập nhật, không cần tải lại.{% else %}Job đã dừng hoặc chưa khởi chạy.{% endif %}
+</p>
+{% endblock %}
+
+{% block dataset_status %}{% endblock %}
+
+{% block content %}
+        {# data-fetch-running là cờ duy nhất bật/tắt poll ở tuning-lab.js.
+           Đừng suy từ status: 'completed' cũng là một trạng thái hợp lệ ở đây. #}
+        <div id="fetch-status-root"
+             data-fetch-status="{{ fetch_progress.status | default('idle', true) }}"
+             {% if running %}data-fetch-running="1"{% else %}data-fetch-running="0"{% endif %}>
+
+        <section id="fetch-hero" class="fetch-hero {% if fetch_progress.status == 'completed' %}fetch-hero-done{% elif fetch_progress.status == 'failed' %}fetch-hero-failed{% elif running %}fetch-hero-running{% endif %}">
+            <div class="fetch-hero-main" role="status">
                 {% if running %}
                 <span class="status-badge status-badge-running">
                     <span class="live-dot" aria-hidden="true"></span>
@@ -65,7 +63,7 @@
             </div>
         </section>
 
-        <section class="config-panel fetch-steps-panel">
+        <section id="fetch-steps" class="config-panel fetch-steps-panel">
             <p class="section-label">Tiến trình 3 bước</p>
             <div class="fetch-timeline timeline">
                 {% for step in fetch_progress.steps %}
@@ -89,7 +87,7 @@
         </section>
 
         {% if fetch_report %}
-        <section class="config-panel">
+        <section id="fetch-stats" class="config-panel">
             <div class="fetch-report-header">
                 <p class="section-label">Báo cáo fetch</p>
                 <p class="fetch-report-note">
@@ -137,7 +135,7 @@
         </section>
         {% endif %}
 
-        <section class="fetch-log-panel pipeline-log">
+        <section id="fetch-log-panel" class="fetch-log-panel pipeline-log">
             <div class="fetch-log-header">
                 <p class="section-label fetch-log-title">Log thực thi</p>
                 {% if running %}
@@ -146,8 +144,12 @@
                 <span class="fetch-log-live muted">200 dòng cuối</span>
                 {% endif %}
             </div>
-            <pre>{% if log %}{{ log }}{% else %}Chưa có log. Hãy bắt đầu job từ Tuning Lab.{% endif %}</pre>
+            <pre id="fetch-log">{% if log %}{{ log }}{% else %}Chưa có log. Hãy bắt đầu job từ Tuning Lab.{% endif %}</pre>
         </section>
+
+        {% if running %}
+        <p class="poll-note">Trang tự kiểm tra tiến độ mỗi 5 giây. Không cần bấm tải lại.</p>
+        {% endif %}
 
         <div class="fetch-actions fetch-actions-footer">
             <a class="btn-secondary" href="{{ url_for('tuning') }}">← Quay lại Tuning Lab</a>
@@ -155,6 +157,10 @@
             <a class="btn-fetch btn-fetch-link" href="{{ url_for('tuning') }}">Train lại trên dataset mới</a>
             {% endif %}
         </div>
-    </main>
-</body>
-</html>
+
+        </div>{# /#fetch-status-root #}
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='tuning-lab.js') }}?v={{ asset_ver }}"></script>
+{% endblock %}

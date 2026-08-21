@@ -1,0 +1,28 @@
+{
+  "fd7fa2887812": {
+    "experiment_fingerprint": "fd7fa2887812",
+    "content_fingerprint": "f162b3e89bd06feeac1cd1c1b884b251a121dad88a09eb0f73a92863f48e6a75",
+    "policy_id": "legacy_pre_validation_baseline_gate",
+    "status": "published",
+    "model_name": "Random Forest",
+    "migration": "Imported prior TEST evaluation without re-evaluation.",
+    "updated_at": "2026-07-21T08:30:34"
+  },
+  "e70bfcb12be2": {
+    "experiment_fingerprint": "e70bfcb12be2",
+    "content_fingerprint": "357f754434fda705ee1cd3c60d5c82ad8dc4da479b14ae4186270c18a0244437",
+    "policy_id": "rolling_recent_cv_oof_threshold",
+    "status": "published",
+    "updated_at": "2026-08-14T18:04:47",
+    "model_name": "Random Forest",
+    "test_metrics": {
+      "accuracy": 0.5583405358686258,
+      "precision_up": 0.327991452991453,
+      "recall_up": 0.6302822925577417,
+      "f1_up": 0.43145751595713533,
+      "precision_not_up": 0.7989954422844386,
+      "recall_not_up": 0.5322840500681622,
+      "f1_not_up": 0.6389229796571089
+    }
+  }
+}

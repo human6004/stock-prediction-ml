@@ -1,0 +1,67 @@
+/* Small additions for the single /chat page. Core chat layout lives in app.css. */
+
+.chat-transcript.is-empty {
+    display: grid;
+    place-items: center;
+}
+
+.chat-empty {
+    max-width: 36rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--muted);
+}
+
+.chat-empty[hidden] {
+    display: none;
+}
+
+.chat-empty-title {
+    margin: 0 0 0.4rem;
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.chat-entry.is-pending .chat-text {
+    color: var(--muted);
+    font-style: italic;
+}
+
+.chat-compose .chat-counter {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    text-align: right;
+}
+
+.chat-entry:focus {
+    outline: none;
+}
+
+.chat-entry:focus-visible,
+.chat-transcript:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+    .chat-suggestions {
+        display: grid;
+    }
+
+    .chat-suggestions button {
+        width: 100%;
+    }
+
+    .chat-transcript {
+        min-height: 18rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-entry {
+        scroll-behavior: auto;
+    }
+}

@@ -1,1104 +1,1115 @@
-# Giải thích project dự báo xu hướng cổ phiếu HOSE cho người mới
+# Giải thích project dự báo xu hướng cổ phiếu HOSE
 
-Tài liệu này được viết lại sau khi đọc kỹ code, report, model metadata, web demo, database schema và trạng thái pipeline hiện tại. Mục tiêu: giải thích từ đầu, coi bạn là người **chưa biết gì** về project, chưa quen thuật ngữ chứng khoán và Machine Learning.
+Tài liệu hiện hành cho policy ML `rolling_recent_cv_oof_threshold` (hằng số `EXPERIMENT_POLICY_ID` trong `config/settings.py`).
 
-- Project: `D:\study\niên luận\stock-prediction-ml`
-- Roadmap: `D:\study\niên luận\shared_dataset\roadmap_nien_luan_HOSE_5_phien.md`
-- Ngày đọc lại: `2026-07-17`
+> Trạng thái: artifact và metric đang phục vụ (`models/final_model.pkl`, `models/model_metadata.json`) là một artifact **legacy**, không phải sản phẩm của policy hiện hành. Final Model hiện tại là **Random Forest**, có `policy_id = "legacy_pre_validation_baseline_gate"` (khác `EXPERIMENT_POLICY_ID` của code hiện tại), và **chưa vượt baseline** trên cả VALIDATION lẫn TEST. Artifact này được import một lần vào `experiments/evaluation_registry.json` (ghi chú `"Imported prior TEST evaluation without re-evaluation."`), không chạy qua `select_final_model()` hiện hành — nếu chạy qua code hiện tại, việc trượt baseline VALIDATION sẽ làm pipeline dừng bằng lỗi (xem mục 8), không cho ra artifact như hiện tại. Đây là số liệu và tình trạng thật, không phải giả định. Vì `policy_id` không khớp, trang `/evaluation` hiện hiển thị view legacy (bảng `model_comparison.csv` cũ kèm banner cảnh báo), không phải view policy hiện hành mô tả ở mục 11.3.
+>
+> Một dấu vết khác của "legacy": `build_model_metadata()` hiện tại **có** ghi hai field `training_symbols` và `training_symbol_count` (danh sách mã đã thực sự góp row vào lúc train), nhưng metadata legacy đang serve thì **không có** hai field đó. Vì vậy chatbot phải lùi về `reports/eligible_symbols.csv` và phát warning `symbol_scope_unverified` (mục 11).
+>
+> **Nhưng cổng chạy pipeline sạch đang MỞ.** Dataset trên đĩa đã được refresh sau lần release legacy đó, và ba cấu hình trong `experiments/manual_config.json` đã được chốt lại đúng trên snapshot mới. Số kiểm bằng chính code (`compute_dataset_fingerprint()`, `compute_experiment_fingerprint()`, `is_config_complete()`, `has_evaluated_snapshot()`):
+>
+> ```text
+> ml_dataset.csv hiện tại   513.971 row, 396 mã, 2019-10-23 → 2026-07-24
+> tuning_fingerprint  live  fa1cf401b4a6   == manual_config.json  →  is_config_complete() = True
+> experiment_fingerprint    41580ec734ea   CHƯA có trong evaluation_registry.json  →  TEST còn nguyên
+> registry chỉ có           fd7fa2887812   (snapshot legacy, status "published")
+> lock                      pipeline.lock / fetch.lock đều không tồn tại
+> ```
+>
+> (Không có `tuning.lock`: `config/settings.py` chỉ định nghĩa `PIPELINE_LOCK_PATH` (`:189`) và `FETCH_LOCK_PATH` (`:191`). Job CV được khóa **trong RAM** bằng thread state của `services/tuning_lab.py` (`is_tuning_job_running()`), không phải bằng file — nên restart Flask là mất trạng thái job CV, khác hẳn hai lock kia.)
+>
+> Nghĩa là 5 điều kiện `can_run` ở mục 11 đều thỏa: có thể bấm "Chạy official pipeline" ngay để sinh một release **thuộc policy hiện hành**, thay cho artifact legacy. Tài liệu này mô tả cả hai trạng thái — số của release legacy (nằm trong `reports/` + `models/`) và số của dataset đang chờ chạy (đọc trực tiếp từ `data/processed/ml_dataset.csv`) — nên khi trích số vào báo cáo, phải nói rõ đang trích cột nào.
 
-> **Trạng thái hiện tại (đọc trước khi trích số):** Pipeline chính thức đã chạy trên bộ **20 feature**, raw data mới nhất đến `2026-07-10`, fingerprint ML dataset `f6cb3ac8f820`. **Final model đang phục vụ là `Gradient Boosting`**, `trained_at = 2026-07-17`. TEST metrics, confusion matrix, feature importance và model metadata bên dưới lấy từ official pipeline run này. Fetch report và các điểm CV lúc tuning là các run riêng, nên tài liệu luôn ghi rõ nguồn khi số có thể khác.
+## 0. Bản đồ nhanh (đọc mục này trước)
 
----
+Một câu về project: đọc OHLCV lịch sử HOSE ngoại tuyến → tạo 20 feature + nhãn "tăng > 1% sau đúng 5 phiên" → tuning 3 model bằng CV có purge → chọn 1 model trên VALIDATION → test một lần trên TEST → phục vụ dự báo qua web Flask + chatbot.
 
-## 0. Project trong 5 phút
-
-Nếu chỉ nhớ 8 ý, hãy nhớ:
-
-1. Project **không dự báo giá chính xác**. Nó phân loại một mã thành `UP` hoặc `NOT_UP`.
-2. `UP` nghĩa là giá đóng cửa ở **dòng giao dịch thứ 5 kế tiếp của chính mã đó** tăng hơn 1%; `NOT_UP` là các trường hợp còn lại.
-3. Đầu vào chỉ là OHLCV theo ngày. Code biến chúng thành 20 feature kỹ thuật.
-4. Dữ liệu quá khứ được chia thành TRAIN và TEST bằng `label_end_date`.
-5. Tuning dùng CV trên TRAIN để thử cấu hình. Điểm lưu lịch sử là **CV F1_UP**, không phải TEST F1_UP.
-6. Official pipeline fit model, đánh giá TEST rồi chọn final model theo TEST F1_UP.
-7. Final model hiện tại là Gradient Boosting; TEST F1_UP khoảng `0.5053`. Kết quả chỉ ở mức khiêm tốn, không phải hệ thống dự báo chắc thắng.
-8. Web/CLI chỉ tải model đã train và dự báo dữ liệu offline mới nhất; không train lại và không realtime.
-
-Một số từ xuất hiện xuyên suốt:
-
-| Từ | Hiểu đơn giản |
-|---|---|
-| Model | Công thức/quy luật máy đã học từ dữ liệu |
-| Train / fit | Cho model học từ dữ liệu có đáp án |
-| Validation | Phần dữ liệu TRAIN tạm giữ lại để kiểm tra lúc CV |
-| Test | Tập tách riêng dùng ở bước đánh giá và chọn final model hiện tại |
-| Fold | Một lần chia TRAIN thành phần học và phần validation |
-| `label_end_date` | Ngày của dòng tương lai dùng để kết thúc việc tạo nhãn |
-| CV F1_UP | F1 lớp UP trung bình trên các validation fold thuộc TRAIN |
-| Fingerprint | Chữ ký ngắn để đối chiếu data/config giữa các run |
-| Artifact | File sinh ra sau pipeline, ví dụ `.pkl`, CSV report, metadata |
-
-Đọc lần đầu: đọc mục 0, 1, 3, 11, 13-18 và 22. Các mục còn lại dùng để tra chi tiết, chạy project hoặc chuẩn bị bảo vệ.
-
----
-
-## 1. Project này làm gì, nói thật ngắn gọn?
-
-Project xây dựng một hệ thống Machine Learning để trả lời **một câu hỏi duy nhất**:
+Luồng dữ liệu, một dòng:
 
 ```text
-Giá của một mã HOSE ở bước quan sát thứ 5 tiếp theo có tăng hơn 1% hay không?
+CSV thô  →  clean  →  20 feature + nhãn t+5  →  ml_dataset.csv
+        →  split TRAIN / VALIDATION / TEST (rolling theo phiên cuối)
+        →  CV 4 fold trên TRAIN + chọn ngưỡng OOF   (Tuning Lab)
+        →  chọn 1 winner trên VALIDATION            (cổng baseline, dừng nếu trượt)
+        →  refit TRAIN+VALIDATION, test 1 lần trên TEST
+        →  atomic promote final_model.pkl            →  UI + chatbot
 ```
 
-Kết quả chỉ có 2 lớp:
+Thư mục cần biết:
 
-| Kết quả | Nghĩa |
-|---|---|
-| `UP` | Model dự báo giá đóng cửa ở dòng thứ 5 kế tiếp có khả năng **tăng hơn 1%** so với hiện tại |
-| `NOT_UP` | Model dự báo **không đạt** điều kiện tăng hơn 1%; có thể giảm, đi ngang, hoặc tăng nhẹ dưới 1% |
+| Đường dẫn | Vai trò |
+| --- | --- |
+| [config/settings.py](../config/settings.py) | mọi hằng số: policy id, ngày fallback, 20 feature, 3 model, schema hyperparameter |
+| [services/](../services/) | toàn bộ logic ML + chatbot (clean, feature, split, tuning, evaluation, prediction, state) |
+| [scripts/run_pipeline.py](../scripts/run_pipeline.py) | official pipeline, chạy end-to-end, không nhận tham số CLI |
+| [app.py](../app.py) | Flask route cho UI, Tuning Lab, chatbot API |
+| `data/`, `reports/`, `models/`, `experiments/` | dataset sinh ra, report, artifact, state (lock + registry + tuning history) |
+| [docs/](.) | tài liệu + sơ đồ + bộ script dựng báo cáo `.docx` và slide `.pptx` (mục 14) |
 
-Ví dụ một dòng tại ngày `t` có `close=100`. Khi tạo dữ liệu học, nếu dòng thứ 5 kế tiếp của cùng mã có `close=102`, return là 2% nên đáp án thật là `UP`. Khi dự báo thật, giá tương lai chưa tồn tại; model chỉ nhìn 20 feature tại `t`, sinh `P(UP)`, rồi so xác suất này với decision threshold để trả `UP/NOT_UP`.
+Toàn bộ logic nằm trong 12 module của [services/](../services/) (không tính `__init__.py`) — không có package nào khác:
 
-Đây là project học thuật/niên luận. Nó **không** phải hệ thống tư vấn đầu tư, **không** tự mua bán cổ phiếu, **không** đảm bảo lợi nhuận.
+| Module | Vai trò |
+| --- | --- |
+| `preprocessing.py` | clean OHLCV, tách `cleaned_all` / `filtered_df` (mục 2) |
+| `feature_engineering.py` | 20 feature, nhãn t+5, split protocol, `verify_protocol_splits` (mục 2–4) |
+| `protocol_dates.py` | resolve 3 mốc ngày rolling từ phiên cuối dataset (mục 4) |
+| `time_splitting.py` | `sort_panel_frame()` + `iter_purged_date_splits()` cho CV theo ngày (mục 5) |
+| `model_tuning.py` | `build_estimator`, `run_cv_metrics`, `select_oof_threshold`, `tune_models` (mục 7) |
+| `tuning_lab.py` | job nền của Tuning Lab, ghi `tuning_history.csv` (mục 7, 11) |
+| `model_evaluation.py` | `select_final_model`, refit TRAIN+VALIDATION, TEST, `build_model_metadata`, `write_reports` (mục 8) |
+| `experiment_state.py` | `manual_config.json`, fingerprint, lock, `evaluation_registry.json` (mục 12) |
+| `pipeline_utils.py` | mọi thao tác ghi **atomic**: `atomic_output_path`, `write_json`, `atomic_write_text`, `atomic_dataframe_to_csv`, `atomic_joblib_dump`, và `atomic_model_release` — hàm promote cặp model + metadata ở mục 12 |
+| `prediction_service.py` | load artifact, dự báo cho UI và CLI (mục 11) |
+| `chatbot_tools.py` | fixed dispatcher + readiness check + handler dữ liệu read-only (mục 11) |
+| `chatbot_service.py` | LLM decision JSON + grounded compose, validate action, orchestration và formatter deterministic làm fallback (mục 11) |
 
----
+Thứ tự học đề xuất: mục 1 (bài toán) → 2–4 (dữ liệu, feature, split) → 5–7 (CV, metric, tuning) → 8–9 (chọn model, baseline) → 11 (UI + chatbot) → 12 (an toàn quy trình) → 15 (cạm bẫy khi đọc code).
 
-## 2. Roadmap yêu cầu gì?
+### 0.1. Hiểu project bằng lời thường (không cần thuật ngữ)
 
-Roadmap mô tả một pipeline (dây chuyền xử lý) chuẩn:
+Nếu bạn chỉ muốn nắm ý, đọc 6 đoạn dưới đây là đủ; các mục sau chỉ là chi tiết của chính 6 đoạn này.
+
+**Project làm gì.** Nó có một file CSV chứa giá cổ phiếu HOSE trong ~7 năm (hiện tại 558.195 dòng, 400 mã, 2019-08-14 → 2026-07-31). Với một mã và một ngày, nó trả lời một câu duy nhất: *sau đúng 5 phiên nữa, giá đóng cửa có tăng hơn 1% không?* Trả lời `UP` hoặc `NOT_UP`, kèm một con số gọi là **Điểm UP** (model càng tự tin là UP thì điểm càng cao). Không dự đoán giá cụ thể, không nói bao nhiêu tiền, không khuyên mua bán.
+
+**Nó học từ đâu.** Từ chính bảng giá đó. Với mỗi dòng (một mã, một ngày), project tính 20 con số mô tả "mã này gần đây thế nào": tăng/giảm mấy phiên qua, giá so với đường trung bình, RSI, biến động, khối lượng bất thường không, cách đỉnh/đáy 20 phiên bao xa, tháng mấy. 20 con số đó là **feature** — đầu vào của model. Đáp án (nhãn) thì lấy từ tương lai của chính dòng đó: nhìn giá 5 phiên sau, tăng >1% thì ghi `UP`.
+
+**Vì sao phải chia dữ liệu làm ba.** Nếu cho model xem hết dữ liệu rồi hỏi lại đúng dữ liệu đó, nó sẽ trả lời rất giỏi mà thực tế vô dụng — như cho học sinh xem đáp án rồi kiểm tra bằng đúng đề đó. Nên dữ liệu bị cắt theo thời gian: **TRAIN** (quá khứ xa, để học), **VALIDATION** (giai đoạn giữa, để chọn xem 3 loại model nào tốt nhất), **TEST** (giai đoạn gần nhất, chỉ mở đúng một lần để báo cáo). TEST giống đề thi niêm phong: mở ra xem trước là mất giá trị. Project có cả cơ chế kỹ thuật (fingerprint + registry, mục 12) để chặn chính người làm mở TEST hai lần cho cùng một bộ dữ liệu.
+
+**Ba model và cách chọn.** Project thử 3 loại: Logistic Regression (đơn giản nhất, vẽ một đường phân chia), Random Forest (hàng trăm cây quyết định bỏ phiếu), Gradient Boosting (cây học nối tiếp, cây sau sửa lỗi cây trước). Bạn tự nhập tham số cho từng loại trên web Tuning Lab, xem điểm, tự chốt một cấu hình cho mỗi loại. Sau đó pipeline mới so 3 cấu hình đã chốt trên VALIDATION và giữ 1 model thắng.
+
+**Kết quả thật, nói thẳng.** Model đang chạy (Random Forest) **kém hơn một chiến lược ngớ ngẩn là "luôn báo UP"** — theo thang điểm F1_UP. Lý do: chỉ ~24–38% số dòng thực sự là UP, nên cứ báo UP hết thì bắt được 100% dòng UP, và điểm F1 của nó lại cao. Model thì thận trọng hơn, báo UP ít hơn nhưng bỏ sót nhiều, nên điểm thấp hơn. Điều này **không** có nghĩa code sai — nó có nghĩa bài toán "dự báo cổ phiếu 5 phiên bằng chỉ báo kỹ thuật" là bài toán tín hiệu rất yếu. Chính vì vậy code hiện tại có thêm một cổng chặn: nếu model không thắng baseline trên VALIDATION thì pipeline **dừng bằng lỗi**, không cho xuất bản model. Model đang serve lọt qua được chỉ vì nó là artifact cũ, import vào trước khi cổng này tồn tại.
+
+**Web dùng để làm gì.** 6 trang: nhập mã để xem dự báo (`/`), so 2 mã (`/compare`), xếp hạng tất cả mã theo Điểm UP (`/screener`), xem bảng điểm model (`/evaluation`), phòng thí nghiệm tham số (`/tuning`), và một chatbot tiếng Việt (`/chat`). Với chatbot, LLM hiểu câu hỏi, chọn một action cố định rồi diễn đạt câu trả lời (compose); backend lấy dữ liệu/ML và tự format bản deterministic làm nguồn số liệu kiêm fallback. Ngoài trang `/chat`, chatbot còn có một **khung chat nổi** ở góc màn hình, render trên mọi trang khác (mục 11.2).
+
+Thuật ngữ dùng xuyên suốt:
+
+- **policy**: một bộ quy tắc dữ liệu + huấn luyện, định danh bằng `EXPERIMENT_POLICY_ID`. Artifact sinh ra bởi policy khác thì không so sánh trực tiếp được.
+- **fingerprint**: mã băm nội dung dataset/config. Dùng để chặn việc chốt một run tuning đã tính trên dữ liệu khác.
+- **purge**: loại bỏ row có nhãn "chồm" qua ranh giới split — chống nhìn trước tương lai.
+- **OOF (out-of-fold)**: xác suất do model dự đoán trên phần validation của mỗi fold, gộp lại để chọn ngưỡng.
+- **release**: artifact + metadata/report đang phục vụ. Chatbot kiểm readiness cơ bản và phát warning nếu scope, policy hoặc baseline thuộc trạng thái legacy.
+
+## 1. Bài toán
+
+Project trả lời một câu hỏi phân loại:
 
 ```text
-Thu thập dữ liệu HOSE
--> Lưu database
--> Làm sạch dữ liệu
--> Kiểm tra chất lượng dữ liệu
--> Tạo feature Machine Learning
--> Tạo nhãn UP / NOT_UP
--> Chia train/test theo thời gian
--> Cross Validation theo thời gian
--> Hyperparameter tuning
--> Đánh giá model
--> Chọn final_model.pkl
--> Web Flask demo dự báo
+Giá đóng cửa của mã tại đúng phiên thị trường chung thứ 5 sau ngày t
+có tăng hơn 1% so với giá đóng cửa tại t không?
 ```
 
-Code hiện tại đã triển khai đúng hướng chính:
+- `UP`: mức tăng **lớn hơn** `1%`.
+- `NOT_UP`: không đạt điều kiện trên. Có thể giảm, đi ngang hoặc tăng không quá `1%`.
+- `Điểm UP`: score lớp UP do model sinh ra (`predict_proba` của lớp `1`). Đây không phải xác suất chắc thắng, độ chính xác hay mức tăng giá.
+- Quyết định: `Điểm UP >= decision_threshold` là `UP`; thấp hơn là `NOT_UP`.
 
-- Có dữ liệu HOSE dạng OHLCV.
-- Có script cập nhật dữ liệu bằng thư viện `vnstock`.
-- Có làm sạch dữ liệu và báo cáo chất lượng dữ liệu.
-- Có lọc mã đủ tối thiểu 250 phiên giao dịch.
-- Có tạo **20 feature** kỹ thuật.
-- Có tạo nhãn `UP / NOT_UP` với horizon 5 dòng quan sát của từng mã và threshold 1%.
-- Có chia train/test theo thời gian bằng `label_end_date`.
-- Có `TimeSeriesSplit(gap=5)` cho Cross Validation.
-- Có Tuning Lab (`/tuning`) để chạy CV từng cấu hình và chốt cấu hình; repo cũng có script thí nghiệm tự động thử nhiều cấu hình qua cùng backend.
-- Có Dummy Classifier làm baseline.
-- Có tinh chỉnh **decision threshold** riêng cho từng model để tối ưu F1 lớp UP.
-- Có chọn final model theo `F1_UP` (tie-break bằng `Recall_UP` rồi độ đơn giản).
-- Có Flask web demo và CLI dự báo.
-- Có SQLite để sync dữ liệu/report và lưu lịch sử dự báo.
-
-Điểm cần hiểu: trong code, **CSV vẫn là artefact chính** của pipeline; SQLite chỉ là bản sync để lưu dữ liệu/report/prediction history.
-
----
-
-## 3. Bức tranh tổng thể dễ hiểu
-
-Project có **4 luồng tách biệt**. Hiểu chỗ này sẽ tránh nhầm tuning, train và dự báo.
-
-### Luồng A - Chuẩn bị dữ liệu
+Hai threshold khác vai trò:
 
 ```text
-shared_dataset/hose_stock_raw.csv
--> làm sạch OHLCV
--> tạo 20 feature
--> tạo label UP / NOT_UP
--> data/processed/ml_dataset.csv
--> chia TRAIN / TEST theo label_end_date
+UP_THRESHOLD = 0.01        # tạo đáp án thật
+DECISION_THRESHOLD         # đổi score thành dự báo UP/NOT_UP
 ```
 
-### Luồng B - Tuning cấu hình, chỉ chấm trên TRAIN
+`decision_threshold` **không cố định 0.5**. Mỗi model tự tối ưu ngưỡng riêng trong lúc CV (xem mục 7). Hằng số `DECISION_THRESHOLD = 0.5` trong `config/settings.py` chỉ là giá trị dự phòng khi model không lưu ngưỡng riêng. Final Model hiện tại lưu `decision_threshold = 0.49`.
+
+Ví dụ cụ thể để nắm nhãn:
 
 ```text
-Chọn một bộ hyperparameter
--> TimeSeriesSplit trên TRAIN
--> CV F1_UP
--> experiments/tuning_history.csv
--> người dùng chốt cấu hình vào manual_config.json
+FPT, ngày t         close = 100
+phiên thị trường +5 close = 101.5   → +1.5% > 1%  → UP
+phiên thị trường +5 close = 100.8   → +0.8%       → NOT_UP  (vẫn tăng, nhưng chưa đủ)
+phiên thị trường +5 close =  97.0   → -3.0%       → NOT_UP
 ```
 
-### Luồng C - Official pipeline huấn luyện và đánh giá
+Rút ra: `NOT_UP` **không** đồng nghĩa "giảm". Đây là lý do UI và chatbot bị cấm dịch `NOT_UP` thành "giá sẽ giảm".
+
+## 2. Làm sạch dữ liệu và tạo target đúng phiên t+5
+
+Trước khi tạo feature/target, `services/preprocessing.py::clean_data()` làm sạch OHLCV thô:
+
+- Chuẩn hóa `symbol`, ép kiểu numeric/datetime cho các cột OHLCV; loại row thiếu giá trị bắt buộc.
+- Loại trùng `(symbol, trading_date)`, giữ bản ghi cuối.
+- Chỉ giữ row có `open, high, low, close > 0`, `volume >= 0` và OHLC hợp lệ (`high >= max(open, close, low)`, `low <= min(open, close, high)`).
+- Tách hai tập: `cleaned_all` (mọi symbol hợp lệ, dùng cho inference/dự báo) và `filtered_df` (chỉ symbol đủ điều kiện train, dùng cho feature engineering + model). Một symbol bị loại khỏi `filtered_df` nếu có ít hơn `MIN_TRADING_DAYS = 250` phiên. Ràng buộc volume trung bình tối thiểu (`MIN_AVERAGE_VOLUME`) đang để `0`, tức đang **tắt**.
+
+Target được tạo trên `filtered_df` (clean OHLCV) trước khi loại row thiếu feature rolling:
+
+1. Lấy danh sách `trading_date` duy nhất của thị trường.
+2. Với ngày `t`, tìm đúng ngày ở vị trí `t+5` trong danh sách đó (`PREDICTION_HORIZON = 5`).
+3. Tìm giá của cùng mã tại đúng ngày `t+5`.
+4. Nếu mã thiếu giá tại ngày đích, loại row khỏi dataset học; không nhảy sang phiên tiếp theo của riêng mã.
+5. Tính `future_return_5d = future_close_5d / close - 1`.
+6. Gán `target = 1` khi return lớn hơn `0.01`.
+
+Row thiếu target (NaN) bị loại trước khi ghi `ml_dataset.csv`. Vì vậy ngày lớn nhất trong dataset đã là phiên cuối cùng có nhãn t+5 đầy đủ. Cách này giữ nghĩa "5 phiên thị trường" nhất quán giữa mọi mã.
+
+Phễu dữ liệu — **có hai cột số, đừng trộn vào nhau**. Cột A là của release legacy đang serve (`reports/pipeline_summary.json`, sinh 2026-07-20); cột B là dữ liệu đang có trên đĩa sau lần refresh gần nhất (đọc trực tiếp từ CSV, chưa qua pipeline):
 
 ```text
-Đọc 3 cấu hình đã chốt
--> tính lại CV trên TRAIN
--> fit từng model trên toàn TRAIN
--> đánh giá các model trên TEST
--> chọn final theo TEST F1_UP
--> models/final_model.pkl + reports/* + SQLite sync
+                                A: release legacy        B: đĩa hiện tại
+raw CSV                         554.897 row / 400 mã     558.195 row / 400 mã
+                                (2019-08-14 → 2026-07-20)(2019-08-14 → 2026-07-31)
+- loại row OHLC sai           → 554.664 row / 400 mã     (clean_all, dùng cho inference)
+- loại 4 mã < 250 phiên       → 554.052 row / 396 mã     (filtered_df, dùng cho train)
+- cần đủ lịch sử rolling      → 516.940 row
+- cần có nhãn t+5             → 510.862 row              513.971 row / 396 mã
+                                                         (2019-10-23 → 2026-07-24)
 ```
 
-### Luồng D - Dự báo bằng model đã có
+Hai bước giữa của cột B không có số riêng vì `pipeline_summary.json` chỉ được ghi lúc chạy official pipeline — mà snapshot mới thì chưa chạy. Muốn có, chạy pipeline (mục 13); trước đó thì chỉ trích được hai đầu phễu.
+
+Phân bố nhãn của **dataset đang có trên đĩa** (513.971 row): `UP` 192.717 row (37,50%), `NOT_UP` 321.254 row (62,50%). Số của release legacy là `UP` 192.111 (37,6%) / `NOT_UP` 318.751 (62,4%) trên 510.862 row — tỷ lệ gần y nhau. Lớp UP là lớp thiểu số ở cả hai, đây là lý do mọi model đều bật cân bằng lớp (mục 7) và vì sao baseline "luôn báo UP" lại khó vượt (mục 9).
+
+Hai lý do row bị mất nhãn, ghi riêng trong `label_report` (số của release legacy): `rows_without_market_horizon = 1.768` (ngày t không còn đủ 5 phiên phía sau trong lịch thị trường, tức các phiên cuối dataset) và `rows_missing_symbol_future_close = 4.468` (thị trường có phiên t+5 nhưng riêng mã đó không giao dịch ngày đó). Cũng vì lý do thứ nhất mà ngày lớn nhất của `ml_dataset.csv` (2026-07-24) **luôn nhỏ hơn** ngày lớn nhất của raw CSV (2026-07-31): 5 phiên cuối chưa thể có nhãn.
+
+### 2.1. Nhãn được tạo chính xác thế nào (`create_labels`)
+
+Toàn bộ nằm trong `services/feature_engineering.py::create_labels` (`:117`). Bốn quyết định thiết kế ở đây định nghĩa nghĩa của nhãn, nên đọc kỹ trước khi trích số vào báo cáo:
+
+1. **Horizon tính trên lịch thị trường chung, không per-symbol.** `market_dates` là tập `trading_date` distinct của **mọi** mã, sắp tăng dần; ánh xạ `future_by_date = dict(zip(market_dates, market_dates.shift(-horizon)))` (`:153-157`) cho ra "phiên t+5 của sàn" dùng chung cho tất cả mã. Comment trong code từ chối tường minh cách viết quen tay `close.shift(-5)` theo từng mã: một mã nghỉ vài phiên thì `shift(-5)` của nó nhảy xa hơn 5 phiên thị trường thật, mỗi mã có mốc t+5 khác nhau → nhãn không so được với nhau và CV theo ngày sai theo.
+2. **Giá t+5 phải là close thật của chính mã đó đúng phiên đó.** Lấy bằng self-join `(symbol, label_end_date)` với `validate="many_to_one"` (`:167-175`) — nếu dữ liệu thô còn dòng trùng, pandas raise ngay thay vì âm thầm nhân đôi số dòng.
+3. **Thiếu giá thì DROP, không thay bằng giá gần nhất.** `how="left"` nên mã không giao dịch đúng phiên đích cho `future_close_5d = NaN`, và row đó bị `dropna` loại (`:206-208`). Đây chính là 4.468 row ở trên. Nội suy hay lấy phiên kế tiếp sẽ tạo nhãn sai kỳ hạn, nên code cố tình không làm.
+4. **Ngưỡng là `>` nghiêm ngặt** (`:179`, và tính lại ở `:211`): đúng +1,00% là `NOT_UP`, không phải `UP`.
+
+### 2.2. Ba cơ chế purge, đặt ở ba tầng khác nhau
+
+Dễ nhầm thành một cơ chế duy nhất. Thực tế project chống rò rỉ ở ba chỗ độc lập:
+
+| Tầng | Ở đâu | Làm gì |
+| --- | --- | --- |
+| Split chính thức | `feature_engineering.protocol_time_split` (`:271-276`) | TRAIN lọc theo `label_end_date <= train_end` (**không** theo `trading_date`), VALIDATION theo `label_end_date <= validation_end`. Số row hy sinh báo qua `purged_train_validation_rows` / `purged_validation_test_rows` (`:313-314`) — chính hai số 1.883 và 1.775 ở mục 4. |
+| Kiểm lại sau split | `feature_engineering.verify_protocol_splits` (`:398`) | `raise ValueError` trên **7** điều kiện leakage (`:417-430`): label TRAIN vượt `train_end`, VALIDATION bắt đầu trong TRAIN, label VALIDATION vượt `validation_end`, TEST bắt đầu trong VALIDATION, TEST vượt `test_end`, label TRAIN chồng feature VALIDATION, label VALIDATION chồng feature TEST. Cộng thêm một check riêng: không cột nhãn nào (`future_close_5d`, `future_return_5d`, `target`, `label_end_date`) lọt vào `FEATURE_COLUMNS` (`:431-438`). |
+| Trong CV | `time_splitting.iter_purged_date_splits` | gap 5 phiên + điều kiện `label_ends < validation_start` (mục 5). |
+
+## 3. Feature
+
+Model dùng 20 feature theo đúng thứ tự trong `config/settings.py::FEATURE_COLUMNS`:
 
 ```text
-Người dùng nhập mã
--> lấy dữ liệu sạch mới nhất của mã
--> tính 20 feature
--> load final_model.pkl + model_metadata.json
--> tính P(UP)
--> so với decision_threshold
--> trả UP / NOT_UP và có thể log SQLite
+return_1d, return_3d, return_5d, close_open_return,
+sma5, sma20, sma50, close_vs_sma20, sma20_vs_sma50,
+rsi14, volatility_5d, volatility_20d, price_range,
+volume_change_1d, volume_ratio_20, return_10d, return_20d,
+dist_high20, dist_low20, month
 ```
 
-Luồng D **không chạy lại luồng B/C**. Vì vậy bấm dự báo trên web nhanh hơn train model và không làm thay đổi model.
+Nhóm ý nghĩa:
 
----
+- Return: 1, 3, 5, 10, 20 phiên.
+- Quan hệ giá: close/open, close/SMA20, SMA20/SMA50.
+- SMA: 5, 20, 50.
+- RSI14.
+- Volatility: 5, 20.
+- Biên độ giá.
+- Volume change và volume/AVG20.
+- Khoảng cách đến high/low 20 phiên.
+- Tháng.
 
-## 4. Các thư mục và file quan trọng
+Rolling window dài nhất cần 50 row (SMA50); row thiếu đủ lịch sử bị loại. Các cột tương lai, target và `label_end_date` không được vào feature.
 
-| File/thư mục | Vai trò |
-|---|---|
-| `config/settings.py` | Cấu hình trung tâm: đường dẫn, horizon, threshold, feature list, split date, model/report paths |
-| `scripts/run_pipeline.py` | Chạy toàn bộ pipeline từ raw data đến model/report/database |
-| `scripts/fetch_hose_data.py` | Cập nhật thêm dữ liệu OHLCV bằng `vnstock`, nguồn `KBS` |
-| `scripts/preprocess_data.py` | Chạy riêng bước làm sạch dữ liệu |
-| `scripts/build_features.py` | Chạy riêng bước tạo feature, label và train/test split |
-| `scripts/train_tune_models.py` | Chạy riêng bước train/tune model |
-| `scripts/evaluate_models.py` | Debug bước đánh giá; đọc TEST nhưng không kiểm tra TEST lock |
-| `scripts/select_final_model.py` | Debug bước evaluate/chọn final; đọc TEST nhưng không kiểm tra TEST lock |
-| `scripts/predict_stock.py` | Dự báo bằng command line |
-| `scripts/finetune_model.py` | File cũ, đã deprecated; code bảo dùng `train_tune_models.py` |
-| `services/tuning_lab.py` | Backend Tuning Lab: validate tham số, chạy CV một bộ config, ghi lịch sử |
-| `services/experiment_state.py` | Quản lý lịch sử tuning, cấu hình đã chốt, khóa (lock), fingerprint dataset |
-| `services/preprocessing.py` | Làm sạch dữ liệu và lọc mã đủ điều kiện |
-| `services/feature_engineering.py` | Tạo feature, tạo target, chia train/test |
-| `services/model_tuning.py` | Train Dummy và train 3 model chính từ tham số đã chốt |
-| `services/model_evaluation.py` | Tính metric, chọn final model, ghi report |
-| `services/prediction_service.py` | Tính feature mới nhất và dự báo một mã cổ phiếu |
-| `services/database_service.py` | Sync dữ liệu/report vào SQLite và log lịch sử dự báo |
-| `database/init_db.sql` | Schema SQLite |
-| `app.py` | Flask web backend |
-| `templates/` | Giao diện HTML của web |
-| `static/style.css` | CSS của web |
-| `models/final_model.pkl` | Model cuối đang được web/CLI sử dụng |
-| `models/model_metadata.json` | Metadata: model name, feature order, threshold, metric, best params |
-| `reports/model_comparison.csv` | Bảng so sánh các model |
-| `reports/pipeline_summary.json` | Tóm tắt lần chạy pipeline mới nhất |
+## 4. Chia dữ liệu theo ngày cuối dataset (rolling)
 
----
-
-## 5. Dữ liệu OHLCV là gì?
-
-Project dùng dữ liệu giá cổ phiếu **theo ngày**. OHLCV là viết tắt của:
-
-| Cột | Nghĩa |
-|---|---|
-| `symbol` | Mã cổ phiếu, ví dụ `FPT`, `HPG`, `SSI` |
-| `trading_date` | Ngày giao dịch |
-| `open` | Giá mở cửa trong phiên |
-| `high` | Giá cao nhất trong phiên |
-| `low` | Giá thấp nhất trong phiên |
-| `close` | Giá đóng cửa trong phiên |
-| `volume` | Khối lượng giao dịch |
-
-Project **chỉ dùng OHLCV**. Nó không dùng tin tức, báo cáo tài chính, dữ liệu realtime, dữ liệu intraday, sentiment analysis, LSTM, Transformer hay Deep Learning.
-
----
-
-## 6. Các thông số cấu hình chính
-
-Theo `config/settings.py`:
-
-| Thông số | Giá trị hiện tại | Nghĩa dễ hiểu |
-|---|---:|---|
-| `RAW_DATA_PATH` | `...\shared_dataset\hose_stock_raw.csv` | File dữ liệu thô nằm ngoài repo |
-| `SPLIT_DATE` | `2025-06-30` | Mốc thời gian chia train/test |
-| `PREDICTION_HORIZON` | `5` | Lấy dòng quan sát thứ 5 kế tiếp của từng mã |
-| `UP_THRESHOLD` | `0.01` | Tăng hơn 1% thì tính là `UP` |
-| `MIN_TRADING_DAYS` | `250` | Mã có dưới 250 phiên hợp lệ bị loại khỏi train |
-| `MIN_AVERAGE_VOLUME` | `0` | Hiện không lọc theo thanh khoản trung bình |
-| `CV_N_SPLITS` | `5` | Cross Validation chia train thành 5 fold |
-| `CV_GAP` | `5` | Chừa khoảng cách 5 mẫu giữa train và validation |
-| `TUNING_N_ITER` | `12` | Di sản cấu hình (xem mục 15) |
-| `TUNING_SCORING` | `f1` | Tuning ưu tiên F1 của lớp `UP` |
-| `RANDOM_STATE` | `42` | Giúp kết quả random ổn định, tái lập được |
-
-Trong code, horizon `5` được cài bằng `shift(-5)` **riêng cho từng mã**: lấy dòng quan sát thứ 5 kế tiếp của mã đó. Với mã giao dịch đều, nó gần với 5 phiên thị trường. Với mã có dữ liệu thưa, ngừng giao dịch hoặc thiếu ngày, khoảng thời gian lịch có thể dài hơn rất nhiều.
-
----
-
-## 7. Số liệu dữ liệu hiện tại
-
-Theo `reports/pipeline_summary.json` (run mới nhất):
-
-| Hạng mục | Giá trị |
-|---|---:|
-| Raw data | 552,738 dòng |
-| Số mã trong raw data | 400 mã |
-| Khoảng ngày raw data | 2019-08-14 đến 2026-07-10 |
-| Clean data | 552,512 dòng (loại 226 dòng OHLC sai logic) |
-| Mã đủ điều kiện train | 396 mã |
-| Mã bị loại | 4 mã |
-| Feature data | 514,808 dòng |
-| ML dataset sau khi có label | 512,828 dòng |
-| Tỷ lệ nhãn UP toàn bộ dataset | ≈ 37.9% |
-
-Vì sao số dòng giảm qua từng bước:
-
-- Raw → clean: loại 226 dòng OHLC sai logic.
-- Clean all → clean đủ điều kiện train: loại 592 dòng thuộc 4 mã có dưới 250 quan sát, từ 552,512 còn 551,920 dòng.
-- Clean đủ điều kiện → feature: còn 514,808 dòng. Phần giảm chủ yếu là các dòng đầu mỗi mã chưa đủ cửa sổ rolling dài nhất 50 dòng; code cũng loại mọi dòng feature còn NaN/inf.
-- Feature → ML dataset: 5 dòng cuối mỗi mã chưa có dòng tương lai thứ 5 để tạo label, nên bị loại. `396 mã × 5 dòng = 1,980 dòng`, đúng bằng `514,808 - 512,828`.
-
-4 mã bị loại vì chưa đủ 250 phiên giao dịch (theo `reports/excluded_symbols.csv`):
-
-| Mã | Số dòng | Khoảng dữ liệu | Lý do |
-|---|---:|---|---|
-| `CRV` | 147 | 2025-10-10 đến 2026-07-10 | `fewer_than_250_trading_days` |
-| `TCX` | 174 | 2025-10-21 đến 2026-07-10 | `fewer_than_250_trading_days` |
-| `VCK` | 134 | 2025-12-16 đến 2026-07-10 | `fewer_than_250_trading_days` |
-| `VPX` | 137 | 2025-12-11 đến 2026-07-10 | `fewer_than_250_trading_days` |
-
-`reports/fetch_report.json` (lần fetch `2026-07-11`) ghi `new_rows = 3657`, tức tải được 3,657 record trước khử trùng. Sau merge và `drop_duplicates`, raw data tăng ròng 3,654 dòng: từ 549,084 lên 552,738; ngày mới nhất `2026-07-10`. Có 4 mã fetch lỗi (`BCG`, `LGC`, `TCD`, `VNE` — kiểu `RetryError`), nhưng các mã này vẫn giữ dữ liệu cũ trong CSV nếu trước đó đã tồn tại.
-
----
-
-## 8. Làm sạch dữ liệu là gì?
-
-Làm sạch dữ liệu là bước biến dữ liệu thô thành dữ liệu đáng tin hơn trước khi train model.
-
-Trong `services/preprocessing.py`, code làm các việc chính:
-
-1. Kiểm tra file raw có tồn tại và đọc được không.
-2. Kiểm tra có đủ cột bắt buộc: `symbol`, `trading_date`, `open`, `high`, `low`, `close`, `volume`.
-3. Chuẩn hóa `symbol` thành chữ hoa.
-4. Chuyển `trading_date` về kiểu ngày.
-5. Chuyển `open`, `high`, `low`, `close`, `volume` về dạng số.
-6. Xóa dòng thiếu dữ liệu.
-7. Xóa dòng trùng theo `symbol + trading_date`.
-8. Loại dòng có giá <= 0.
-9. Loại dòng có `volume` âm.
-10. Loại dòng OHLC sai logic (ví dụ `high` nhỏ hơn `open`, `close` hoặc `low`).
-11. Sắp xếp theo `symbol`, `trading_date`.
-12. Thống kê mỗi mã: số dòng, ngày bắt đầu/kết thúc, volume trung bình.
-13. Lọc mã đủ điều kiện train: cần tối thiểu 250 phiên giao dịch.
-
-Output của bước này:
+Ranh giới TRAIN/VALIDATION/TEST không phải hằng số cứng. Chúng do `services/protocol_dates.py::resolve_protocol_dates()` tính từ ngày cuối cùng của dataset:
 
 ```text
-data/processed/hose_stock_clean.csv
-reports/data_quality_report.csv
-reports/eligible_symbols.csv
-reports/excluded_symbols.csv
+test_end_date       = max(trading_date) trong dataset
+validation_end_date = test_end_date - TEST_WINDOW_DAYS (94 ngày)
+train_end_date      = validation_end_date - VALIDATION_WINDOW_DAYS (274 ngày)
 ```
-
----
-
-## 9. Feature là gì?
-
-Feature là **dữ liệu đầu vào** cho model.
-
-Con người nhìn biểu đồ, đường trung bình, volume để đoán xu hướng. Model không nhìn biểu đồ trực tiếp, nên project biến lịch sử giá/volume thành các cột số. Các cột số đó gọi là feature.
-
-Project dùng **20 feature** (theo `config/settings.py::FEATURE_COLUMNS`):
-
-Các hậu tố `5d/10d/20d/50` trong code thực tế đếm số **dòng có dữ liệu của từng mã**. Tài liệu đôi lúc gọi gọn là phiên; với mã dữ liệu thưa, chúng không tương đương số ngày thị trường liên tiếp.
-
-| Feature | Nghĩa dễ hiểu |
-|---|---|
-| `return_1d` | Giá đóng cửa thay đổi bao nhiêu so với phiên trước |
-| `return_3d` | Giá thay đổi bao nhiêu trong 3 phiên gần nhất |
-| `return_5d` | Giá thay đổi bao nhiêu trong 5 phiên gần nhất |
-| `close_open_return` | Trong cùng ngày, giá đóng cửa cao/thấp hơn giá mở cửa bao nhiêu |
-| `sma5` | Trung bình giá đóng cửa 5 phiên |
-| `sma20` | Trung bình giá đóng cửa 20 phiên |
-| `sma50` | Trung bình giá đóng cửa 50 phiên |
-| `close_vs_sma20` | Giá hiện tại cao/thấp hơn SMA20 bao nhiêu |
-| `sma20_vs_sma50` | SMA20 cao/thấp hơn SMA50 bao nhiêu |
-| `rsi14` | Chỉ báo sức mạnh tương đối trong 14 phiên |
-| `volatility_5d` | Độ biến động trong 5 phiên |
-| `volatility_20d` | Độ biến động trong 20 phiên |
-| `price_range` | Biên độ dao động trong ngày: `(high - low) / close` |
-| `volume_change_1d` | Volume tăng/giảm bao nhiêu so với phiên trước |
-| `volume_ratio_20` | Volume hiện tại so với volume trung bình 20 phiên |
-| `return_10d` | Giá thay đổi bao nhiêu trong 10 phiên gần nhất — động lượng trung hạn |
-| `return_20d` | Giá thay đổi bao nhiêu trong 20 phiên gần nhất — động lượng dài hơn |
-| `dist_high20` | Giá hiện tại cách đỉnh cao nhất 20 phiên bao nhiêu: `(close / max_high_20) - 1` (thường ≤ 0) |
-| `dist_low20` | Giá hiện tại cách đáy thấp nhất 20 phiên bao nhiêu: `(close / min_low_20) - 1` (thường ≥ 0) |
-| `month` | Tháng của phiên giao dịch (1–12) — nắm bắt yếu tố mùa vụ theo tháng |
-
-Các feature được tính **riêng cho từng `symbol`**. Lịch sử của `FPT` không được trộn sang `HPG`, `SSI` hay mã khác (xem `services/feature_engineering.py`, dùng `groupby("symbol")`).
-
----
-
-## 10. Một vài feature quan trọng nên hiểu kỹ
-
-### Return
-
-`return_1d` được tính:
 
 ```text
-return_1d = close(t) / close(t-1) - 1
+TRAIN
+  label_end_date <= train_end_date
+
+VALIDATION
+  trading_date > train_end_date
+  label_end_date <= validation_end_date
+
+TEST
+  validation_end_date < trading_date <= test_end_date
 ```
 
-Ví dụ: `0.02` = tăng 2%; `-0.03` = giảm 3%.
+`config/settings.py` chỉ giữ 3 hằng số ngày (`TRAIN_END_DATE = 2025-06-30`, `VALIDATION_END_DATE = 2026-03-31`, `TEST_END_DATE = 2026-07-03`) làm **fallback**, không phải mốc đang dùng thật.
 
-### SMA (Simple Moving Average — trung bình trượt đơn giản)
-
-- `sma5`: trung bình 5 phiên, phản ánh ngắn hạn.
-- `sma20`: trung bình 20 phiên, trung hạn.
-- `sma50`: trung bình 50 phiên, dài hơn.
-
-Nếu giá hiện tại cao hơn SMA20, có thể hiểu là giá đang nằm trên mức trung bình 20 phiên.
-
-### RSI (Relative Strength Index)
-
-Chỉ báo sức mạnh tương đối, thường nằm từ 0 đến 100.
-
-- Gần 70 trở lên: giá đã tăng mạnh trong giai đoạn gần đây.
-- Gần 30 trở xuống: giá đã giảm mạnh.
-- Gần 50: cân bằng hơn.
-
-Trong code, nếu cả gain và loss đều bằng 0 thì RSI được gán 50; nếu loss bằng 0 thì RSI là 100.
-
-### Volatility (độ biến động)
-
-Giá dao động càng mạnh thì volatility càng cao. Cổ phiếu biến động cao thường khó dự báo hơn.
-
-### Volume ratio
+Mốc thật **trôi theo dataset** — đây là bằng chứng cụ thể nhất cho chữ "rolling", và cũng là lý do phải phân biệt hai cột số:
 
 ```text
-volume_ratio_20 = volume hôm nay / volume trung bình 20 phiên
+                       A: release legacy       B: đĩa hiện tại
+                       (model_metadata.json)   (resolve từ ml_dataset.csv)
+train_end_date         2025-07-10              2025-07-21
+validation_end_date    2026-04-10              2026-04-21
+test_end_date          2026-07-13              2026-07-24
+source                 —                       rolling_max_session
 ```
 
-Ví dụ `volume_ratio_20 = 2` = volume hôm nay gấp đôi trung bình 20 phiên.
+Dataset thêm 11 ngày lịch ở đuôi thì cả ba mốc dịch đúng 11 ngày. Không hằng số nào bị sửa; toàn bộ độ lệch đến từ `max(trading_date)`.
 
-### Nhóm feature vị trí giá
+Fallback về mốc cố định (`source: "fallback_fixed"`) chỉ xảy ra khi dataset rỗng/thiếu `trading_date`, hoặc span dataset **không dài hơn `368` ngày** (`(max_date - min_date).days <= 368`), hoặc `train_end` sẽ làm TRAIN rỗng. Ngược lại `source: "rolling_max_session"`.
 
-- `return_10d`, `return_20d`: giống `return_5d` nhưng nhìn xa hơn — cho model thêm góc nhìn xu hướng trung hạn.
-- `dist_high20 = close / max(high, 20 phiên) - 1`: giá hiện tại cách **đỉnh** cao nhất 20 phiên bao nhiêu. Bằng 0 = đang ở đỉnh; âm nhiều = đã rơi khá xa khỏi đỉnh.
-- `dist_low20 = close / min(low, 20 phiên) - 1`: giá hiện tại cách **đáy** thấp nhất 20 phiên bao nhiêu. Bằng 0 = đang ở đáy; dương nhiều = đã bật lên khá xa khỏi đáy.
-- `month`: tháng của phiên giao dịch (1–12). Feature lịch, để model bắt yếu tố mùa vụ.
+**`TEST_WINDOW_DAYS` và `VALIDATION_WINDOW_DAYS` là ngày lịch, không phải phiên giao dịch.** Đây là điểm dễ nhầm nhất của mục này, vì cả phần còn lại của project rất kỹ chuyện phiên vs ngày (`CV_GAP_SESSIONS` đếm phiên, nhãn t+5 đếm phiên thị trường). Riêng ở đây `resolve_protocol_dates()` trừ bằng `pd.Timedelta(days=...)` (`services/protocol_dates.py:69-70`), tức `94` và `274` là ngày trên lịch — đã gồm cuối tuần và nghỉ lễ. Quy đổi thô: 94 ngày lịch ≈ 64–66 phiên, 274 ngày lịch ≈ 188–190 phiên. Nên đừng đọc "TEST 94" thành "94 phiên TEST"; số phiên thực tế trong TEST nhỏ hơn nhiều (xem dải ngày thật bên dưới).
 
-`dist_high20` / `dist_low20` mô tả **vị trí giá trong biên độ 20 phiên** — thông tin mà `close_vs_sma20` (so với trung bình) chưa nắm được.
+Cùng một hàm `resolve_protocol_dates()` được dùng cho cả split thật lẫn mask tính fingerprint, nên hai đường không bao giờ lệch nhau. Hàm này được gọi từ đúng **3** chỗ, và đó là lý do không đường nào lệch: `feature_engineering.protocol_time_split` (`:249`, cắt split thật), `feature_engineering.verify_protocol_splits` (`:413`, kiểm lại bất biến khi không được truyền mốc sẵn) và `model_evaluation.build_model_metadata` (`:623`, ghi mốc vào metadata).
 
----
-
-## 11. Target, label, horizon, threshold là gì?
-
-Target là **đáp án** mà model cần học.
-
-Với mỗi mã tại dòng/ngày `t`, project nhìn lại các dòng quá khứ để tạo feature, rồi lấy dòng thứ 5 kế tiếp để tạo đáp án:
+Row có feature trước ranh giới nhưng label vượt qua ranh giới bị purge. Vì vậy:
 
 ```text
-future_close_5d  = close(t+5)
-future_return_5d = close(t+5) / close(t) - 1
+max(TRAIN.label_end_date) < min(VALIDATION.trading_date)
+max(VALIDATION.label_end_date) < min(TEST.trading_date)
 ```
 
-Sau đó tạo nhãn:
+TEST không dùng để tuning hoặc chọn loại model.
+
+Vì sao phải purge: một row ngày 2025-07-08 có nhãn phụ thuộc giá ngày 2025-07-15. Nếu để row đó trong TRAIN mà ranh giới train là 2025-07-10, model đã "nhìn thấy" thông tin sau ranh giới → metric VALIDATION bị thổi phồng. Purge cắt đúng những row này. `verify_protocol_splits()` chạy lại các bất biến trên và **raise** nếu có bất kỳ chồng lấn ngày, chồng lấn nhãn hay leak feature.
+
+Số row và dải ngày thật của từng tập, vẫn hai cột. Cột A đọc từ `models/model_metadata.json` + `reports/pipeline_summary.json` → `split_report`; cột B là kết quả gọi trực tiếp `protocol_time_split()` trên `ml_dataset.csv` đang có:
 
 ```text
-target = 1 (UP)     nếu future_return_5d > 0.01
-target = 0 (NOT_UP) nếu future_return_5d <= 0.01
+                       A: release legacy       B: đĩa hiện tại
+TRAIN                  419.807 row             422.448 row
+VALIDATION              67.047 row              66.880 row
+TRAIN+VALIDATION       486.854 row             489.328 row   (dùng để refit winner)
+TEST                    20.350 row              20.965 row
+
+TRAIN   trading_date    2019-10-23 → 2025-07-03  2019-10-23 → 2025-07-14
+        label_end max   2025-07-10               2025-07-21
+VALID   trading_date    2025-07-11 → 2026-04-03  2025-07-22 → 2026-04-14
+        label_end max   2026-04-10               2026-04-21
+TEST    trading_date    2026-04-13 → 2026-07-13  2026-04-22 → 2026-07-24
+
+purge biên TRAIN → VALIDATION   1.883 row               1.900 row
+purge biên VALIDATION → TEST    1.775 row               1.778 row
 ```
 
-Ví dụ:
+Đọc bảng trên là thấy ngay bất biến ở mục này thành thật ở **cả hai** cột: `label_end_date` lớn nhất của TRAIN vẫn nhỏ hơn `trading_date` nhỏ nhất của VALIDATION (2025-07-10 < 2025-07-11 ở cột A; 2025-07-21 < 2025-07-22 ở cột B) — không có row nào của TRAIN biết trước dữ liệu trong vùng VALIDATION. Tương tự ở biên VALIDATION/TEST.
 
-| Giá tại t | Giá ở dòng thứ 5 kế tiếp | Return | Label |
-|---:|---:|---:|---|
-| 100 | 103 | 3.0% | `UP` |
-| 100 | 101.1 | 1.1% | `UP` |
-| 100 | 100.8 | 0.8% | `NOT_UP` |
-| 100 | 99 | -1.0% | `NOT_UP` |
+Số **phiên** (không phải ngày lịch) của snapshot hiện tại, để thấy rõ cảnh báo "ngày lịch ≠ phiên" ở trên là thật: TRAIN 1.396 phiên, VALIDATION 182 phiên, TEST **65 phiên** — đúng dải 64–66 phiên đã quy đổi từ 94 ngày lịch, không phải 94 phiên.
 
-`future_return_5d` chỉ dùng để tạo đáp án trong lúc train/test. **Khi dự báo thật, model không được biết tương lai.** Số `5` ở đây là dòng quan sát thứ 5 tiếp theo của từng `symbol`, không đảm bảo đúng 5 ngày thị trường nếu mã có dữ liệu thưa.
+Một chi tiết dễ bỏ qua: VALIDATION của snapshot mới **ít row hơn** (66.880 < 67.047) dù dataset to hơn 3.109 row. Không có gì sai: cửa sổ VALIDATION là 274 ngày lịch cố định trượt về phía trước, nên nó nhận một đoạn thời gian khác — số phiên trong đoạn đó phụ thuộc nghỉ lễ, và số mã giao dịch mỗi phiên cũng khác. Chỉ TRAIN mới cộng dồn theo thời gian.
 
-### Hai threshold hoàn toàn khác nhau
+## 5. Cross-validation trên TRAIN
 
-| Threshold | Giá trị hiện tại | Dùng lúc nào? |
-|---|---:|---|
-| `UP_THRESHOLD` | `0.01` (1%) | Tạo **đáp án thật**: return tương lai >1% thì target=`UP` |
-| `decision_threshold` | `≈0.4129` với final GB | Đổi **xác suất model** thành dự báo: `P(UP) >= 0.4129` thì prediction=`UP` |
-
-Ví dụ: giá từ 100 lên 102 ở dòng thứ 5 kế tiếp tạo target `UP` vì tăng 2% > 1%. Khi dùng model thật, model có thể trả `P(UP)=0.45`; vì `0.45 >= 0.4129`, kết quả dự báo cũng là `UP`. Hai phép so này diễn ra ở hai thời điểm khác nhau và không được gọi lẫn nhau.
-
----
-
-## 12. Data leakage là gì?
-
-Data leakage là lỗi rất nguy hiểm: model **vô tình nhìn thấy thông tin tương lai** hoặc thông tin đáp án trong lúc train.
-
-Ví dụ sai: dùng `close(t+5)` làm feature để dự báo target tại ngày `t`. Nếu làm vậy, model gần như được nhìn thấy đáp án trước → kết quả test đẹp giả, nhưng dùng thật sẽ tệ.
-
-Project có các biện pháp **giảm** leakage:
-
-- Feature tại ngày `t` chỉ dùng dữ liệu từ ngày `t` trở về trước.
-- `future_close_5d`, `future_return_5d`, `target`, `label_end_date` **không** nằm trong `FEATURE_COLUMNS` (hàm `verify_data_pipeline` kiểm tra và ném lỗi nếu bị lẫn).
-- Train/test chia theo **thời gian**, không random shuffle.
-- Train dùng `label_end_date <= 2025-06-30`; test dùng `label_end_date > 2025-06-30`.
-- Cross Validation dùng `TimeSeriesSplit(gap=5)`.
-- Logistic Regression dùng `Pipeline(StandardScaler, LogisticRegression)`, giúp scaler fit đúng trong từng fold.
-
-Các biện pháp này chưa loại bỏ leakage hoàn toàn. CV hiện chạy trên bảng gộp nhiều mã và `gap=5` chỉ là 5 dòng; mục 14 giải thích giới hạn cụ thể.
-
----
-
-## 13. Train/test split hiện tại
-
-Project **không** dùng random split. Code dùng `label_end_date` để bảo đảm nhãn của TRAIN kết thúc không muộn hơn split date.
-
-Theo `reports/train_test_summary.csv`:
-
-| Tập | Dòng | Số mã | Khoảng `trading_date` | Label boundary | UP | NOT_UP |
-|---|---:|---:|---|---|---:|---:|
-| Train | 417,806 | 395 | 2019-10-23 đến 2025-06-23 | `label_end_date <= 2025-06-30` | 163,278 | 254,528 |
-| Test | 95,022 | 396 | 2025-03-03 đến 2026-07-03 | `label_end_date > 2025-06-30` | 31,163 | 63,859 |
-
-Suy ra tỷ lệ `UP`: TRAIN ≈ 39.1% (163278/417806), TEST ≈ 32.8% (31163/95022). Phân phối TEST có ít nhãn UP hơn TRAIN; đây là distribution shift cần lưu ý, dù hai tập chưa tách tuyệt đối theo `trading_date`.
-
-Theo `reports/pipeline_summary.json`: `overlap_rows = 0` chỉ có nghĩa không dùng lại cùng index dòng; `train_label_end_max = 2025-06-30`, `test_label_end_min = 2025-07-01` cho thấy ranh giới **kết thúc nhãn** tách nhau. Nó không chứng minh hai tập không chồng khoảng `trading_date`.
-
-**Vì sao TEST có `trading_date` bắt đầu từ 2025-03-03, trước split date 2025-06-30?**
-
-Project chia theo `label_end_date`, không chia trực tiếp theo `trading_date`. Ví dụ mã `TTE` có dòng tham chiếu `2025-03-03`, nhưng vì dữ liệu mã này rất thưa nên dòng thứ 5 kế tiếp tận `2025-08-25`; dòng đó thuộc TEST. Đây không phải 5 phiên liên tiếp của toàn thị trường.
-
-**Giới hạn cần nói thật:** split hiện bảo vệ ranh giới kết thúc nhãn (`TRAIN label_end_date <= 2025-06-30`, TEST ngược lại), nhưng không bảo đảm mọi ngày tham chiếu của TEST đều sau mọi ngày tham chiếu của TRAIN. Dataset hiện có 89 dòng TEST thuộc 42 mã với `trading_date <=` ngày TRAIN lớn nhất. Vì vậy không nên mô tả split hiện tại là tách thời gian tuyệt đối hoặc hoàn toàn không leakage.
-
----
-
-## 14. Cross Validation là gì?
-
-Cross Validation là cách chia tập train thành nhiều phần nhỏ để kiểm tra model có ổn định không.
-
-Với dữ liệu bình thường có thể chia ngẫu nhiên. Nhưng với dữ liệu cổ phiếu, chia ngẫu nhiên dễ làm tương lai lọt vào quá khứ.
-
-Project dùng:
+CV có **4 fold** expanding-window (`CV_N_SPLITS = 4`) theo danh sách ngày giao dịch duy nhất, dùng `sklearn.TimeSeriesSplit` chạy trên các ngày (không phải trên row):
 
 ```text
-TimeSeriesSplit(n_splits=5, gap=5)
+Fold 1: train cũ       -> gap 5 phiên -> validation kế tiếp
+Fold 2: train dài hơn  -> gap 5 phiên -> validation kế tiếp
+Fold 3: train dài hơn  -> gap 5 phiên -> validation kế tiếp
+Fold 4: train gần hết  -> gap 5 phiên -> validation cuối
 ```
 
-Đọc metric nhanh trước khi đi tiếp: Precision_UP hỏi "đã báo UP thì đúng bao nhiêu", Recall_UP hỏi "UP thật thì bắt được bao nhiêu", còn F1_UP cân bằng hai chỉ số đó. Mục 17 giải thích chi tiết.
+Chi tiết mỗi fold (`services/time_splitting.py::iter_purged_date_splits`):
 
-Ý nghĩa:
+1. Chỉ xét ngày giao dịch từ `CV_START_DATE = 2021-01-01` trở đi.
+2. Giữ nguyên toàn bộ row cùng một `trading_date` ở cùng phía.
+3. Bỏ đúng `CV_GAP_SESSIONS = 5` ngày giao dịch giữa train và validation.
+4. Purge: loại mọi train row có `label_end_date >= validation_start`.
+5. Fit estimator tạm trên fold-train (clone estimator gốc).
+6. Ghi F1_UP, Precision_UP, Recall_UP và dải ngày (`fold_date_ranges`).
+7. Bỏ model tạm; không lưu model fold. Fold rỗng → `ValueError`.
 
-- Chỉ dùng trên tập train.
-- Chia train thành 5 fold theo thứ tự thời gian.
-- Fold sau có nhiều dữ liệu quá khứ hơn fold trước.
-- `gap=5` bỏ qua 5 **dòng của bảng gộp**, không phải 5 ngày, không phải 5 phiên cho từng mã.
+Tuning Lab và official pipeline dùng chung `iter_purged_date_splits()` (trong `services/time_splitting.py`) và `run_cv_metrics()` (trong `services/model_tuning.py`).
 
-Trong mỗi fold, code tinh chỉnh **decision threshold** trên prediction của chính TRAIN fold, rồi áp ngưỡng đó lên VAL để đo F1. Threshold không dùng trực tiếp nhãn VAL/TEST, nhưng vẫn có thể khớp quá sát TRAIN vì chưa có một phần dữ liệu riêng để chọn ngưỡng. Chi tiết ở mục 16.1.
+Hai chi tiết của `services/time_splitting.py` (file chỉ 2 hàm nhưng quyết định toàn bộ tính đúng của CV):
 
-**Giới hạn quan trọng:** vì bảng gộp hàng trăm mã rồi chia theo vị trí dòng, `gap=5` không tạo khoảng cách 5 phiên. Fold có thể chung ngày và label window của TRAIN có thể lấn vào VAL, nên CV F1_UP có thể lạc quan. Bằng chứng và hướng sửa kỹ thuật nằm ở mục 29.
+- `sort_panel_frame()` cho thứ tự panel **xác định** (`sort_values(["trading_date", "symbol"], kind="mergesort")`), dùng chung cho Tuning Lab và CV chính thức. Nhờ vậy cùng một config chạy hai lần ra đúng cùng một số, và fingerprint mới có nghĩa.
+- `iter_purged_date_splits()` (`:20`) chạy `TimeSeriesSplit(n_splits, gap=gap_sessions)` trên **tập ngày giao dịch duy nhất**, không trên row (`:43-49`). Đây là điểm mấu chốt: dữ liệu là panel (mỗi phiên có vài trăm mã), cắt theo chỉ số row sẽ xé một phiên làm hai — vài mã ngày 05/07 vào train, vài mã cùng ngày đó vào validation → rò rỉ chéo theo mã. Cắt theo ngày đảm bảo cả phiên đi cùng nhau. Sau khi có ngày, train row còn phải thỏa thêm `label_ends < validation_start` (`:60`), tức nhãn t+5 đã đóng trước phiên đầu của validation. Fold nào ra train hoặc validation rỗng thì `raise` (`:69`), không im lặng bỏ fold.
 
----
+Một hàm nhỏ nhưng đáng biết: `services/model_tuning.py:53 _proba_up()` lấy cột UP bằng `classes_.index(1)` chứ không phải `proba[:, 1]`. Lý do: sklearn xếp cột `predict_proba` theo `model.classes_`; nếu một fold chỉ chứa lớp 0 thì `classes_ == [0]` và mảng chỉ có 1 cột — hardcode index 1 sẽ `IndexError`. Tra vị trí của giá trị `1` là cách duy nhất luôn trả đúng P(UP).
 
-## 15. Hyperparameter tuning là gì?
+## 6. Ý nghĩa metric
 
-Model có 2 loại tham số:
-
-| Loại | Nghĩa |
-|---|---|
-| Parameter | Thứ model **tự học** từ dữ liệu |
-| Hyperparameter | Thứ người lập trình **cấu hình trước** khi train |
-
-Ví dụ với Random Forest: `n_estimators` (số cây), `max_depth` (độ sâu tối đa), `min_samples_leaf` (số mẫu tối thiểu ở một lá), `max_features` (số feature xét mỗi lần chia nhánh).
-
-Tuning là quá trình thử nhiều bộ hyperparameter để tìm bộ tốt hơn.
-
-**Cách tuning/chốt cấu hình hiện tại:** official pipeline **không** chạy `RandomizedSearchCV`. Tuning Lab cho phép đánh giá từng cấu hình bằng cùng một hàm CV:
-
-1. Vào trang `/tuning`, nhập bộ hyperparameter cho từng model (LR, RF, GB).
-2. Bấm chạy → `services/tuning_lab.py::evaluate_single_config` chỉ nhận tập TRAIN. Hàm chia TRAIN thành 5 fold thời gian; mỗi fold học trên phần `fold-train`, đo F1_UP trên phần `fold-validation`, rồi lấy trung bình 5 fold thành **CV F1_UP** và ghi một dòng vào `experiments/tuning_history.csv`.
-3. Khi thấy bộ nào tốt, bấm "dùng cấu hình này" → lưu vào `experiments/manual_config.json`, kèm dấu vân dữ liệu (`dataset_fingerprint`).
-4. Khi đã chốt đủ cả 3 model (và fingerprint khớp dataset hiện tại), pipeline chính thức mới được phép chạy. Lúc chạy, `services/model_tuning.py::tune_models` **đọc lại các bộ tham số đã chốt** từ `manual_config.json` để huấn luyện, chứ không tự dò tham số.
-
-Repo còn có `experiments/lr_2h_search.py`, `rf_2h_auto_search.py`, `gb_3h_ext_search.py` để tự động gọi cùng `evaluate_single_config` với nhiều cấu hình. Vì vậy **khâu thử nghiệm không hoàn toàn làm tay**; phần thủ công quan trọng là người dùng xem kết quả và bấm chọn cấu hình cuối. Code cho phép chọn bất kỳ run hợp lệ, không tự bắt buộc chọn điểm cao nhất.
-
-> Lưu ý về CV score: khi chạy pipeline, code **luôn tính lại CV trên TRAIN hiện tại** (`run_cv_metrics`) chứ không tin con số CV đã lưu trong `manual_config.json` — con số trong config chỉ để lưu vết (provenance).
-
-### Hai loại F1 rất dễ nhầm trong project
-
-Hãy hình dung:
-
-- **TRAIN** là bộ tài liệu dùng để học và làm bài kiểm tra thử.
-- Các phần **validation bên trong TRAIN** là 5 bài kiểm tra thử của Cross Validation.
-- **TEST** là tập đánh giá/chọn final model, được giữ khỏi quá trình chọn hyperparameter.
-
-Hai luồng cần tách riêng:
+Với UP là positive class:
 
 ```text
-TUNING / THỬ CẤU HÌNH
-TRAIN -> 5-fold CV -> CV F1_UP
-      -> tuning_history.csv -> người dùng chốt params
-
-OFFICIAL PIPELINE
-params đã chốt -> tính lại CV trên TRAIN
-                -> fit model trên toàn TRAIN
-                -> predict TEST -> TEST F1_UP
-                -> so sánh 3 model -> final_model.pkl
+Precision_UP = TP / (TP + FP)
+Recall_UP    = TP / (TP + FN)
+F1_UP        = 2 * Precision * Recall / (Precision + Recall)
 ```
 
-Điểm cần hiểu: `.fit()` chỉ làm model học, **chưa tự sinh ra F1**. Muốn có F1 phải lấy dự đoán so với nhãn thật:
+- Precision_UP: trong các row model báo UP, tỷ lệ UP thật.
+- Recall_UP: trong các row UP thật, tỷ lệ model nhận ra.
+- F1_UP: cân bằng Precision và Recall.
+- CV F1_UP mean: trung bình F1_UP của 4 fold.
+- CV F1_UP std: mức dao động giữa fold; thấp hơn ổn định hơn.
 
-- Trong Tuning Lab, nhãn thật dùng để chấm nằm ở các `fold-validation` thuộc TRAIN → kết quả là **CV F1_UP**.
-- Trong bước evaluate chính thức, nhãn thật dùng để chấm nằm ở TEST → kết quả là **TEST F1_UP**.
+CV F1_UP là chất lượng chung trên nhiều đoạn TRAIN. Điểm UP trên UI là score của một mã tại một ngày. Hai giá trị không cùng ý nghĩa.
 
-Hai metric cùng dùng công thức F1 cho lớp UP, nhưng trả lời hai câu hỏi khác nhau:
+## 7. Tuning ba model và chọn ngưỡng OOF
 
-| Metric | Dữ liệu chấm điểm | Dùng để làm gì? | Nằm ở đâu? |
-|---|---|---|---|
-| `CV F1_UP` | 5 validation fold bên trong TRAIN | So sánh các bộ hyperparameter, lưu lịch sử tuning | `tuning_history.csv::cv_f1_up_mean` |
-| `TEST F1_UP` | Tập TEST tách riêng | So sánh 3 model đã chốt và chọn final model | `model_comparison.csv::f1_up` |
+Mỗi lần bấm chạy một cấu hình tạo background job. Tối đa một job chạy trong Flask process (một `threading.Lock` + một `_JOB_THREAD` toàn cục).
 
-Ví dụ số hiện tại cũng cho thấy hai loại này khác nhau:
+Estimator được dựng trong `services/model_tuning.py::build_estimator`:
 
-| Model | CV F1_UP lúc chọn trong Tuning Lab | CV F1_UP pipeline tính lại | TEST F1_UP |
-|---|---:|---:|---:|
-| Logistic Regression | 0.5490 | 0.5490 | 0.5024 |
-| Random Forest | 0.5491 | 0.5488 | 0.5041 |
-| Gradient Boosting | 0.5453 | 0.5453 | 0.5053 |
+- Logistic Regression: `Pipeline([StandardScaler, LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)])`.
+- Random Forest: `RandomForestClassifier(class_weight="balanced_subsample", n_jobs=-1, random_state=42)`.
+- Gradient Boosting: `GradientBoostingClassifier(random_state=42)`; do không có `class_weight`, cân bằng lớp bằng `sample_weight=compute_sample_weight("balanced", y)` truyền vào lúc `.fit()`.
 
-Hai cột CV đều đo trên TRAIN nhưng đến từ **hai lần chạy khác nhau**: lần người dùng thử/chọn cấu hình trong Tuning Lab và lần pipeline chính thức tính lại CV. Vì vậy khi trích số phải nói rõ nguồn. Đặc biệt, `0.5491` là CV F1_UP của run Random Forest được lưu/chọn trong history; `0.5488` là CV F1_UP do pipeline tính lại, không phải TEST F1_UP.
+Cân bằng lớp cho GB **không** nằm trong `build_estimator` (sklearn không cấp `class_weight` cho `GradientBoostingClassifier`). Nó phải truyền `sample_weight=compute_sample_weight("balanced", y)` vào lúc `.fit()`, và có đúng **3 call site** đều gate bằng `model_id == 4`: fit fold CV (`services/model_tuning.py:236-237`), fit toàn TRAIN (`:403`), refit cuối trên TRAIN+VALIDATION (`services/model_evaluation.py:283-284`). Bỏ sót một trong ba chỗ là GB mất cân bằng lớp ở đúng bước đó mà không có lỗi nào báo — đây là lý do nên nhớ con số 3.
 
-**Kết luận cho 3 lưu đồ tuning của LR, RF và GB:** lưu đồ dừng tại `CV F1_UP -> tuning_history.csv`. Các bước fit cuối trên toàn TRAIN, evaluate TEST, so sánh model và chọn final model nằm ngoài 3 lưu đồ đó.
+Chọn ngưỡng quyết định (OOF threshold, out-of-fold) — thay cho ngưỡng cố định 0.5:
 
-`config/settings.py` vẫn còn `TUNING_N_ITER=12` và `TUNING_SCORING="f1"` như di sản cấu hình, nhưng luồng chốt tham số hiện do người dùng điều khiển qua Tuning Lab.
+1. Gộp (pool) xác suất out-of-fold của cả 4 fold.
+2. Quét threshold từ `THRESHOLD_MIN = 0.05` đến `THRESHOLD_MAX = 0.95`, bước `0.01`.
+3. Chỉ giữ threshold thỏa cả hai ràng buộc:
+   - `predicted_up_ratio <= THRESHOLD_MAX_PREDICTED_UP_RATIO` (0.50) — không được báo UP quá nửa số row.
+   - `precision >= tỷ lệ UP thực tế` (precision floor bằng base rate của lớp UP).
+4. Chọn threshold tốt nhất theo `(f1, precision, threshold)`.
+5. Không threshold nào thỏa → job báo lỗi.
 
-Ý nghĩa: mỗi dòng `tuning_history.csv` lưu config, điểm, fold, thời gian và fingerprint nên dễ truy vết. Muốn tái lập đúng còn phải giữ nguyên nội dung data, code và thứ tự dòng; fingerprint hiện không hash toàn bộ nội dung.
+Sau khi chốt threshold, recompute lại F1/precision/recall từng fold tại đúng threshold đó.
 
----
+Ba chi tiết của bước này thường bị mô tả sai, nên ghi rõ:
 
-## 16. Các model trong project
+- **Một threshold global, không phải mỗi fold một threshold.** `run_cv_metrics` gom cặp `(y_val, P(UP))` của từng fold vào `fold_outputs`, `np.concatenate` toàn bộ 4 fold thành một mảng duy nhất rồi gọi `select_oof_threshold` **đúng một lần** (`services/model_tuning.py:261-264`). Vì mỗi row TRAIN chỉ nằm trong validation của đúng 1 fold, mảng gộp này là dự đoán out-of-fold thật — không row nào bị chấm bởi model đã học chính nó. Nếu chọn threshold riêng cho từng fold thì mean/std sẽ phản ánh "độ giỏi chỉnh ngưỡng" chứ không phản ánh độ ổn định của một ngưỡng qua thời gian.
+- **Hai ràng buộc, không phải một** (`model_tuning.py:123-124`): `predicted_up_ratio <= 0.50` **và** `precision >= up_rate` (base rate UP tự nhiên của tập OOF). Không threshold nào thỏa cả hai thì hàm **`raise ValueError`** (`:138`) — cố ý không fallback về 0.5, để một cấu hình xấu không lặng lẽ lọt vào pipeline dưới vỏ "ngưỡng mặc định".
+- **Tie-break deterministic, threshold cao thắng.** `max(candidates, key=lambda item: (item[0], item[1], item[2]))` so tuple giảm dần theo `(f1, precision, threshold)` (`:141-143`). Khi hai ngưỡng cho cùng F1 và cùng precision, ngưỡng **cao hơn** được chọn — tức thiên về báo UP ít hơn. Không có random seed nào can dự, nên cùng dữ liệu luôn ra cùng ngưỡng.
 
-Project train 4 model:
+Một chi tiết nhỏ nhưng cứu được cả job: xác suất lớp UP được lấy qua `_proba_up()` (`services/model_tuning.py:53`), tra `classes_.index(1)` chứ **không** hardcode `proba[:, 1]`. Lý do: sklearn xếp cột `predict_proba` theo `model.classes_`; nếu một fold CV chỉ chứa lớp 0 thì `classes_ == [0]`, mảng chỉ có 1 cột và `proba[:, 1]` sẽ `IndexError`.
 
-| Model | Vai trò |
-|---|---|
-| Dummy Classifier | Baseline tối thiểu, chỉ đoán lớp phổ biến nhất |
-| Logistic Regression | Model tuyến tính đơn giản, dễ giải thích |
-| Random Forest | Nhiều cây quyết định cùng bỏ phiếu, hợp dữ liệu bảng |
-| Gradient Boosting | Nhiều cây học tuần tự, cây sau cố sửa lỗi cây trước |
+Một run chỉ hợp lệ (kiểm tra trong `services/tuning_lab.py`) khi:
 
-Chi tiết trong code (`services/model_tuning.py`):
+- Đúng 4 entry trong `f1_up_folds` / `precision_up_folds` / `recall_up_folds` / `fold_date_ranges`.
+- `0 < decision_threshold < 1`.
+- `threshold_constraint_passed` là true.
+- `oof_predicted_up_ratio <= 0.50`.
+- `oof_precision_up >= oof_up_rate`.
 
-- Dummy dùng `strategy="most_frequent"` (threshold cố định 0.5).
-- Logistic Regression nằm trong `Pipeline(StandardScaler(), LogisticRegression(class_weight="balanced", max_iter=1000))`.
-- Random Forest dùng `class_weight="balanced_subsample"`, `n_jobs=-1`.
-- Gradient Boosting dùng `GradientBoostingClassifier`. Class này **không có** tham số `class_weight`, nên code truyền `sample_weight = compute_sample_weight("balanced", y)` vào lúc `.fit()` (cả trong CV lẫn khi fit cuối) để cân bằng lớp tương đương.
+Năm điều kiện trên do `_validate_cv_provenance()` (`services/tuning_lab.py:46`) kiểm, và **thứ tự gọi là bắt buộc**: nó chạy ngay sau `run_cv_metrics()` trong cùng khối `try` (`tuning_lab.py:238-239`), tức **trước** lệnh `append_history()` ghi dòng `status="ok"` ở `:271`. Nếu đảo lại, một CV đủ số fold nhưng thiếu provenance vẫn được ghi là "ok", rồi nổ về sau ở `_cv_from_selected()` — tức nổ lúc chạy official pipeline, rất xa chỗ gây lỗi. Cùng bộ ràng buộc này còn được kiểm lần hai lúc **đọc** (`experiment_state._eligible_policy_rows`), nên CSV có bị sửa tay thì ranking vẫn không lấy dòng rác.
 
-**Xử lý mất cân bằng lớp khác nhau theo model:** lớp UP ít hơn NOT_UP, nên mỗi model đều được cân bằng, nhưng bằng cơ chế khác nhau (LR/RF qua `class_weight`, GB qua `sample_weight`). Nếu không cân bằng, model dễ đoán toàn NOT_UP.
+Config chạy lỗi cũng được ghi vào history với `status="error"` rồi **re-raise** (`tuning_lab.py:240-263`: `except` bắt mọi lỗi, `append_history()` ghi dòng error ở `:241`, rồi `raise` trơn ở `:263`). Đây là lựa chọn có chủ ý: history là sổ ghi thí nghiệm, không phải danh sách kết quả tốt — nếu không ghi, người dùng sẽ thử lại đúng config đã nổ mà không biết là đã thử. Dòng `error` bị `_eligible_policy_rows` tự động loại, không thể lọt vào ranking hay vào nút chốt.
 
-**Bộ tham số đã chốt** (theo `reports/best_params.json` và `experiments/manual_config.json`, fingerprint `f6cb3ac8f820`):
+Người dùng tự nhập hyperparameter trong giới hạn của từng estimator (`TUNABLE_PARAM_SCHEMA`), chạy bao nhiêu thử nghiệm tùy nhu cầu, xem CV và tự chốt một run cho mỗi model. Nhãn `Tốt nhất` chỉ gợi ý, không tự thay lựa chọn.
 
-| Model | Params đã chốt (20 feature) |
-|---|---|
-| Logistic Regression | `C=6.59e-05`, `solver=liblinear` |
-| Random Forest | `n_estimators=130`, `max_depth=4`, `min_samples_leaf=25`, `max_features=0.35` |
-| Gradient Boosting | `n_estimators=120`, `learning_rate=0.05`, `max_depth=2`, `subsample=1.0` |
+- Logistic Regression: `C > 0`, `solver ∈ {lbfgs, liblinear}`.
+- Random Forest: `n_estimators >= 1`, `max_depth` là `None` hoặc số nguyên `>= 1`, `min_samples_leaf >= 1`, `max_features ∈ {sqrt, log2}` hoặc float `(0,1]`.
+- Gradient Boosting: `n_estimators >= 1`, `learning_rate ∈ (0,1]`, `max_depth >= 1`, `subsample ∈ (0,1]`.
 
----
+Cảnh báo về tên gọi: `TUNABLE_PARAM_SCHEMA` **không phải search space**. Repo không có `GridSearchCV`, `RandomizedSearchCV` hay biến `param_grid` nào (grep toàn bộ code project: 0 hit) — không có bước tìm kiếm tự động nào cả. Schema này chỉ là **domain hợp lệ để validate form nhập tay** và để sinh cột filter/sort cho bảng history (mục 11.1). Mọi giá trị hyperparameter trong project đều do con người gõ vào.
 
-## 16.1. Decision threshold (ngưỡng quyết định) là gì?
+Mọi run được ghi vào `experiments/tuning_history.csv` (kể cả run lỗi, `status: "error"`). Run sai policy hoặc sai fingerprint không thể chốt cho pipeline hiện tại.
 
-Mặc định, model phân loại đoán UP khi `P(UP) >= 0.5`. Project không giữ cứng mốc này mà **tìm ngưỡng làm F1_UP trên TRAIN cao nhất** cho từng model:
-
-1. Trong mỗi fold CV, sau khi fit trên phần TRAIN của fold, code quét `precision_recall_curve` để tìm ngưỡng cho **F1 lớp UP cao nhất** (`services/model_tuning.py::tune_threshold`), giới hạn trong khoảng `[0.05, 0.95]`.
-2. Ngưỡng đó được chọn từ prediction trên chính TRAIN fold, rồi áp lên VAL để đo. Nó không dùng trực tiếp nhãn VAL/TEST, nhưng vẫn là tuning in-sample và có thể overfit threshold.
-3. Khi fit model cuối trên toàn bộ TRAIN, ngưỡng tối ưu được tính lại và **lưu vào artifact + `model_metadata.json`** (`decision_threshold`).
-4. Khi dự báo thật, model so `P(UP)` với ngưỡng đã lưu này, **không dùng 0.5**.
-
-Ngưỡng của final model **Gradient Boosting** đang phục vụ là `decision_threshold ≈ 0.4129`. Vì thấp hơn 0.5, model gán UP nhiều hơn; trên TEST hiện tại kết quả quan sát được là Recall_UP cao.
-
-**Hệ quả quan sát được trên TEST:** Recall_UP tăng mạnh nhưng Precision_UP và Accuracy thấp vì báo UP nhầm nhiều. Code trực tiếp tối ưu F1_UP, **không đặt mục tiêu Recall riêng**.
-
----
-
-## 16.2. Tại sao bộ tham số đã chốt là "tốt nhất"?
-
-Đây là câu hỏi hay gặp khi bảo vệ: *"Sao biết params ở mục 16 là tốt nhất?"* Trả lời trung thực gồm 2 phần: (1) tốt nhất theo **tiêu chí nào**, và (2) tốt nhất trong **phạm vi nào**.
-
-### Tiêu chí: CV F1_UP trung bình 5 fold
-
-Mỗi lần thử một bộ tham số, code chạy `TimeSeriesSplit(n_splits=5, gap=5)` trên TRAIN, tính F1 lớp UP ở từng fold rồi lấy **trung bình** (`cv_f1_up_mean`). Con số này được ghi vào `experiments/tuning_history.csv`. UI có thể đánh dấu run cao nhất, hòa thì ưu tiên `std` thấp hơn; tuy nhiên **người dùng mới là người chốt** run vào `manual_config.json`.
-
-Quan trọng: khâu chọn hyperparameter không đọc TEST. Sau khi chốt cấu hình, official pipeline dùng TEST để **vừa báo cáo metric, vừa chọn final model trong 3 model chính**. Vì vậy TEST không tham gia hyperparameter tuning, nhưng cũng không còn là holdout hoàn toàn độc lập sau bước chọn model.
-
-### Bằng chứng: các bộ đã thử và điểm số
-
-Trích từ `experiments/tuning_history.csv` với fingerprint hiện tại `f6cb3ac8f820`: có 177 run Random Forest, 7 run Gradient Boosting và chỉ 1 run Logistic Regression. Dòng **in đậm** là bộ người dùng đã chốt; không có nghĩa code tự chọn nó.
-
-**Random Forest** (đã thử 177 bộ) — top theo CV F1_UP:
-
-| n_estimators | max_depth | min_samples_leaf | max_features | CV F1_UP | std |
-|---:|---:|---:|---:|---:|---:|
-| **130** | **4** | **25** | **0.35** | **0.5491** | **0.0205** |
-| 130 | 4 | 25 | 0.37 | 0.5491 | 0.0205 |
-| 130 | 4 | 32 | 0.36 | 0.5491 | 0.0206 |
-| 130 | 4 | 20 | 0.35 | 0.5491 | 0.0206 |
-
-**Gradient Boosting** (đã thử 7 bộ) — top theo CV F1_UP:
-
-| n_estimators | learning_rate | max_depth | subsample | CV F1_UP | std |
-|---:|---:|---:|---:|---:|---:|
-| **120** | **0.05** | **2** | **1.0** | **0.5453** | **0.0200** |
-| 150 | 0.05 | 3 | 0.5 | 0.5449 | 0.0220 |
-| 80 | 0.1 | 3 | 0.5 | 0.5444 | 0.0218 |
-| 60 | 0.3 | 2 | 0.5 | 0.5427 | 0.0218 |
-
-**Logistic Regression**: bộ chốt `C=6.59e-05`, `solver=liblinear` được chạy lại trên fingerprint hiện tại và cho CV F1_UP ≈ 0.5490. History hiện tại chỉ có một run LR, nên không đủ bằng chứng để gọi đây là C cao điểm nhất trên chính dataset hiện tại; các lần quét nhiều C nằm chủ yếu ở fingerprint/log thí nghiệm cũ.
-
-Điểm cần thấy: với RF nhiều bộ gần như hòa nhau (0.5491) — chênh lệch nằm ở số lẻ thứ 4. Nghĩa là quanh vùng `max_depth=4`, `min_samples_leaf≈20–32`, `max_features≈0.35–0.37`, model đã "bão hòa": chỉnh thêm gần như không cải thiện. Bộ được chốt chỉ là một đại diện tốt của vùng ổn định đó, **không** phải điểm duy nhất đúng.
-
-### Ý nghĩa từng giá trị được chốt (vì sao chúng hợp lý)
-
-| Giá trị | Ý nghĩa & vì sao hợp lý với bài toán này |
-|---|---|
-| RF `max_depth=4` (nông) | Cây nông = model đơn giản, **chống overfit**. Dữ liệu OHLCV nhiễu mạnh, cây sâu dễ học thuộc nhiễu quá khứ. |
-| RF `min_samples_leaf=25` | Mỗi lá cần ≥25 mẫu → không tách nhánh theo vài điểm cá biệt → ổn định hơn. |
-| RF `max_features=0.35` | Mỗi lần chia chỉ xét 35% feature → các cây khác nhau hơn → rừng đa dạng, giảm phương sai. |
-| GB `learning_rate=0.05` (nhỏ) | Học chậm, từng bước nhỏ → tổng quát tốt hơn, ít overfit hơn learning_rate lớn. |
-| GB `max_depth=2` (rất nông) | Mỗi cây cơ sở chỉ học quan hệ nông; boosting cộng dồn nhiều cây để tăng sức biểu diễn. `max_depth=2` không phải decision stump (stump thường depth 1) và không bảo đảm tuyệt đối không overfit. |
-| LR `C=6.59e-05` (rất nhỏ) | `C` nhỏ = **regularization rất mạnh** → ép hệ số về gần 0, model rất "thận trọng". Trên dữ liệu nhiễu, điều này lại cho F1_UP cao và ổn định. |
-
-Mẫu số chung: cả 3 model đều được chốt về phía **đơn giản / regularization mạnh**. Đây là lựa chọn hợp lý cho dữ liệu cổ phiếu nhiễu, nơi model phức tạp dễ học thuộc quá khứ mà kém khi gặp tương lai.
-
-### Phạm vi: "tốt nhất trong số đã thử", không phải tối ưu tuyệt đối
-
-Cần nói thẳng khi bảo vệ: project **không** dùng `RandomizedSearchCV`, nhưng có script tự động quét các danh sách cấu hình do người làm định trước. "Tốt nhất" chỉ nên hiểu là cấu hình người dùng đã chọn trong phạm vi run đã thử và lưu vết, không phải tối ưu toàn cục. Với fingerprint hiện tại, bằng chứng mạnh nhất thuộc RF/GB; LR chỉ có một run trong `tuning_history.csv` hiện tại.
-
----
-
-## 17. Các metric đánh giá là gì?
-
-### Accuracy
+Số thật trong file history hiện tại — dùng được khi báo cáo "đã thử bao nhiêu cấu hình":
 
 ```text
-accuracy = số dự báo đúng / tổng số mẫu
+tổng          502 run,  tất cả đều status = ok  (không có run lỗi)
+Logistic Regression   371 run
+Random Forest          81 run
+Gradient Boosting      50 run
+
+trong đó thuộc snapshot dataset hiện tại (fa1cf401b4a6)   151 run
+    Logistic Regression   101 run
+    Random Forest          30 run
+    Gradient Boosting      20 run
 ```
 
-Với project này, accuracy **không đủ tốt** để chọn model, vì lớp `NOT_UP` nhiều hơn `UP`. Một model cứ đoán `NOT_UP` nhiều có thể accuracy khá cao nhưng không bắt được cổ phiếu tăng.
+Con số 502 là **toàn bộ sổ thí nghiệm từ đầu project**, gồm cả run tính trên các snapshot dataset cũ. Chỉ 151 run trong đó còn "đủ điều kiện" cho snapshot hiện tại (`_eligible_policy_rows` lọc theo policy + fingerprint) — và chỉ những run này mới xuất hiện trong ranking / được phép chốt. Khi báo cáo, nói rõ đang trích con số nào: 502 là công sức thử nghiệm, 151 là số run còn dùng được.
 
-### Precision_UP
+Phân bố 151 run đó lệch mạnh về LR (101 / 30 / 20) không phải vì LR quan trọng hơn, mà vì nó chạy nhanh nhất — mỗi run GB tốn hàng chục lần thời gian của một run LR trên cùng 4 fold. Hệ quả khi đọc bảng ranking: không gian tham số của GB được khám phá thưa hơn nhiều, nên "GB có CV F1_UP cao nhất" (mục 7) là kết luận trên 20 điểm thử, không cùng độ tin cậy với 101 điểm của LR.
 
-> Trong những lần model dự báo UP, bao nhiêu lần **thật sự** UP?
+LR chiếm nhiều run nhất vì nó chạy nhanh nhất (fit một pipeline scaler + logistic trên ~420k row), còn GB ít nhất vì mỗi run tốn thời gian nhất — boosting phải fit tuần tự từng cây, không song song hóa được như RF (`n_jobs=-1`).
 
-Precision cao = khi model nói `UP`, nó ít báo động nhầm hơn.
-
-### Recall_UP
-
-> Trong tất cả trường hợp thật sự UP, model **bắt được** bao nhiêu?
-
-Recall cao = model ít bỏ sót trường hợp tăng.
-
-### F1_UP
-
-F1_UP là chỉ số cân bằng giữa Precision_UP và Recall_UP. Project chọn final model theo `F1_UP`, vì mục tiêu chính là học lớp `UP`.
-
-### Confusion Matrix
-
-Bảng đếm đúng/sai: thật NOT_UP đoán NOT_UP (đúng), thật NOT_UP đoán UP (false positive), thật UP đoán NOT_UP (false negative), thật UP đoán UP (đúng).
-
----
-
-## 18. Kết quả model (run mới nhất, 20 feature)
-
-Theo `reports/model_comparison.csv`:
-
-| Model | Accuracy | Precision_UP | Recall_UP | F1_UP | CV F1_UP | Chọn |
-|---|---:|---:|---:|---:|---:|---|
-| Dummy Classifier | 0.6720 | 0.0000 | 0.0000 | 0.0000 | - | Không |
-| Logistic Regression | 0.3938 | 0.3437 | 0.9332 | 0.5024 | 0.5490 | Không |
-| Random Forest | 0.3918 | 0.3440 | 0.9424 | 0.5041 | 0.5488 | Không |
-| **Gradient Boosting** | **0.4108** | **0.3487** | **0.9176** | **0.5053** | **0.5453** | **Có** |
-
-Final model hiện tại:
+Ba cấu hình đang được chốt trong `experiments/manual_config.json` (`schema_version: 4`, `policy_id: rolling_recent_cv_oof_threshold`, cả ba đều `selection_method: "manual"`, chốt trong khoảng 2026-07-31 22:53 → 2026-08-01 00:53, `dataset_fingerprint = fa1cf401b4a6` khớp dataset đang có trên đĩa):
 
 ```text
-models/final_model.pkl = Gradient Boosting
+                      params đã chốt                       CV F1_UP mean ±std   thr
+Logistic Regression   C = 2.4e-05, solver = liblinear       0.45677 ±0.04626    0.49
+Random Forest         n_estimators = 90, max_depth = 7,     0.46940 ±0.02587    0.49
+                      min_samples_leaf = 75, max_features = 0.2
+Gradient Boosting     n_estimators = 120, learning_rate = 0.3,
+                      max_depth = 2, subsample = 0.8        0.47378 ±0.02171    0.49
 ```
 
-**Nhận xét chung:** cả 3 model chính có **Recall_UP rất cao (0.92–0.94)** nhưng **Accuracy thấp (0.39–0.41)** và Precision_UP quanh 0.34. Decision threshold thấp là nguyên nhân lớn: model gán UP rất "hào phóng" nên bắt gần hết UP thật nhưng báo UP nhầm nhiều. Tuy nhiên không thể dùng threshold để kết luận model chắc chắn tốt; TEST F1_UP chỉ quanh 0.50, nên hiệu năng vẫn khiêm tốn.
+Đọc bảng này được ba điều, đều đáng nêu trong báo cáo:
 
-**Vì sao Dummy không chọn?**
-Dummy đoán lớp phổ biến nhất là `NOT_UP`. Accuracy 0.6720 cao nhất bảng nhưng `F1_UP = 0` — không bắt được UP nào. `select_final_model` loại Dummy khỏi vòng chọn.
+- **Ba model gần như bằng nhau.** Khoảng cách CV F1_UP giữa GB (0.4738) và LR (0.4568) chỉ ~0.017, nhỏ hơn cả `std` của LR (0.046). Nghĩa là chưa model nào tách khỏi hai model kia một cách rõ ràng — dấu hiệu tín hiệu trong feature yếu, không phải dấu hiệu một model vượt trội.
+- **Nhưng độ ổn định thì khác nhau rõ.** `std` của LR (0.046) gấp ~2 lần GB (0.022) và RF (0.026): LR dao động mạnh giữa các giai đoạn (fold 2 đạt 0.506, fold 4 tụt về 0.392), còn GB/RF đều tay hơn. Đây là lý do đáng để `std` cạnh mean trong mọi bảng.
+- **Cả ba đều bị "kìm" rất mạnh**: `C = 2.4e-05` ở LR (gần như regularize tuyệt đối), `min_samples_leaf = 75` + `max_features = 0.2` ở RF, `max_depth = 2` ở GB. Đây là kết cục quen thuộc của bài toán tín hiệu yếu — model càng tự do càng học nhiễu, nên tay người chọn ra cấu hình đơn giản.
 
-Dummy hiện tại cũng là baseline khá yếu cho metric F1_UP. Nếu có baseline đơn giản **luôn đoán UP**, từ tỷ lệ lớp TEST hiện tại ta tính được F1_UP ≈ `0.4939`; final GB đạt `0.5053`, chỉ hơn khoảng `0.0114`. Code chưa xuất baseline luôn-UP này, nhưng phép so cho thấy lợi thế của final model còn nhỏ.
+Cả ba cùng chốt `decision_threshold = 0.49` và cùng `oof_up_rate = 0.37226`, `oof_predicted_up_ratio` lần lượt 0.4991 / 0.4957 / 0.4800 — sát trần `0.50` nhưng đều dưới, tức cả ba đã bị ràng buộc "không được báo UP quá nửa số row" kéo về đúng biên (mục 7, phần chọn ngưỡng OOF).
 
-**Vì sao Gradient Boosting được chọn?**
-Quy tắc chọn (`services/model_evaluation.py::select_final_model`) xếp hạng theo thứ tự: **F1_UP giảm dần → Recall_UP giảm dần → độ đơn giản tăng dần** (LR đơn giản hơn RF, RF đơn giản hơn GB). Ba model chính rất sát nhau về F1_UP (GB 0.5053, RF 0.5041, LR 0.5024), và Gradient Boosting có **F1_UP cao nhất** nên thắng — dù nó là model "phức tạp nhất" trong tie-break.
-
-**Điểm cần trung thực khi trình bày:** khoảng cách F1_UP giữa 3 model **rất nhỏ (chênh ~0.003)**, nên "Gradient Boosting tốt nhất" chỉ đúng ở mức sát sao trên tập TEST này, không phải vượt trội. Về CV F1_UP thì Logistic Regression nhỉnh nhất; GB chỉ thắng TEST F1_UP. Vì chính TEST F1_UP được dùng để chọn GB, TEST metric này có selection bias và không còn là ước lượng hoàn toàn độc lập cho model sau chọn. Thiết kế chặt hơn sẽ chọn model family bằng CV/validation riêng, rồi chỉ đánh giá một model đã khóa trên TEST.
-
----
-
-## 19. Confusion matrix (run mới nhất)
-
-Theo `reports/confusion_matrix.csv`:
-
-| Thực tế / Dự báo | Dự báo NOT_UP | Dự báo UP |
-|---|---:|---:|
-| Thực tế NOT_UP | 10,440 | 53,419 |
-| Thực tế UP | 2,568 | 28,595 |
-
-Cách đọc:
-
-- 10,440: thực tế `NOT_UP`, đoán `NOT_UP`, **đúng**.
-- 53,419: thực tế `NOT_UP`, đoán `UP`, **sai** (false positive — rất nhiều).
-- 2,568: thực tế `UP`, đoán `NOT_UP`, **sai** (false negative — ít).
-- 28,595: thực tế `UP`, đoán `UP`, **đúng**.
-
-Tổng test:
+Dải fold của cả ba giống hệt nhau (cùng dataset, cùng `CV_START_DATE`, cùng `iter_purged_date_splits`), nên so ba model là so công bằng trên đúng cùng bốn đoạn thời gian:
 
 ```text
-10,440 + 53,419 + 2,568 + 28,595 = 95,022 dòng
+fold 1  train 2021-01-04 → 2021-11-23   validation 2021-12-01 → 2022-10-26    80.044 / 83.627 row
+fold 2  train 2021-01-04 → 2022-10-19   validation 2022-10-27 → 2023-09-21   163.697 / 83.120 row
+fold 3  train 2021-01-04 → 2023-09-14   validation 2023-09-22 → 2024-08-15   246.808 / 83.816 row
+fold 4  train 2021-01-04 → 2024-08-08   validation 2024-08-16 → 2025-07-14   330.623 / 83.657 row
 ```
 
-Ma trận này cho thấy cột "Dự báo UP" chiếm đa số. Model bắt được 28,595/31,163 UP thật (Recall_UP ≈ 0.918 — rất cao) nhưng báo UP nhầm 53,419 lần trên nền NOT_UP. Đây là kết quả quan sát được khi ngưỡng tối ưu F1 trên TRAIN thấp hơn 0.5, không phải bằng chứng code trực tiếp tối ưu Recall.
+Nhìn cột train row là thấy đúng tính chất expanding-window: train dài dần (80k → 331k), còn mỗi validation giữ nguyên độ lớn ~83k row. Và `train_label_end_max` của mỗi fold (2021-11-30, 2022-10-26, 2023-09-21, 2024-08-15) luôn **nhỏ hơn** `validation_start` của chính fold đó — đúng bất biến purge ở mục 5.
 
-Kết quả này **không phải "siêu chính xác"**. Nó phản ánh bài toán dự báo cổ phiếu bằng OHLCV là khó. Project có pipeline đầy đủ, report, baseline và cơ chế khóa TEST; đồng thời vẫn còn các giới hạn ở cách chia CV, baseline, tuning threshold và việc dùng TEST để chọn final model. Các giới hạn này được tổng hợp ở mục 29.
+## 8. Từ best config đến Final Model
 
----
+```mermaid
+flowchart LR
+    A["Các run LR trên TRAIN CV"] --> D["LR params do người dùng chọn"]
+    B["Các run RF trên TRAIN CV"] --> E["RF params do người dùng chọn"]
+    C["Các run GB trên TRAIN CV"] --> F["GB params do người dùng chọn"]
+    D --> G["Fit LR candidate trên toàn TRAIN"]
+    E --> H["Fit RF candidate trên toàn TRAIN"]
+    F --> I["Fit GB candidate trên toàn TRAIN"]
+    G --> J["Đánh giá VALIDATION (mỗi model tại threshold riêng)"]
+    H --> J
+    I --> J
+    J --> K["Chọn F1_UP, Recall_UP, đơn giản (LR→RF→GB)"]
+    K --> L{"F1_UP > baseline Always-UP trên VALIDATION?"}
+    L -- "Không" --> X["RuntimeError, pipeline dừng, không promote"]
+    L -- "Có" --> M["Clone winner và refit TRAIN+VALIDATION"]
+    M --> N["Đánh giá TEST đúng một lần"]
+    N --> O["Atomic promote đúng artifact vừa TEST\n(dù có vượt baseline TEST hay không)"]
+    O --> P["UI/CLI inference"]
+```
 
-## 20. Feature importance hiện tại
+`tune_models(train)` không tự chạy lại CV. Nó đọc lại metric CV mà Tuning Lab đã tính và lưu cho từng run được chốt (kiểm số fold = 4 và đủ trường bắt buộc), rồi chỉ fit mỗi estimator một lần trên toàn TRAIN. Nó ghi `tuning_results.csv`, `cv_fold_results.csv`, `best_params.json`.
 
-Final model là Gradient Boosting, nên project xuất được `reports/feature_importance.csv`.
+Bốn cổng provenance của chính `tune_models` (`services/model_tuning.py:342`, bốn `if` ở `:355`, `:375`, `:377`, `:382`), chạy trước khi fit bất cứ thứ gì — thiếu một cổng là `ValueError`, pipeline dừng:
 
-Top feature quan trọng (run mới nhất):
+| # | Điều kiện | Chặn được gì |
+| --- | --- | --- |
+| 1 | `config["schema_version"] == 4` | file config viết theo layout cũ |
+| 2 | `config["policy_id"] == EXPERIMENT_POLICY_ID` | CV tính dưới luật thí nghiệm khác |
+| 3 | `config["dataset_fingerprint"] == current["hash"]` | CV tính trên **phạm vi** dữ liệu khác (số dòng/mã/khoảng ngày) |
+| 4 | `config["content_fingerprint"] == current["content_hash"]` | CV tính trên **nội dung** dữ liệu khác |
 
-| Hạng | Feature | Importance |
-|---:|---|---:|
-| 1 | `volatility_20d` | 0.4236 |
-| 2 | `month` | 0.1796 |
-| 3 | `return_20d` | 0.0763 |
-| 4 | `return_1d` | 0.0713 |
-| 5 | `volume_ratio_20` | 0.0561 |
-| 6 | `return_3d` | 0.0493 |
-| 7 | `volume_change_1d` | 0.0323 |
-| 8 | `close_open_return` | 0.0257 |
+Cổng 4 là cổng tinh nhất và dễ bị bỏ quên nhất khi đọc code: nếu nhà cung cấp dữ liệu sửa giá một phiên cũ mà số dòng không đổi, fingerprint phạm vi (cổng 3) vẫn khớp — chỉ content fingerprint phát hiện được. Không có nó, pipeline sẽ dùng số CV của dữ liệu đã lỗi thời mà không ai hay.
 
-Cách hiểu: trong model đã fit này, `volatility_20d` chiếm ~42% importance và `month` ~18%, sau đó là return dài/ngắn hạn và volume. Đa số SMA có importance thấp, đặc biệt `sma50`, `sma5`; `rsi14` thấp nhất. `sma20` đứng khoảng giữa bảng (hạng 11/20), nên không nên gom toàn bộ SMA vào nhóm thấp nhất hoặc tự suy ra nguyên nhân nếu chưa có thí nghiệm ablation.
+Bên cạnh đó, `_cv_from_selected()` (`model_tuning.py:290`, raise ở `:338`) báo `"Selected tuning run lacks complete CV provenance."` khi một field bắt buộc là `None`, hoặc khi độ dài bất kỳ mảng fold nào khác `CV_N_SPLITS`. Đây là cửa đọc, song sinh với cửa ghi `_validate_cv_provenance` ở Tuning Lab (mục 7).
 
-**Lưu ý quan trọng:** feature importance **không** chứng minh nguyên nhân thị trường. Nó chỉ nói model đã dựa vào feature đó nhiều trong quá trình ra quyết định.
+Trước đó, pipeline gọi `is_config_complete()` (`services/experiment_state.py:669`) để chắc rằng ba lựa chọn trong `manual_config.json` thật sự thuộc dataset và policy đang chạy. Hàm này kiểm **4 lớp**, thiếu một lớp là pipeline dừng:
 
----
+1. `policy_id` và `schema_version` của config khớp giá trị hiện hành (`rolling_recent_cv_oof_threshold`, `schema_version = 4`).
+2. `cv_settings` khớp đúng ba giá trị `n_splits` / `gap_sessions` / `start_date` mà code đang dùng.
+3. `dataset_fingerprint` của config khớp fingerprint của dataset vừa build.
+4. Với **từng** model: `selection_method == "manual"`, run được chốt vẫn còn trong `tuning_history.csv` và hợp lệ, `params` khớp qua `canonical_params_json`, và `decision_threshold` khớp số đã lưu.
 
-## 21. Database hiện tại
+Nói gọn: không thể chốt một run đã tính trên dữ liệu cũ rồi dùng nó cho dataset mới. Đây chính là chỗ fingerprint (mục 0) phát huy tác dụng.
 
-Roadmap đề xuất SQLite và code hiện tại có:
+Một cạm bẫy của `CV_START_DATE`: hằng số `2021-01-01` **chỉ** cắt danh sách ngày dùng để chia fold CV (`iter_purged_date_splits`, mục 5). Bước fit cuối trên toàn TRAIN (`model_tuning.py:400-405`) **không** filter theo start date — nó dùng TOÀN BỘ TRAIN, kể cả các phiên 2019–2020. Nghĩa là model được publish đã học từ những row mà không fold CV nào từng chấm điểm. Điều này có chủ ý (thêm dữ liệu thì fit tốt hơn), nhưng khi báo cáo thì phải nói đúng: số CV mô tả giai đoạn từ 2021, còn model mô tả giai đoạn từ 2019.
+
+Ba candidate được chọn chỉ bằng VALIDATION (`select_final_model`), mỗi model chấm tại `decision_threshold` riêng của nó. Sort key thật là một `sort_values` **ba khóa** (`services/model_evaluation.py:196-200`), `ascending=[False, False, True]`:
+
+1. `f1_up` giảm dần.
+2. `recall_up` giảm dần.
+3. `simplicity_rank` tăng dần — `SIMPLICITY_RANK` map LR → 1, RF → 2, GB → 3.
+
+Đừng đọc `SIMPLICITY_RANK` thành "project thiên vị model đơn giản". Nó là khóa **thứ ba**, chỉ được dùng tới khi cả F1_UP **và** Recall_UP của hai candidate bằng nhau đúng từng float — trên ~67k row VALIDATION thì gần như không bao giờ xảy ra. Thực tế F1_UP quyết định gần như toàn bộ.
+
+Tên hàm cũng dễ gây nhầm: `select_final_model` không chỉ "chọn". Nó còn là chỗ **giết pipeline** — chính hàm này `raise RuntimeError` khi candidate trượt baseline VALIDATION (`model_evaluation.py:232`), trước khi trả về bất cứ artifact nào.
+
+**Hai cổng baseline không đối xứng** — đây là điểm dễ hiểu nhầm:
+
+- **VALIDATION**: nếu F1_UP của candidate được chọn không **lớn hơn nghiêm ngặt** (`>`) F1_UP baseline Always-UP tốt nhất trên VALIDATION, `select_final_model()` **raise `RuntimeError`**. Pipeline dừng tại đây, không có promote, không có artifact mới.
+- **TEST**: nếu F1_UP Final Model không lớn hơn Always-UP trên TEST, pipeline **không dừng** — chỉ ghi `baseline_passed = false` và `baseline_warning`, artifact vẫn được promote.
+
+Sau khi qua được cổng VALIDATION:
+
+1. Clone estimator thắng.
+2. Fit lại từ đầu trên TRAIN+VALIDATION (sort theo `trading_date`).
+3. Đánh giá đúng model đó trên TEST một lần, tại threshold của artifact.
+4. Không refit sau TEST.
+5. Atomic replace chính artifact vừa được TEST thành `final_model.pkl` (chỉ sau khi report sinh xong).
+
+## 9. Baseline
+
+Hai baseline được báo cáo trên cả VALIDATION và TEST (`evaluate_baselines`):
+
+- `Always-UP` (`model_id -1`): luôn dự báo UP.
+- `Always-NOT_UP` (`model_id -2`): luôn dự báo NOT_UP.
+
+Hai cờ baseline riêng (xem cơ chế thật ở mục 8):
+
+- `validation_baseline_passed`: `True` nếu F1_UP model được chọn **lớn hơn** F1_UP baseline Always-UP tốt nhất trên VALIDATION. `False` khiến pipeline hiện hành dừng bằng lỗi thay vì promote.
+- `baseline_passed`: `True` nếu F1_UP Final Model lớn hơn F1_UP Always-UP trên TEST. `False` chỉ tạo warning, model vẫn được promote.
+
+Khi không vượt:
 
 ```text
-database/stock_prediction.db
+baseline_passed = false
+baseline_warning = thông báo rõ trên trang đánh giá và trang dự báo
 ```
 
-`database/init_db.sql` mô tả schema khởi tạo/dự kiến. Các bảng nghiệp vụ:
+Trạng thái hiện tại (số thật trong `model_metadata.json`): Final Model đang phục vụ là **Random Forest** (`policy_id = "legacy_pre_validation_baseline_gate"`, artifact legacy được import, không sinh ra từ cổng VALIDATION nói trên), fail cả hai:
 
-| Bảng | Vai trò |
-|---|---|
-| `raw_prices` | Dữ liệu OHLCV thô |
-| `clean_prices` | Dữ liệu sau làm sạch |
-| `features` | Feature kỹ thuật lưu dạng JSON theo từng mã/ngày |
-| `tuning_results` | Kết quả tuning model |
-| `model_evaluations` | Kết quả đánh giá model |
-| `predictions` | Lịch sử dự báo từ Flask/CLI |
+- VALIDATION: F1_UP model `0.477340` < Always-UP `0.498219` → `validation_baseline_passed = false`. Nếu artifact này được sinh ra hôm nay bằng code hiện hành, bước này sẽ raise lỗi và không có promote.
+- TEST: F1_UP model `0.375381` < Always-UP `0.383895` → `baseline_passed = false`.
 
-Theo lần sync trong `pipeline_summary.json`:
+Đọc con số này thế nào: một chiến lược "luôn báo UP" cho F1_UP cao hơn model. Nghĩa là model chưa chứng minh được nó hữu ích hơn việc đoán bừa theo lớp đa số của bài toán. Đây là kết quả thật cần nêu thẳng trong báo cáo, không tô hồng.
 
-| Bảng/data | Số dòng sync |
-|---|---:|
-| Raw rows | 552,738 |
-| Clean rows | 552,512 |
-| Feature rows | 514,808 |
-| Tuning rows ghi thêm lần này | 3 |
-| Evaluation rows ghi thêm lần này | 4 |
-
-**Cơ chế sync** (`services/database_service.py`): `raw_prices`, `clean_prices`, `features` ghi kiểu **replace**; `tuning_results` và `model_evaluations` ghi kiểu **append**. Vì thế số `3/4` trên là số dòng ghi thêm của run mới nhất, không phải tổng số dòng đang có trong DB. DB hiện có 24 tuning rows, 44 evaluation rows và 13 prediction rows.
-
-`pandas.to_sql(if_exists="replace")` sẽ drop/recreate ba bảng raw/clean/features, nên schema runtime của chúng có thể mất các ràng buộc `id`, PK, UNIQUE, NOT NULL đã khai báo trong `init_db.sql`. Do đó không nên coi `init_db.sql` là mô tả tuyệt đối của DB sau sync. Best params chi tiết vẫn nên xem ở `reports/best_params.json` và `models/model_metadata.json`.
-
----
-
-## 22. Web demo hoạt động thế nào?
-
-Khi chạy `python app.py`, web mở tại `http://127.0.0.1:5000`.
-
-Luồng khi nhập mã, ví dụ `FPT` (theo `services/prediction_service.py`):
-
-1. Web nhận mã cổ phiếu từ form.
-2. Chuẩn hóa mã thành chữ hoa.
-3. Đọc dữ liệu sạch (`hose_stock_clean.csv`).
-4. Lọc dữ liệu của mã đó.
-5. Tính lại feature bằng `build_features`.
-6. Lấy dòng feature có ngày mới nhất.
-7. Load `models/final_model.pkl`.
-8. Load `models/model_metadata.json`.
-9. Lấy đúng thứ tự feature từ metadata.
-10. Gọi `predict_proba` để lấy xác suất lớp `UP` (`P(UP)`).
-11. So `P(UP)` với `decision_threshold` lấy từ metadata (≈0.4129): nếu `P(UP) >= ngưỡng` thì gán `UP`, ngược lại `NOT_UP`. **Không dùng mốc 0.5 mặc định.**
-12. Ghi lịch sử dự báo vào SQLite (best-effort, lỗi được bỏ qua để không hỏng kết quả).
-13. Render kết quả trên HTML.
-
-Ngoài trang dự báo (`/`), web còn có:
-
-- `/evaluation`: bảng so sánh model + confusion matrix.
-- `/tuning`: Tuning Lab để thử/chốt tham số và chạy pipeline.
-- `/tuning/fetch-data` + `/tuning/fetch-status`: làm mới dữ liệu (fetch OHLCV → preprocess → build features) và theo dõi tiến trình.
-
-Web **không** train lại model khi dự báo, **không** realtime. Nó dùng dữ liệu offline đã xử lý.
-
----
-
-## 23. Xác suất lớp UP nghĩa là gì?
-
-Nếu web hiện `Xác suất lớp UP: 51.2%`, **không** nên gọi đây là "độ tin cậy tuyệt đối". Nên gọi là:
+Confusion matrix thật trên TEST (20.350 row, `reports/confusion_matrix.csv`, cũng có trong `pipeline_summary.json`):
 
 ```text
-Xác suất dự báo của model cho lớp UP.
+                        thực tế NOT_UP   thực tế UP
+model báo NOT_UP             9.145          2.245
+model báo UP                 6.371          2.589
 ```
 
-Với Gradient Boosting, xác suất này đến từ tổng hợp các cây học tuần tự trong model.
+Nhìn ma trận này là hiểu ngay vì sao Always-UP thắng: trong 8.960 lần model báo UP thì chỉ 2.589 lần đúng (Precision_UP ≈ 28,9%), trong khi lớp UP thực tế chỉ chiếm 4.834/20.350 ≈ 23,8% số row. Model có nhặt được một chút tín hiệu (28,9% > 23,8%), nhưng nó đánh đổi bằng việc bỏ sót 2.245 row UP thật, nên Recall_UP chỉ 53,6% — còn Always-UP thì recall = 100%. F1_UP là trung bình điều hòa của hai số, và ở tỷ lệ mất cân bằng này, recall = 100% của baseline đủ để kéo F1 của nó lên trên model.
 
-Project chưa chạy bước **probability calibration** như calibration curve, Brier score hoặc `CalibratedClassifierCV`. Vì vậy `P(UP)=51.2%` chỉ là output `predict_proba` để xếp hạng/so threshold; chưa thể diễn giải rằng trong thực tế chắc chắn có đúng 51.2% trường hợp sẽ UP.
+## 10. Artifact và report
 
----
+`models/final_model.pkl` và `models/model_metadata.json` lưu/ghi rõ:
 
-## 24. Các lệnh chạy thường dùng
+- `policy_id` (giá trị hiện hành: `EXPERIMENT_POLICY_ID = "rolling_recent_cv_oof_threshold"`) và các fingerprint (`content_fingerprint`, `training_content_fingerprint`, `tuning_fingerprint`, `experiment_fingerprint`).
+- Feature order (20 feature).
+- Target horizon (5), threshold `1%`, decision threshold của model.
+- Mốc ngày resolve: `train_end_date`, `validation_end_date`, `test_end_date`, `train_through_date`.
+- Best params và CV config (`n_splits: 4, gap_sessions: 5`), `cv_f1_up`.
+- `validation_selection_metrics` và `final_test_metrics` (+ `test_metrics` bản tương thích).
+- `final_test_baselines` (Always-UP và Always-NOT_UP trên TEST).
+- Row counts (`train_rows`, `validation_rows`, `train_validation_rows`, `test_rows`).
+- `baseline_passed` / `baseline_warning`, `selection` (kèm `validation_baseline_passed`).
+- `training_symbols` + `training_symbol_count`: danh sách mã đã thực sự góp row vào lúc train. Chatbot dùng field này để biết mã nào nằm trong phạm vi model.
 
-### Chạy demo bằng artifact có sẵn
+Hai lưu ý về field metadata:
 
-Repo hiện đã có processed data, final model và report. Người mới chỉ cần tạo môi trường, cài thư viện rồi chạy web:
+- `test_reused_from_policy` và `test_reuse_disclosure` là hai field của cơ chế tái dùng TEST cũ, chỉ còn trong metadata các release đã archive (`experiments/archive/releases/`). `build_model_metadata()` hiện tại không ghi hai field này nữa.
+- Ngược lại, `training_symbols` / `training_symbol_count` là field code hiện tại **có** ghi nhưng artifact legacy đang serve **không có** (vì nó được import trực tiếp, xem mục 12). Đây là lý do chatbot phát warning `symbol_scope_unverified`.
+
+Hai cặp field **trùng nhau y hệt**, giữ lại chỉ để tương thích ngược — đừng tưởng chúng mang hai nghĩa khác nhau:
+
+- `split_date` và `train_end_date` cùng lấy từ một biểu thức `resolved_dates["train_end_date"]` (`services/model_evaluation.py:642-643`). `split_date` là tên cũ từ thời chỉ có một mốc chia; `train_end_date` là tên đúng theo protocol 3 mốc hiện tại.
+- `test_metrics` và `final_test_metrics` cùng đọc `selected_artifact["final_test_metrics"]` (`model_evaluation.py:659` và `:662`, comment ở `:661` ghi rõ `authoritative key is final_test_metrics`).
+
+Cả hai cặp đều được kiểm là bằng nhau trong artifact đang serve. Khi viết code mới hoặc đọc số cho báo cáo, dùng `train_end_date` và `final_test_metrics`.
+
+Ngoài `feature_columns`, artifact còn lưu **lặp** danh sách feature dưới tên `feature_order` (`services/model_tuning.py:506-507`) — cùng một `FEATURE_COLUMNS`, cố ý ghi hai lần để phía serving verify được thứ tự cột trước khi `predict`. Cùng lý do đó, `up_threshold` (0.01) và `prediction_horizon` (5) cũng bake vào artifact (`:508-509`): thiếu hai số này thì output của model mất định nghĩa (không biết "UP" đang là ngưỡng bao nhiêu, ở kỳ hạn mấy phiên).
+
+Report tách vai trò (thư mục `reports/`):
+
+- `tuning_results.csv`: CV của best config.
+- `cv_fold_results.csv`: metric và dải ngày từng fold.
+- `best_params.json`: params đã chốt — **file này hiện không khớp bất kỳ nguồn nào khác**, xem cảnh báo bên dưới.
+- `model_comparison.csv`: candidates và baselines trên VALIDATION.
+- `final_model_evaluation.csv`: Final Model và hai baselines trên TEST.
+- `classification_report.csv`: chi tiết Final Model trên TEST.
+- `confusion_matrix.csv` / `confusion_matrix.png`: confusion matrix Final Model trên TEST.
+- `split_summary.csv`: số row, dải ngày và số row bị purge của từng tập TRAIN/VALIDATION/TEST — dùng để kiểm nhanh split có đúng như mục 4 không.
+- `eligible_symbols.csv` / `excluded_symbols.csv` / `data_quality_report.csv`: kết quả bước clean (mục 2), gồm lý do loại từng mã.
+- `model_selection_report.txt`, `pipeline_summary.json`, `feature_importance.csv`, `hyperparameter_explanation.md`: phụ trợ.
+
+**Cảnh báo: `reports/` hiện KHÔNG đồng bộ một snapshot.** `split_summary.csv` (mtime 2026-07-31 17:04) mang split của **snapshot đang trên đĩa** (TRAIN 422.448 / VALIDATION 66.880 / TEST 20.965, TEST tới 2026-07-24 — đúng cột B mục 4), trong khi `pipeline_summary.json` và `model_metadata.json` (cùng mtime 2026-07-21) mang số của **release legacy** (419.807 / 67.047 / 20.350, TEST tới 2026-07-13 — cột A). Nguyên nhân: `split_summary.csv` được ghi lại bởi một bước chỉ tính split (không mở TEST), còn `pipeline_summary.json` chỉ ghi khi chạy official pipeline — mà pipeline chưa chạy trên snapshot mới. Nên khi trích số split cho báo cáo, đừng gộp hai file này thành "cùng một run": đọc `split_summary.csv` là đọc cột B, đọc `pipeline_summary.json` là đọc cột A.
+
+**Cảnh báo 2: `best_params.json` là file mồ côi, đừng trích số từ nó.** File này ghi `dataset_fingerprint: "f90986c53a32"` — một fingerprint **không tồn tại ở bất kỳ nguồn nào khác** trong repo (config hiện tại là `fa1cf401b4a6`, metadata legacy là `9eabd4bf8d11` / `fd7fa2887812`). Params bên trong cũng lệch:
+
+| Model | `best_params.json` | `manual_config.json` (đang chốt) | `model_metadata.json` (đang serve) |
+| --- | --- | --- | --- |
+| Logistic Regression | `C=2.68012167507e-05`, liblinear | `C=2.4e-05`, liblinear | — (không phải Final Model) |
+| Random Forest | 130 / 8 / 100 / 0.2 | 90 / 7 / 75 / 0.2 | 130 / 8 / 100 / 0.2 |
+| Gradient Boosting | 110 / 0.25 / 2 / 0.6 | 120 / 0.3 / 2 / 0.8 | — |
+
+Đọc bảng này ra được lịch sử: RF trong `best_params.json` khớp **đúng** model legacy đang serve, nên file được ghi trong một lần chạy pipeline cũ hơn nữa, rồi không bị ghi lại (chỉ `tune_models()` ghi nó — mục 8 — và pipeline chưa chạy lại). Khi báo cáo hyperparameter, lấy từ `manual_config.json` (cấu hình đang chốt) hoặc `model_metadata.json` (model đang serve), **không** lấy từ `best_params.json`.
+
+Một chi tiết dễ hiểu nhầm: `model_metadata.json` **không** do `write_reports()` ghi. Nó đi qua hàm riêng `write_model_metadata()` (cùng cơ chế atomic với `final_model.pkl`), chỉ được liệt kê chung trong `summary["report_files"]` cho tiện tra. Tách như vậy vì metadata phải được promote *cùng lúc* với artifact, còn report thì chỉ là file đọc.
+
+## 11. Tuning Lab, UI dự báo và Chatbot
+
+Menu điều hướng sidebar ([templates/base.html:27-38](../templates/base.html)) chia hai nhóm:
+
+- **Người dùng**: Dự báo (`/`), Xếp hạng (`/screener`), So sánh (`/compare`), Trợ lý (`/chat`).
+- **Model & Dữ liệu**: Đánh giá (`/evaluation`), Tuning Lab (`/tuning`).
+
+Sáu trang trên là những gì người dùng thấy trong menu, nhưng repo có tổng cộng **14 route** trong `app.py` — phần chênh là các endpoint không nằm trong nav:
+
+| Route | Method | Vai trò |
+| --- | --- | --- |
+| `/` | GET | trang dự báo, form trống (`app.py:438`) |
+| `/predict` | GET, POST | **chạy dự báo thật** rồi render lại `index.html` (`app.py:569`) |
+| `/compare` | GET, POST | so 2 mã (`app.py:605`) |
+| `/screener` | GET | xếp hạng toàn bộ mã (`app.py:642`) |
+| `/evaluation` | GET | bảng điểm model (`app.py:691`) |
+| `/reports/confusion_matrix.png` | GET | serve file ảnh confusion matrix (`app.py:684`) |
+| `/chat` | GET | giao diện chatbot (`app.py:521`) |
+| `/api/chat` | POST | endpoint JSON của chatbot (`app.py:531`) |
+| `/tuning` | GET | Tuning Lab (`app.py:1408`) |
+| `/tuning/evaluate` | POST | chạy một job CV (`app.py:1413`) |
+| `/tuning/use-config` | POST | chốt một run làm cấu hình chính thức (`app.py:1449`) |
+| `/tuning/run-pipeline` | POST | chạy official pipeline (`app.py:1489`) |
+| `/tuning/fetch-data` | POST | khởi chạy refresh dữ liệu (`app.py:1568`) |
+| `/tuning/fetch-status` | GET | trang tiến độ fetch (`app.py:1599`) |
+
+Hai điểm đáng nhớ về `/predict`: nó là route **duy nhất** thực sự gọi model để dự báo một mã (trang `/` chỉ render form rỗng), và nó nhận cả GET lẫn POST. POST là submit form; GET dùng cho link từ bảng xếp hạng (`/predict?symbol=FPT`). GET mà **thiếu** `?symbol=` thì trả `redirect(url_for("index"))` (302 về `/`) chứ không phải lỗi 400 — nên gõ tay `/predict` trên browser luôn quay về trang chủ.
+
+Tuning Lab (`/tuning`) hiển thị:
+
+- Form nhập hyperparameter cho từng model (bố cục thẻ: tiêu đề + số lần CV đã thử, danh sách key-value của cấu hình "Đang dùng" và của run "CV cao nhất tham khảo").
+- History từng model, gồm mean/std và metric từng fold. Lọc/sắp xếp/phân trang chạy **phía server** (`_parse_history_query` trong [app.py](../app.py)), chi tiết ở mục 11.1.
+- Job nền đang chạy / thành công / thất bại.
+- Nút chốt (`/tuning/use-config`) bất kỳ run hợp lệ; gated theo fingerprint khớp và `status == "ok"`. Best CV chỉ là gợi ý.
+- Nút chạy official pipeline (`/tuning/run-pipeline`), fetch dữ liệu (`/tuning/fetch-data`) và trang trạng thái fetch (`/tuning/fetch-status`, suy ra tiến độ 3 bước từ log fetch).
+- Banner `config_stale`: hiện khi cấu hình đã chốt trong `manual_config.json` thuộc fingerprint hoặc policy khác snapshot dataset hiện tại. Đây là cảnh báo "chốt lại đi", vì `run_pipeline.py` sẽ từ chối chạy với config lệch fingerprint (mục 8).
+- Tab model mặc định khi vào `/tuning` không kèm `?history_model=`: chọn model có `selected_at` mới nhất (so sánh chuỗi ISO), tie-break theo tên key, không có gì thì về `logistic_regression`. Nghĩa là mở lại trang thì nó nhớ model bạn vừa chốt cấu hình.
+
+**Hai job nặng của Tuning Lab chạy theo hai cơ chế trái ngược nhau** — chỗ này rất dễ viết sai thành "cả hai đều chạy nền":
+
+| | `/tuning/run-pipeline` (`app.py:1405`) | `/tuning/fetch-data` (`app.py:1484`) |
+| --- | --- | --- |
+| Cách gọi | `subprocess.run(..., check=True)` | `subprocess.Popen(...)` |
+| Tính chất | **đồng bộ** — request HTTP bị treo đến khi train xong | **bất đồng bộ** — trả về ngay |
+| Theo dõi PID | không (pipeline tự giữ `pipeline.lock`) | có, `write_fetch_lock(proc.pid)` |
+| Sau khi gọi | 302 → `/evaluation` (đã có report để xem) | 302 → `/tuning/fetch-status` |
+| Khi lỗi | `CalledProcessError` → render `tuning.html` kèm log, HTTP 500 | không biết ngay; trang status suy ra từ log |
+
+Lý do bất đối xứng là hợp lý, không phải sơ suất: pipeline **phải** xong mới có report để trang `/evaluation` hiển thị, nên chờ đồng bộ là đúng ngữ nghĩa; còn fetch dữ liệu có thể chạy hàng chục phút (mỗi mã `sleep` 3.5 giây, ~400 mã) nên bắt buộc phải nền. Hệ quả thực tế khi bấm "chạy pipeline": browser sẽ đứng chờ, và nếu reverse proxy hoặc browser có timeout ngắn hơn thời gian train thì request đứt dù pipeline vẫn chạy tiếp trong subprocess.
+
+Nút chạy pipeline chỉ bật khi **cả 5 điều kiện** đúng (`can_run`, `app.py:1351`):
+
+1. `complete` — `manual_config.json` đủ 3 model hợp lệ cho fingerprint hiện tại.
+2. `not snapshot_evaluated` — snapshot dataset này chưa từng mở TEST.
+3. `not pipeline_running` — không có pipeline nào đang chạy.
+4. `not fetch_running` — không có job fetch dữ liệu nào đang chạy.
+5. `not tuning_running` — không có job CV nào đang chạy.
+
+Ba điều kiện cuối cùng tồn tại vì cả ba loại job đều ghi vào cùng bộ file trong `experiments/` và `reports/`; chạy song song là ghi đè lẫn nhau.
+
+**Meta-refresh đã bị bỏ.** Trước đây `/tuning` và `/tuning/fetch-status` tự nhảy bằng `<meta http-equiv="refresh" content="5">` render có điều kiện; giờ cả hai dùng **JS polling trong `static/tuning-lab.js`** (comment ở `tuning.html:51` và `fetch_status.html:2-4` ghi lại đúng việc thay thế này). Cơ chế mới:
+
+| | Meta-refresh (cũ) | `tuning-lab.js` (hiện tại) |
+| --- | --- | --- |
+| Kích hoạt | thẻ `<meta>` có mặt trong HTML | `data-job-running="1"` / `data-fetch-running="1"` trên element gốc |
+| Chu kỳ | 5 giây, cố định | `POLL_MS = 5000`, `setTimeout` chuỗi (không phải `setInterval`) |
+| Cách lấy dữ liệu | browser reload cả trang | `fetch(window.location.href, {cache: "no-store"})` rồi `DOMParser` cắt phần cần |
+| Mất vị trí cuộn | có, mỗi 5 giây | không |
+| Khi job xong | thẻ meta biến mất, trang thôi nhảy | swap DOM + toast + `location.reload()` **đúng một lần** |
+
+Ba chi tiết trong code đáng biết vì chúng là lý do polling này không nhấp nháy:
+
+- **Cờ duy nhất quyết định có poll hay không là `data-job-running`**, không phải sự tồn tại của panel — panel trạng thái "completed" nằm trong **cùng** element `#tuning-job-status` (`JOB_REGION_ID`), nên suy từ "có panel" sẽ poll vĩnh viễn sau khi job xong.
+- **Đang chạy thì KHÔNG thay DOM.** Khi bản HTML mới vẫn báo `running`, hàm `poll()` chỉ `schedule()` lượt sau rồi return. Thay DOM mỗi 5 giây sẽ giết đồng hồ đếm (`#tuning-job-elapsed`, `ELAPSED_ID`) và khởi động lại animation thanh tiến trình — nhìn như bị kẹt.
+- **Lỗi mạng lẻ không dừng poll.** Nhánh `.catch()` gọi lại `schedule()`. Điều này cần thiết vì chính job CV đang làm server bận, request rớt là chuyện thường.
+
+`cache: "no-store"` không phải trang trí: thiếu nó, một số proxy/browser trả lại đúng bản HTML đã cache và trạng thái đứng im mãi. Trang fetch-status swap theo danh sách selector `FETCH_TARGETS` và có thêm một phòng thủ nhỏ: nếu người dùng đang cuộn lên đọc `#fetch-log` (cách đáy > 40px) thì không kéo xuống cuối sau khi swap.
+
+Trang `/tuning/fetch-status` không đọc trạng thái từ RAM mà **suy từ log trên đĩa** (`experiments/last_fetch_run.log`): `refresh_data.py` in các marker `[1/3]`, `[2/3]`, `[3/3]` và dòng cuối `Refresh data completed.`, còn `_infer_refresh_progress()` bắt đúng các chuỗi đó rồi map ra phần trăm cố định `0 / 33 / 66 / 90 / 100`. Nhờ đọc từ đĩa nên restart Flask giữa lúc fetch vẫn xem được tiến độ. Cách phân biệt "lỗi" với "đang chạy": nếu marker cao nhất vẫn là bước hiện tại, tiến trình con không còn sống, và chưa thấy dòng completed → kết luận `error`. Hệ quả thực tế: đừng đổi chữ trong các marker đó, đổi là mất thanh tiến độ.
+
+### 11.1. Sắp xếp và lọc bảng history (server-side)
+
+Bảng history phân trang `HISTORY_PAGE_SIZE = 50` row/trang (`app.py:167`), nên **không** thể sort bằng JavaScript: sort client chỉ sắp được 50 row của trang đang xem, ra kết quả sai. Vì vậy mọi thao tác đi qua query string và server sắp lại toàn bộ tập row. Query được `_parse_history_query()` (`app.py:741`) đọc và chuẩn hóa, rồi `_build_history_page()` (`app.py:1029`) lọc → sắp → cắt trang.
+
+Toàn bộ từ vựng query string của bảng history:
+
+| Tham số | Giá trị | Mặc định | Có control trên UI? |
+| --- | --- | --- | --- |
+| `history_model` | key model (`logistic_regression`…) | model `selected_at` mới nhất | có (tab model) |
+| `dataset` | `current` \| `all` | **`all`** | **không** |
+| `status` | `ok` \| `error` \| `all` | `ok` | **không** |
+| `f1_min`, `f1_max` | số | không lọc | **không** |
+| `best` | `1` | tắt | có (checkbox) |
+| `selected` | `1` | tắt | có (checkbox) |
+| `sort` | `<column>_asc` \| `<column>_desc` \| `default` | `default` | có (link header) |
+| `page` | số nguyên ≥ 1 | `1` | có (link phân trang) |
+| `p_<field>` | giá trị chính xác của một hyperparameter | không lọc | **không** |
+| `p_<field>_min`, `p_<field>_max` | khoảng số của hyperparameter | không lọc | **không** |
+| `p_<field>_kind` | `all` \| `numeric` \| `none` \| `sqrt` \| `log2` | `all` | **không** |
+
+**Phần lớn bộ lọc này là URL-only, không có control nào trên trang.** Form filter thấy được (`templates/tuning.html:417/421`) chỉ expose đúng hai checkbox `best` và `selected` cộng nút "Lọc kết quả" / link "Xóa bộ lọc". Điều này được test khóa lại tường minh: `tests/test_tuning_history.py:205-209` assert rằng `name="dataset"`, `name="status"`, `name="f1_min"`, `name="sort"` và `name="p_` **không** xuất hiện trong form. Nghĩa là muốn lọc theo status hoặc theo khoảng hyperparameter thì phải tự gõ query string — backend hỗ trợ đầy đủ, UI thì chưa. Khi đọc code đừng kết luận "filter chết": nó hoạt động, chỉ là chưa có nút bấm.
+
+Mặc định sort là `HISTORY_DEFAULT_SORT = "default"` (`app.py:175`), **không** phải `time_desc`. Token `time_desc` vẫn được nhận (`app.py:882`) nhưng chỉ để link cũ và bookmark không vỡ; nó tồn tại song song với `default` vì nếu dùng lại `time_desc` làm mặc định thì cột "Thời điểm" mất một trạng thái trong vòng xoay ba bước (không phân biệt được "đang sắp giảm" với "chưa sắp").
+
+Cột sort được:
+
+- Cột cố định (`HISTORY_SORT_COLUMNS`): `time` (thời điểm), `f1` (`cv_f1_up_mean`), `std` (`cv_f1_up_std`), `threshold` (`decision_threshold`), `seconds` (`train_seconds`).
+- Cột hyperparameter: sinh động theo schema của model đang xem. Chỉ field có type thuộc `{float, int, int_or_none, str_or_float}` mới sort được; field kiểu `choice` (ví dụ `solver` của LR) không sort.
+
+Bấm vào header cùng một cột nhiều lần đi qua **3 trạng thái**: chưa sắp → tăng (`_asc`) → giảm (`_desc`) → về mặc định (`sort=default`, tức thời gian mới nhất trước). Lần bấm thứ ba trả người dùng về thứ tự gốc thay vì quay lại tăng. Đổi sort thì `page` bị bỏ (về trang 1) vì tập row đã sắp lại, trang 5 cũ không còn tương ứng gì.
+
+Mỗi header sort là một `<a href>` do server dựng sẵn (macro `sort_th` trong `templates/tuning.html`), **không** phải nút JavaScript: link đã mang đủ `?sort=` của bước tiếp theo, kèm `aria-sort` đúng trạng thái hiện tại. Nhờ vậy sort bảng này vẫn chạy khi tắt JS (chỉ mất phần AJAX, thành reload trang), và copy URL là copy được đúng thứ tự đang xem. Ở phía client, `static/table-sort.js:5-7` **loại trừ tường minh** bảng này trong comment header và về mặt kỹ thuật thì nó chỉ bắt `table[data-ui~="sortable"]` (`:192`) — bảng history không mang attribute đó nên hai đường sort không bao giờ tranh nhau.
+
+Chi tiết dễ bỏ sót:
+
+- Row không có giá trị số ở cột đang sort (None, NaN, hoặc giá trị chuỗi như `max_features = "sqrt"`) luôn bị đẩy xuống **cuối bảng**, bất kể tăng hay giảm.
+- Row có giá trị bằng nhau thì row mới hơn lên trước (sort hai lần, lợi dụng tính stable của `list.sort`).
+- Filter được giữ khi đổi trang hoặc đổi sort (`query_args` chỉ chứa filter khác mặc định, mọi link mang theo). Đổi tab model thì các filter theo param (`p_<field>`) bị bỏ vì mỗi model có schema khác nhau; nếu đang sort theo `param_*` thì hạ về mặc định.
+- Mọi thao tác trên bảng history đi qua AJAX, chỉ thay `#main-content`, giữ nguyên vị trí cuộn, không reload cả trang: bấm header sort, đổi tab model, "Xóa bộ lọc", phân trang, submit form filter, và cả nút "Dùng cấu hình này" (POST `/tuning/use-config`, nút bị khóa thành "Đang lưu..." trong lúc chờ). Ngược lại, ba form nặng — chạy CV, chạy pipeline, fetch dữ liệu — **không** AJAX: chúng điều hướng cả trang, chỉ disable nút để chặn double-submit.
+- Vào `/tuning` mà không có `?history_model=` thì tab mặc định là model có `selected_at` mới nhất (`_default_active_history_model`), không phải luôn luôn Logistic Regression; chỉ khi chưa chốt model nào mới fallback về LR.
+- Banner `config_stale`: hiện khi cấu hình đã chốt trong `manual_config.json` thuộc fingerprint/policy khác dataset hiện tại — dấu hiệu phải chạy lại CV rồi chốt lại trước khi chạy pipeline.
+
+Bộ lọc: dataset (`current`/`all`), status (`ok`/`error`/`all`), khoảng F1, và khoảng của từng hyperparameter. Hai kiểu param "lai" cần thêm tham số `p_<field>_kind` để chọn nhánh giá trị:
+
+- `max_depth` (`int_or_none`): là số nguyên, hoặc `None` (không giới hạn độ sâu).
+- `max_features` (`str_or_float`): là số thực, hoặc chuỗi `"sqrt"` / `"log2"`.
+
+Giá trị `kind` là `all` | `numeric` | `none` (hoặc tên choice như `sqrt`). Luật xử lý mâu thuẫn: chọn nhánh không-phải-số mà vẫn gõ khoảng min/max → bỏ min/max; chọn `all` mà có gõ min/max → tự nâng thành `numeric`. Input sai không bao giờ làm request lỗi — giá trị lạ bị bỏ qua và một câu cảnh báo tiếng Việt hiện lên cho biết filter nào đã bị bỏ.
+
+**Macro `sort_th` và hai context key `history_sort` / `history_trend`.** Header của mỗi cột sort trong bảng history là kết quả của macro `sort_th` (`templates/tuning.html:433`), được gọi ở `:470/476/478/479/480/481`. Macro nhận column key và trạng thái sort hiện tại để sinh đúng `<a href>` với token `?sort=` của bước tiếp theo và `aria-sort` cho accessibility — một source of truth duy nhất thay vì lặp logic ba-trạng-thái ở sáu chỗ.
+
+Server truyền hai context key cho Tuning Lab:
+
+- `history_sort` (`app.py:1381`): dict mô tả trạng thái sort hiện tại — hàm `sort_state()` (`app.py:1271`) chuẩn hóa từ query string thành `{col, dir, is_default}` để macro `sort_th` và template không phải parse chuỗi `column_asc`/`column_desc` tại chỗ.
+- `history_trend` (`app.py:1383`): mảng điểm `{x, f1_mean, run_id}` sắp sẵn theo thời gian, do `_build_history_trend()` (`app.py:982`) sinh từ lịch sử của model đang xem. Server sắp — client **không** sắp lại.
+
+**Biểu đồ CV-trend ("tuning đã hội tụ chưa?")** dùng dữ liệu `history_trend` này. Bảng history trả lời được "run nào tốt nhất" nhưng không trả lời được "còn thử nữa có hơn không" — đường F1 theo thứ tự thời gian trả lời câu đó: đi ngang vài lượt cuối nghĩa là đã tới hạn của không gian tham số này.
+
+Triển khai: `tuning.html:349` đặt `{% set trend = history_trend or [] %}`, canvas `#cv-trend-chart` (`TREND_CANVAS_ID`, `:370-371`) mang `data-trend='{{ trend | tojson }}'` để truyền dữ liệu mà không cần thêm một API endpoint. `tuning-lab.js:453+` đọc attribute đó, dựng Chart.js instance, và đăng ký `MutationObserver` theo dõi `data-theme` trên `<html>` để đổi màu khi người dùng bật dark/light mode. Hai điểm kỹ thuật cần biết:
+
+- **Destroy trước khi mount lại.** Mỗi lần AJAX swap `#main-content` thì node `<canvas>` cũ bị bỏ nhưng Chart.js cũ vẫn giữ tham chiếu và listener resize — rò rỉ dần. `tuning-lab.js` giữ `trendChart` ở tầng module và gọi `.destroy()` nếu có instance cũ trước khi dựng mới.
+- **Màu từ CSS var, không phải hex.** Chart.js vẽ lên canvas nên không "thấy" CSS custom property. Hàm `trendPalette()` dùng `getComputedStyle(document.documentElement)` để resolve token `--ink`, `--ink-soft`, `--muted`, `--line`, `--panel` thành chuỗi màu tại thời điểm dựng, với fallback là system color (`canvastext`/`graytext`) để hoạt động đúng kể cả khi `app.css` chưa nạp. **Không dùng `--up`/`--down`**: theo ngôn ngữ thiết kế của repo, màu xanh/đỏ dành riêng cho tín hiệu tăng/giảm thị trường — F1 cao không phải là "mã sẽ tăng".
+- `MutationObserver` (watcher) bị hủy cùng với instance Chart.js khi swap để tránh closure giữ mảng điểm cũ và ghi màu theo dữ liệu cũ lên chart mới sau mỗi lần đổi theme.
+
+### 11.2. Frontend: inventory file static và lớp design system
+
+Frontend **không** chỉ có một file script. Hiện tại là **7 CSS + 8 JS + 1 vendor**, chia theo phạm vi nạp:
+
+| File | Dòng/kích cỡ | Nạp ở đâu | Vai trò |
+| --- | --- | --- | --- |
+| `static/app.css` | 3.332 dòng / 72K | `base.html:13` — mọi trang | style chính của toàn app |
+| `static/ui-kit.css` | 670 dòng / 16K | `base.html:14` — mọi trang | lớp primitive dùng chung, nạp **sau** `app.css` để ghi đè được |
+| `static/chat-dock.css` | 230 dòng / 4,6K | `base.html:16` — mọi trang **trừ** `/chat` | khung chat nổi (mục 11.2.1) |
+| `static/chat-ui.css` | 67 dòng / 1,1K | `chat.html:6` — chỉ trang `/chat` | phần style bổ sung cho transcript, loading, focus và mobile |
+| `static/page-evaluation.css` | 201 dòng / 6,2K | `evaluation.html:67` (block `page_styles`) | riêng trang `/evaluation` |
+| `static/page-signal.css` | 883 dòng / 21K | `index.html:7`, `compare.html:7` | riêng hai trang dự báo |
+| `static/tuning-lab.css` | 620 dòng / 16K | `tuning.html:8`, `fetch_status.html:9` (block `page_styles`) | riêng Tuning Lab |
+| `static/theme.js` | 141 dòng / 5,7K | `base.html:19` (trong `<head>`) | toggle sáng/tối, đặt sớm để không nháy màu |
+| `static/chat-client.js` | 231 dòng / 7,7K | `chat.html:58` **và** `base.html:137` | `window.ChatClientKit`: transport, transcript trong `sessionStorage`, timeout |
+| `static/chat-dock.js` | 150 dòng / 4,8K | `base.html:138` — mọi trang **trừ** `/chat` | render khung chat nổi, dùng lại `ChatClientKit` |
+| `static/ui-kit.js` | 516 dòng / 18K | `base.html:141` | `window.UIKit` + `autoWire()` |
+| `static/table-sort.js` | 204 dòng / 8,1K | `base.html:142` | sort client-side (mục 11.3) |
+| `static/tuning-lab.js` | 722 dòng / 29K | `tuning.html:682`, `fetch_status.html:165` | JS polling job CV + polling fetch + chart CV-trend |
+| `static/page-evaluation.js` | 270 dòng / 12K | `evaluation.html:305` (block `page_scripts`) | chart so sánh model + sort trang `/evaluation` |
+| `static/page-signal.js` | 179 dòng / 8,1K | `index.html:403`, `compare.html:260` | helper hai trang dự báo |
+| `static/vendor/chart.umd.min.js` | Chart.js 4.4.9 / 202K | `index.html:433`, `compare.html:283`, `evaluation.html:302`, `tuning.html:679` | vẽ biểu đồ, nạp **có điều kiện** ở bốn trang |
+
+Ba điểm đáng chú ý về cách nạp: các stylesheet riêng trang đi qua block Jinja `page_styles` (`base.html:18`); Chart.js chỉ được chèn khi thật sự có dữ liệu vẽ — `index.html`/`compare.html` kiểm `{% if result and result.price_history %}`, còn `evaluation.html:301` kiểm thêm `{% if sections.is_current_policy and chart.ok %}`; và mọi link **trừ Chart.js** mang `?v={{ asset_ver }}` để cache-bust khi sửa file. Vendor không cần cache-bust vì tên file đã gắn phiên bản, không sửa tay.
+
+**Lớp design system `ui-kit.css` + `window.UIKit`.** Đây là lớp mới, dùng chung cho mọi trang, hoạt động theo kiểu **opt-in bằng data-attribute**: template chỉ cần dán attribute, `autoWire()` (`static/ui-kit.js:492`) tự tìm và gắn hành vi lúc DOM ready. Không phải gọi hàm khởi tạo cho từng phần tử.
+
+| Attribute | Tác dụng | Chỗ xử lý |
+| --- | --- | --- |
+| `data-ui-lock="<nhãn>"` trên `<form>` | submit thì khóa nút + hiện spinner, chặn double-submit | `ui-kit.js:396` |
+| `data-stagger` | phần tử con hiện lần lượt (tự tắt khi user bật reduced motion) | `ui-kit.js:438` |
+| `data-elapsed` | đếm thời gian đã trôi cho job đang chạy | `ui-kit.js:418` |
+| `data-count-up` | số chạy tăng dần tới giá trị đích | `ui-kit.js:426` |
+| `data-toast` + `data-toast-type` | hiện toast ngay khi trang load (dùng cho flash message server-side) | `ui-kit.js:404` |
+| `data-ui="table-scroll"` (hoặc class `.table-wrap`) | vùng cuộn bảng có bóng mờ báo còn nội dung | `ui-kit.js:464` |
+| `data-ui~="sortable"` trên `<table>` | sort client-side (mục 11.3) | `table-sort.js:192` |
+
+API công khai `window.UIKit` (`ui-kit.js:501`): `toast`, `busy`, `lockForm`, `elapsed`, `countUp`, `stagger`, `copy`, `prefersReducedMotion`, `onReady`, và `autoWire` — cái cuối để trang nào thay DOM bằng AJAX (Tuning Lab) gắn lại hành vi sau khi swap. Mỗi tính năng trong `autoWire` được bọc `try/catch` riêng qua helper `guard()` (`ui-kit.js:378`), nên một data-attribute viết sai không làm chết cả lớp UI.
+
+Toast dùng chung một máng duy nhất: `#toast-stack` render sẵn trong `base.html:94` với `role="status"` + `aria-live="polite"`, và `UIKit.toast()` ghi vào đúng container đó. Máng nằm trong `#app-shell` chứ không nằm sâu trong nội dung vì shell chỉ là flex column, không có `position`/`overflow`/`transform` nên không cắt phần tử `fixed`.
+
+**Shell dùng chung trong `base.html`.** Cấu trúc mới:
+
+```text
+.skip-link  →  #main-content
+#app-shell
+├── .app-sidebar  (#app-sidebar)  →  #nav-toggle  +  nav#primary-nav
+└── .app-body
+    ├── .app-topbar  →  #theme-toggle
+    ├── #dataset-status        (role=status: ngày dữ liệu, số mã, model đang dùng)
+    └── <main id="main-content">   ← AJAX của Tuning Lab chỉ thay khối này
+└── #toast-stack
+```
+
+Điểm thiết kế quan trọng: sidebar nằm **ngoài** `#main-content`. Vì AJAX của Tuning Lab (mục 11.1) thay nguyên nội dung `#main-content`, nếu điều hướng nằm bên trong thì mỗi lần sort bảng là mất luôn menu. Có `.skip-link` (`base.html:25`) nhảy thẳng tới `#main-content` cho người dùng bàn phím. Nút `#nav-toggle` mang nhãn nhìn thấy là chữ "Menu" và `aria-label="Menu điều hướng"` — tên khả cận phải *chứa* chữ nhìn thấy theo WCAG 2.5.3 (Label in Name), trạng thái đóng/mở truyền qua `aria-expanded`.
+
+Nav sidebar chia hai nhóm, định nghĩa ở `base.html:27-38`: **Người dùng** = Dự báo (`/`), Xếp hạng (`/screener`), So sánh (`/compare`), Trợ lý (`/chat`); **Model & Dữ liệu** = Đánh giá (`/evaluation`), Tuning Lab (`/tuning`). Trang đang xem được đánh dấu bằng `aria-current="page"`.
+
+`<body>` mang class động `page-{{ active_page or 'app' }}` (`base.html:24`) để CSS riêng của một trang chỉnh được cả khung ngoài (`.app-body`, `.app-topbar`, `h1`, `.dataset-status`) mà không rò sang trang khác — thay cho việc nhồi selector đặc thù vào `app.css`.
+
+Một điểm cần sửa nếu bạn đọc tài liệu cũ: **nút đổi theme giờ render server-side**, tại `base.html:69-71`, kèm glyph mặc định `☾` để nút không rỗng khi JS tắt. `static/theme.js:86` ghi rõ trong comment là "nay render sẵn từ base.html (không còn tạo bằng JS)" — nó chỉ tìm nút có sẵn, gắn listener một lần (`dataset.bound` chống gắn trùng sau AJAX swap) và đồng bộ icon. Tài liệu nào mô tả nút theme được JS inject vào `.nav-links` là đã lỗi thời.
+
+#### 11.2.1. Khung chat nổi (chat dock) — trợ lý có mặt trên mọi trang
+
+Trước đây trợ lý chỉ dùng được khi rời trang hiện tại để vào `/chat`. Giờ `base.html` render thêm một **khung chat nổi góc phải** trên **mọi trang trừ `/chat`**, gói trong `{% if active_page != 'chat' %}`: CSS ở `base.html:15-17`, markup + script ở `base.html:98-139`. Tài liệu nào nói `/chat` là UI chat duy nhất là đã lỗi thời.
+
+Điều kiện `active_page != 'chat'` không phải tối ưu hóa mà là **bắt buộc**: dock và trang `/chat` cùng nói chuyện với `/api/chat`, nếu render cả hai trên cùng một trang thì hai transcript cùng ghi vào một `sessionStorage` key và các id sẽ xung đột. Vì vậy dock dùng bộ id riêng tiền tố `chat-dock-*` (`#chat-dock`, `#chat-dock-panel`, `#chat-dock-transcript`, `#chat-dock-form`, …), độc lập hoàn toàn với id của `chat.html`.
+
+**Tách kit ra khỏi render.** `chat-client.js` được nạp ở **hai chỗ** (`chat.html:58` cho trang đầy đủ, `base.html:137` cho dock) và chỉ chứa phần dùng chung, phơi ra `window.ChatClientKit` (`chat-client.js:220`): `sendMessage`, `restoreSession`, `clearSession`, `enhanceComposer`, cùng hằng `SESSION_KEY`. `chat-dock.js` (`base.html:138`) chỉ viết phần **render** riêng của nó — bong bóng gọn, chỉ hiển thị nội dung câu trả lời (trang `/chat` cũng vậy: `sources`, `warnings` và hai mốc ngày trong JSON không còn được render dưới câu trả lời). Hệ quả có thật: transcript được chia sẻ, gõ trong dock rồi bấm ⤢ mở `/chat` là thấy nguyên hội thoại, vì cả hai đọc cùng `sessionStorage` key `hose-chat-session-v1`.
+
+Hằng số của kit (`chat-client.js:5-8`): `MAX_MESSAGE = 1000` ký tự, `MAX_TRANSCRIPT = 40` message giữ trong session, `REQUEST_TIMEOUT_MS = 70000` (dài vì phải chờ LLM provider). Lưu ý số 40 này là **giới hạn lưu trữ phía client**, không phải giới hạn `history` gửi lên server — payload `/api/chat` vẫn bị chặn ở 6 message (mục 11.3).
+
+Bốn chi tiết đáng biết trong `chat-dock.js`:
+
+- **Chỉ ghi bằng `textContent`.** Comment đầu file ghi rõ: "Mọi nội dung từ server chỉ ghi vào DOM qua `textContent`, không dựng HTML thô". Câu trả lời đi qua LLM nên phải coi là không tin được — dựng bằng `innerHTML` là mở cửa XSS.
+- **Link "Trợ lý" trên nav mở dock tại chỗ** (`chat-dock.js:137`): `preventDefault()` rồi `setOpen(true)`, không điều hướng. Nhưng `href` vẫn trỏ `/chat` thật, nên **JS tắt thì link vẫn hoạt động** như trước.
+- **Guard đầu file** (`chat-dock.js:8-12`): thiếu `window.ChatClientKit` hoặc thiếu `#chat-dock` thì `return` ngay. Đây là lý do nạp dock ở `base.html` không làm vỡ trang `/chat` (nơi không có `#chat-dock`).
+- **Accessibility.** Panel là `role="dialog"` nhưng **`aria-modal="false"`** — dock không khóa focus, người dùng vẫn tương tác được với trang phía sau, nên khai `true` là nói dối AT. Transcript `aria-live="polite"`, nút toggle đồng bộ `aria-expanded` + đổi `aria-label` theo trạng thái, `Escape` đóng dock rồi trả focus về nút toggle (`chat-dock.js:144-148`).
+
+Ba nút trên header dock: ⤢ (link sang `/chat` đầy đủ), ↺ (`#chat-dock-clear` — xóa session + xóa transcript), ✕ (đóng). Khi đang chờ trả lời, `setBusy()` khóa cả input, nút gửi **và** nút xóa — xóa session giữa lúc một request đang bay sẽ để lại một câu trả lời mồ côi ghi vào transcript vừa bị dọn.
+
+
+### 11.3. Sắp xếp client-side ở hai bảng khác
+
+[static/table-sort.js](../static/table-sort.js) sort **phía client**, dùng cho bảng đã render sẵn toàn bộ dữ liệu trong DOM: `/screener` (Xếp hạng) và `/evaluation` (Đánh giá). Kích hoạt bằng `data-ui="sortable"` trên `<table>` và `data-sort="text|number|percent|date|none"` trên từng `<th>`.
+
+Hai cơ chế không xung đột: script tự lọc theo selector nên không đụng bảng history (bảng đó không có attribute `data-ui="sortable"`). Cùng vòng xoay 3 trạng thái như server, cùng quy tắc "ô rỗng xuống cuối". Parser số hiểu cả `%`, dấu phân cách nghìn kiểu VN (`1.234,5`) và kiểu US (`1,234.5`); parser ngày hiểu `dd/mm/yyyy` và ISO.
+
+Trang `/screener` còn có: cột `#` hiển thị hạng, Điểm UP hiện dạng số phần trăm (`role="meter"`) thay cho thanh progress cũ, badge "cũ" kèm tooltip giải thích thay vì in kèm ngày, và bảng tự co chiều cao theo khoảng trống màn hình để chỉ còn một thanh cuộn dọc (tắt khi màn hình ≤ 720px).
+
+Trang đánh giá (`/evaluation`) có **hai view, chọn bằng một điều kiện duy nhất**: `model_metadata.json["policy_id"]` có khớp `EXPERIMENT_POLICY_ID` hay không (`load_evaluation_sections()` trong [app.py](../app.py)).
+
+- Khớp (`is_current_policy = true`) → **view hiện hành**: một bảng "MODEL COMPARISON" (3 candidate trên VALIDATION, cột `CV F1_UP` của TRAIN, cột `Threshold`, badge "Đã chọn") + khối "Kết quả Final Model trên TEST" (`:251-270`) + ma trận nhầm lẫn nhúng thẳng trong trang. Ngoài ra view này hiện **biểu đồ cột so sánh 3 candidate trên VALIDATION** khi `chart.ok` (`evaluation.html:44/57/213`). Chart.js chỉ được nhúng khi cả hai điều kiện đều đúng: `{% if sections.is_current_policy and chart.ok %}` (`:301`), tiếp theo là `page-evaluation.js` (`:305`). Stylesheet riêng `page-evaluation.css` đi qua block `page_styles` (`:67`).
+- Không khớp → **view legacy**: toàn bộ `model_comparison.csv` đổ vào một bảng riêng, kèm banner "Artifact/report hiện tại không thuộc policy hiện hành. Hãy chạy CV, tự chọn cấu hình cho mỗi model rồi chạy official pipeline."
+
+**Biểu đồ so sánh model** (`#model-compare-chart`, `evaluation.html:228`) là bar chart nhóm **theo metric, không theo model**: 4 nhóm cột (Accuracy, Precision_UP, Recall_UP, F1_UP), mỗi nhóm có 3 cột ứng với 3 candidate, thang 0–1. Nhóm theo metric để so chiều cao cột cạnh nhau — mỗi nhóm là một câu hỏi ("model nào Recall_UP cao nhất?") và câu trả lời nằm gọn trong nhóm đó. Bốn chi tiết triển khai đáng biết:
+
+- **Dữ liệu đi qua thẻ `<script type="application/json" id="model-compare-data">`** (`:247`), không qua `data-attribute`. Lý do: `tojson` escape `< > &` nên chuỗi `</script>` trong dữ liệu không thoát ra khỏi thẻ được, nhưng `tojson` **không** escape dấu ngoặc kép — nhúng vào attribute sẽ vỡ HTML.
+- **Hai mảng song song `models` + `values`, không phải list of dict.** Jinja giải `a.b` bằng `getattr` **trước** rồi mới tới `getitem`, nên một key tên `values` / `items` / `keys` sẽ trả về method của dict chứ không phải dữ liệu — bẫy im lặng, chỉ nổ lúc render (`:39-43`).
+- **`chart.ok` tắt khi dữ liệu vỡ**: khởi tạo `candidates | length > 0` (`:44`), và nếu một model thiếu sạch cả 4 metric thì `chart.ok = false` (`:57`) — không vẽ chart trống. Metric lẻ thiếu chỉ thành `none` (lỗ trong cột).
+- **Fallback chữ luôn render** (`.chart-fallback`, `:235-243`): liệt kê từng model kèm 4 số, vừa là mô tả cho screen reader (canvas rỗng với AT) vừa là phương án khi JS lỗi hoặc Chart.js không nạp được.
+
+**Ma trận nhầm lẫn nhúng thẳng trong trang**, không còn mở tab mới: `figure#cm-figure` + `img#cm-image` (`:275-284`) trỏ tới route `/reports/confusion_matrix.png`, kèm `figcaption` giải thích hàng/cột và link "Mở ảnh gốc". Route trả chuỗi plain-text 404 khi thiếu PNG, nên `page-evaluation.js` bắt event `error` của `<img>` rồi ẩn `figure` và bỏ `hidden` khỏi `p#cm-missing` (`:285-288`) để hiện câu tiếng Việt hướng dẫn chạy lại pipeline.
+
+Ba điểm dễ hiểu nhầm ở view legacy:
+
+- Đọc metadata lỗi (thiếu file, JSON vỡ) cũng rơi vào nhánh legacy (`policy_id = None`), không raise 500 — fail an toàn.
+- Ở nhánh legacy, `baseline_warning` của metadata **bị bỏ đi có chủ ý** (cảnh báo baseline của policy cũ vô nghĩa với protocol hiện tại), nên trang chỉ hiện banner legacy.
+- Vì artifact hiện tại thuộc `policy_id` legacy (mục "Trạng thái" đầu file), đây chính là view đang thấy trên máy bạn.
+
+Trang dự báo (`/` và `/compare`) luôn gọi output là `Điểm UP`, hiển thị mốc ngày tham chiếu và 5 phiên dự kiến. `reference_date` là phiên gần nhất của mã trong dữ liệu local (không phải "hôm nay"); `is_stale` cảnh báo khi mã tụt sau phiên mới nhất của toàn dataset. 5 phiên dự kiến được suy ra bằng cách đi tới bỏ cuối tuần. `NOT_UP` không được trình bày thành "giảm". Mỗi lần so sánh tối đa 2 mã.
+
+Phân biệt hai ngưỡng số phiên (dễ nhầm):
+
+- `MIN_TRADING_DAYS = 250` chỉ quyết định **mã nào được vào tập train** (`filtered_df`, mục 2) và mã nào xuất hiện trên `/screener` (xếp hạng chạy trên `eligible_symbols`).
+- `/` và `/compare` gọi `predict_symbols()` trên `cleaned_all`, **không** kiểm 250 phiên. Điều kiện thực tế chỉ là đủ lịch sử để tính feature (rolling dài nhất là SMA50 → cần khoảng 50 phiên). Nên một mã dưới 250 phiên vẫn dự báo được ở đây, dù nó chưa từng góp row vào lúc train.
+
+Cảnh báo mismatch policy: `prediction_service.py` có logic đặt `baseline_warning = "Model đang dùng không thuộc policy hiện hành."` khi `policy_id != EXPERIMENT_POLICY_ID`, nhưng chỉ khi chưa có `baseline_warning` nào khác. Vì artifact hiện tại đã có sẵn warning "chưa vượt baseline" (mục 9), thông báo mismatch-policy này **không hiện ra** trên UI hiện tại — một khoảng trống nhỏ, chưa được xử lý trong code.
+
+**Chatbot** (`/chat` giao diện, `/api/chat` API JSON) dùng kiến trúc **action decision + grounded compose**. Cách nhớ nhanh: một câu hỏi tốn **tối đa hai** lần gọi LLM, và hai lần đó có vai trò tách bạch — LLM chọn việc và viết lời, còn **mọi con số đều do Python tính**:
+
+| Giai đoạn | Ai làm | Làm gì | Được nhìn thấy gì |
+| --- | --- | --- | --- |
+| Call 1 — decision (**luôn chạy**) | LLM | hiểu câu hỏi, chọn 1 trong 5 action + arguments | system prompt + tối đa 6 message history + câu hỏi. **Không** nhận CSV/artifact/số liệu nào |
+| Thực thi + format (**không LLM**) | Python | validate decision, chạy đúng một nhánh dữ liệu cố định, tự format câu trả lời deterministic | artifact/CSV/metadata thật |
+| Call 2 — compose (**có điều kiện**) | LLM | diễn đạt lại câu trả lời cho tự nhiên (3–6 câu, plain text) | JSON `{question, action, data}` — `data` là số backend đã tính. **Không** nhận history |
+
+Orchestration nằm ở [services/chatbot_service.py](../services/chatbot_service.py); dispatcher và handler dữ liệu nằm hết trong [services/chatbot_tools.py](../services/chatbot_tools.py) — `app.py` **không có logic action nào**, nó chỉ validate payload rồi gọi `chatbot_service.chat()`. LLM là provider OpenAI-compatible cấu hình qua `.env` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`); đặt thêm `CHATBOT_COMPOSE=0` là tắt hẳn call 2, mọi câu trả lời thành bản formatter. Hệ thống không dùng RAG, embedding, Vector DB, tool loop, custom memory hoặc conversation state.
+
+Một lượt hỏi đi qua 6 bước (`chat()`, `chatbot_service.py:693`):
+
+1. **Validate HTTP payload** (ở `app.py`, chưa chạm tới LLM): `/api/chat` chỉ nhận đúng `message` (1–1.000 ký tự) và optional `history` (xen kẽ `user`/`assistant`, tối đa 6 message, tổng tối đa 6.000 ký tự). Key lạ hoặc type sai trả 400 `invalid_request`.
+2. **LLM call 1 — decision** (`_decide`): gửi system prompt + history đã validate + câu hỏi. Provider phải trả JSON thuần đúng hai khóa `action`, `arguments`. Request không gửi `tools`, `tool_choice`, `response_format`; không retry (`max_retries=0`), không streaming, không đặt `temperature`/`max_tokens` (dùng mặc định provider).
+3. **Backend validate decision** (`_validate_decision`, 74 dòng): chỉ chấp nhận đúng 5 action `GENERAL_CHAT`, `STOCK_SIGNAL`, `STOCK_RANKING`, `PROJECT_INFO`, `OUT_OF_SCOPE` với schema arguments chặt từng action (`top_n` phải là int thật 1–10, `symbols` sau uppercase + bỏ trùng phải còn 1–5 mã...). JSON hỏng, thừa key, action lạ hay response chứa `tool_calls` → 502 `provider_protocol_error`, dừng trước khi chạy handler. Thiếu mã/tiêu chí thì LLM dùng `GENERAL_CHAT` để hỏi lại một câu ngắn, không có action `CLARIFY`.
+4. **Thực thi action dữ liệu nếu cần**: `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua bước này. Ba action còn lại đi qua `execute_action()`: tín hiệu/xếp hạng gọi [prediction_service.py](../services/prediction_service.py), thông tin project đọc metadata/report/CSV đã làm sạch. Readiness check chỉ xác nhận pipeline không chạy, model load được, metadata hợp lệ và scope mã không rỗng; symbol ngoài scope trả 200 kèm warning và không gọi inference.
+5. **Formatter deterministic** (`_format_response`, luôn chạy, không LLM): build câu trả lời chuẩn từ số thật, hoặc câu cố định cho hai action không dữ liệu. Bản này vừa là nguồn số liệu vừa là phương án cuối. Backend lỗi dữ liệu (model chưa sẵn sàng...) → 503 ngay tại đây, không có call 2.
+6. **LLM call 2 — compose** (`_compose_answer`, có điều kiện): gửi `{question, action, data}` cho LLM viết lại tự nhiên hơn rồi thay vào `answer`; với action stock, câu trả lời thiếu disclaimer là code tự nối thêm. Thất bại kiểu gì cũng lặng lẽ giữ nguyên bản formatter của bước 5 — người dùng luôn nhận được câu trả lời.
+
+Khi nào **không có** call 2 (`_should_compose`): `CHATBOT_COMPOSE=0`; `signals`/`ranking` rỗng hoặc có `unsupported_symbols`; ngân sách thời gian đã cạn. Và khi nào compose bị **vứt kết quả** (lùi về formatter): provider lỗi, câu rỗng, hoặc dài quá `MAX_COMPOSE_CHARS = 900` — trần 900 để answer cộng disclaimer vẫn nằm dưới giới hạn 1.000 ký tự/entry mà frontend chịu lưu vào transcript.
+
+**Một đồng hồ chung cho cả hai call**: `TOTAL_DEADLINE_SECONDS = 60` giây tính từ lúc vào `chat()`, truyền xuyên suốt qua một mốc `started` duy nhất. Call 1 vượt giờ → 504 `provider_timeout`; call 2 hết giờ thì không raise, tự lùi về formatter. Client chờ 70 giây (`REQUEST_TIMEOUT_MS`, mục 11.2.1) — cố tình dài hơn ngân sách server để không bao giờ bỏ cuộc trước.
+
+Response thành công luôn có đúng năm field: `answer`, `sources`, `warnings`, `data_as_of`, `model_trained_through` — UI hiện chỉ render `answer`, bốn field kia vẫn trong JSON cho ai gọi API trực tiếp. Mã lỗi: 400 payload sai; 502 provider lỗi (`provider_error`) hoặc sai contract (`provider_protocol_error`); 503 thiếu config (`llm_not_configured`), config sai định dạng (`llm_invalid_config`) hoặc model/dữ liệu chưa sẵn sàng; 504 vượt 60 giây; 500 lỗi không lường trước (giấu chi tiết). Không có rate limit trên `/api/chat` — app một người dùng chạy loopback (xem cuối mục).
+
+Ý nghĩa năm action:
+
+| Action | Backend làm gì |
+| --- | --- |
+| `GENERAL_CHAT` | compose diễn đạt theo `kind`: greeting, thanks, capabilities, clarify_symbol, clarify_request — không có số liệu nào trong data, lỗi thì về câu cố định |
+| `STOCK_SIGNAL` | lấy 1–5 mã (uppercase, bỏ trùng), không có tham số focus; một mã trả bản chi tiết, nhiều mã trả bản gọn |
+| `STOCK_RANKING` | xếp top/bottom 1–10 mã theo Điểm UP, loại dữ liệu stale/nonfinite trước khi sort |
+| `PROJECT_INFO` | đọc một trong bảy topic: overview, dataset, features, model, evaluation, inference, limitations |
+| `OUT_OF_SCOPE` | từ chối realtime, news, fundamentals, trading advice hoặc yêu cầu ngoài phạm vi — compose diễn đạt và mời sang việc trong năng lực, fallback câu cố định |
+
+Hai luật route trong decision prompt **mới đổi hành vi** so với bản trước, đáng nhớ khi demo:
+
+- "Gợi ý mã đáng quan tâm", "bạn tự chọn giúp tôi" **không còn bị từ chối** như xin lời khuyên nữa: route sang `STOCK_RANKING` highest top 5. Chỉ câu hỏi thẳng "có nên mua/bán không" mới là `trading_advice` — khi đó `OUT_OF_SCOPE` từ chối nhưng compose bị "bỏ đói" (không history, không mã, không số) nên có bị dụ cũng không có gì để khuyến nghị; lỗi thì lùi về câu từ chối cố định.
+- "Tại sao bạn chọn các mã này?", "kết quả dựa trên gì?" — kể cả câu "tại sao?" cụt lủn ngay sau một câu trả lời — route sang `PROJECT_INFO` topic `inference` (giải thích cách hệ thống chấm điểm), không hỏi lại.
+
+Các câu fallback cố định cũng đổi giọng theo cùng tinh thần: lời từ chối `trading_advice` giờ kèm gợi ý "thử hỏi 'Top 5 cổ phiếu'", hai câu clarify kèm ví dụ bấm được ngay — từ chối nhưng luôn chỉ đường sang việc làm được.
+
+Follow-up như “So với MWG?” hoạt động nhờ tối đa 6 message gần nhất được đưa cho LLM. Không có bộ nhớ hoặc pronoun resolver tự viết. Có **hai** UI dùng chung một transcript: trang `/chat` và khung chat nổi (mục 11.2.1). Transcript lưu trong `sessionStorage` key `hose-chat-session-v1`, tối đa 40 entry — cùng key nên hỏi ở dock rồi mở `/chat` là thấy lại đúng hội thoại đó; reload tab còn hội thoại, đóng tab thì mất. Request chỉ gửi 6 entry cuối. Nội dung LLM được render qua `textContent`, không dùng `innerHTML`.
+
+Ba lớp phòng thủ đáng nêu trong báo cáo vì nằm ở code, không chỉ ở prompt:
+
+- **`_validate_base_url()`**: cấm khoảng trắng, query/fragment, credentials trong URL và cấm HTTP trừ loopback; tránh gửi API key qua endpoint không an toàn.
+- **Strict decision contract**: chỉ chấp nhận đúng 5 action và schema arguments; tool call, Markdown fence, JSON kèm prose hoặc extra key đều bị từ chối, handler chưa được chạy.
+- **Trust boundary rõ**: call decision không nhận dữ liệu tài chính; call compose chỉ nhận JSON số liệu backend đã tính (với `GENERAL_CHAT`/`OUT_OF_SCOPE` chỉ là `kind`/`reason` kèm capabilities — không mã, không số). Cả hai prompt đều dặn bỏ qua chỉ dẫn đổi luật nằm trong history/câu hỏi. Dispatcher chọn function cố định; formatter server sở hữu số, source, warning và ngày dữ liệu.
+
+Ngoài unit test, hai script probe chạy bằng LLM thật (cần `.env`) nghiệm thu đúng hai tầng này: `scripts/evaluate_chatbot_decisions.py` đo call 1 chọn đúng action/arguments trên bộ scenario có sẵn, còn `scripts/evaluate_chatbot_refusals.py` bắn câu dụ khị (xin lời khuyên, đòi realtime, "bỏ qua mọi quy tắc"...) rồi soi câu compose viết ra ở hai nhánh không dữ liệu có rò mã cổ phiếu hay khuyến nghị không — mã HOSE luôn là 3 chữ in hoa nên một regex là bắt được ticker LLM tự bịa.
+
+Ghi chú thật về artifact hiện tại: `model_metadata.json` legacy **không có** field `training_symbols`, nên chatbot phát warning `symbol_scope_unverified` và lùi về `reports/eligible_symbols.csv` để xác định mã nào trong phạm vi model.
+
+Chi tiết đầy đủ về decision contract, HTTP contract, dispatcher, formatter, session và kiểm thử xem [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md).
+
+Ứng dụng Flask chạy loopback (`127.0.0.1:5000`), một người dùng, **không có xác thực** — áp dụng cho toàn bộ route kể cả `/api/chat`. Nếu bind ra ngoài `127.0.0.1` thì bất kỳ ai trong mạng cũng gọi được API chatbot và tiêu API key LLM của bạn; muốn mở ra ngoài thì phải thêm lớp auth trước.
+
+## 12. Lock và trạng thái đánh giá
+
+- Pipeline bọc toàn bộ run bằng `experiments/pipeline.lock`. File lock chứa `{pid, owner_token, started_at}`, tạo bằng `open(path, "x")` (atomic, chỉ một process thắng). Nếu file đã tồn tại, `_lock_is_stale()` kiểm **PID trong file còn sống hay không** (trên Windows dùng `ctypes` gọi `OpenProcess`) — còn sống thì từ chối chạy, đã chết thì xóa lock và thử lại (tối đa 2 lần). Cách này chống được trường hợp máy bị tắt giữa lúc pipeline chạy: lock mồ côi không khóa vĩnh viễn project. Staleness thuần theo PID: thân hàm duy nhất là `return not _pid_alive(lock.get("pid"))` — nó **không đọc `started_at`** dù field đó có trong file lock. Nghĩa là không có cơ chế hết hạn theo tuổi lock: một lock của process còn sống sẽ chặn mãi dù đã 10 giờ, còn lock của process đã chết bị dọn ngay lập tức dù mới 1 giây.
+- Trạng thái "đã đánh giá TEST cho fingerprint này chưa" được theo dõi bằng `experiments/evaluation_registry.json` qua hàm `has_evaluated_snapshot()`, khóa theo `experiment_fingerprint`, với các state `started / evaluated / published / release_failed`. Cơ chế này được kiểm **hai lần** trong `scripts/run_pipeline.py`: trước cleanup (fingerprint in-memory) và sau khi ghi `ml_dataset.csv` (fingerprint đã ghi).
+- Ba state sau đánh dấu ba mốc khác nhau, ghi đúng theo thứ tự chạy: `started` ghi **ngay trước** khi mở TEST (refit + evaluate), `evaluated` ghi ngay sau khi TEST xong, `published` ghi cuối cùng sau khi artifact + report đã promote xong. Nghĩa là chỉ cần thấy `started` là biết TEST đã (hoặc đang) bị mở cho fingerprint đó — đủ để chặn lần chạy sau, dù pipeline chết giữa đường.
+- `release_failed` **không phải** state cho mọi lỗi. Nhánh `except` chỉ ghi nó khi cờ nội bộ `evaluation_started` đã bật, tức lỗi xảy ra **sau** khi TEST đã mở. Lỗi sớm hơn (thiếu `manual_config.json`, split vi phạm bất biến, fingerprint lệch) thì registry không ghi gì cả — fingerprint vẫn "sạch", sửa xong chạy lại được bình thường. Đây là chỗ dễ hiểu nhầm nhất của mục này.
+- **Cả 4 state đều chặn, kể cả state báo lỗi.** `has_evaluated_snapshot()` (`services/experiment_state.py:791-800`) trả `True` cho `{"started", "evaluated", "published", "release_failed"}` — không phân biệt "đã xong" với "đã hỏng". Bốn state được ghi ở `scripts/run_pipeline.py:219` (`started`), `:246` (`evaluated`), `:316` (`published`), `:375` (`release_failed`). Hệ quả cần biết trước khi gặp: **`release_failed` chặn vĩnh viễn và không có đường reset trong code**. Nếu pipeline crash sau khi mở TEST (hết RAM, mất điện, lỗi ghi đĩa), snapshot đó cháy luôn — không cờ CLI nào, không route nào, không hàm nào xóa được entry. Đây là lựa chọn thiết kế cố ý theo đúng giao thức "TEST mở một lần", không phải bug: crash rồi cho chạy lại thì thành cửa hậu để thử TEST nhiều lần. Cách xử lý hợp giao thức là **chờ có phiên giao dịch mới** rồi fetch lại để sinh fingerprint khác, không phải sửa registry bằng tay.
+- Thứ tự ghi khi promote (`scripts/run_pipeline.py`): `write_reports` (`:286`) → `build_model_metadata` (`:296`) → `atomic_model_release` (`:304`) → `write_json(PIPELINE_SUMMARY_PATH)` (`:310`) → `write_evaluation_entry(... "published")` (`:311-316`). Đọc thứ tự này là thấy khoảng hở: các CSV trong `reports/` đã nằm trên đĩa **trước** khi artifact model được swap khoảng 18 dòng code. Lỗi ở `build_model_metadata` hoặc ở chính bước release sẽ để lại một bộ report mô tả một model **chưa từng được publish**. `atomic_model_release()` chỉ bảo đảm atomic cho cặp `final_model.pkl` + `model_metadata.json`, **không** cover report.
+- Sau khi ghi dataset, recompute fingerprint và assert khớp bản in-memory; lệch → `RuntimeError` "Fingerprint thay đổi sau khi ghi ml_dataset.csv."
+- Cổng provenance hậu-ghi ở trên chỉ có nghĩa nhờ một hàm nhỏ dễ bị coi là vô dụng: `_normalize_fingerprint_dataset()` (`scripts/run_pipeline.py:68`). Fingerprint in-memory tính trên DataFrame vừa build, còn fingerprint kiểm lại (và mọi lần Tuning Lab tính sau này) đọc từ `ml_dataset.csv`. Đi qua CSV, float bị làm tròn theo repr văn bản nên hai hash sẽ khác nhau dù nội dung logic y hệt. Hàm này ép mọi cột số qua `astype(str)` → `pd.to_numeric` để **mô phỏng đúng vòng ghi-đọc đó** trước khi hash. Bỏ nó đi thì cổng kiểm tra ở `:187-193` nổ mọi lần chạy, không phải chỉ khi dữ liệu thật sự đổi.
+- Refit và TEST chạy trong bộ nhớ. `final_model.pkl` chỉ được atomic replace (temp file + `os.replace`, có backup/rollback khi lỗi) sau khi report sinh thành công; metadata ghi cùng cơ chế atomic.
+- **Khoảng hở còn lại (code tự ghi chú, chưa đóng):** `atomic_model_release()` thay `final_model.pkl` và `model_metadata.json` bằng **hai** lệnh `os.replace` liên tiếp. Mỗi lệnh atomic riêng lẻ, nhưng cặp thì không — có một khe rất hẹp giữa hai lệnh mà một reader (UI, chatbot) có thể đọc được model mới đi kèm metadata cũ. Ngoài ra các CSV trong `reports/` được ghi **trước** khi promote artifact, nên nếu promote chết giữa đường thì report đã là số của run mới trong khi `final_model.pkl` vẫn là artifact cũ. Đây chính là tình huống `release_failed` đánh dấu. Chatbot hiện chỉ kiểm readiness cơ bản (pipeline không chạy, model/metadata load được, scope không rỗng), không còn signature/fingerprint chéo; vì vậy khe này vẫn là giới hạn cần nêu, không được trình bày như đã giải quyết hoàn toàn.
+- `scripts/run_pipeline.py` **không nhận tham số dòng lệnh** (chạy với argv khác rỗng sẽ raise lỗi ngay). Không tồn tại cờ CLI nào để "tái dùng TEST xuyên policy" hay để ghi đè một fingerprint đã `evaluated`/`published` — một khi registry đã đánh dấu, không có code path nào cho phép chạy lại/ghi đè cho cùng fingerprint đó.
+- Artifact legacy đang phục vụ (mục "Trạng thái" đầu file) không đi qua luồng trên: nó được đưa thẳng vào `evaluation_registry.json` bằng một thao tác import một lần, đánh dấu `"migration": "Imported prior TEST evaluation without re-evaluation."`, giữ nguyên `policy_id` cũ (`legacy_pre_validation_baseline_gate`). Đây là lý do artifact hiện tại có thể mang `validation_baseline_passed = false` mà không bị chặn — vì nó chưa từng chạy qua cổng VALIDATION mô tả ở mục 8 của code hiện hành.
+
+### 12.1. Trạng thái release đang publish, đọc từ file thật
+
+Mục này ghi lại chính xác tình trạng trên máy để không ai phải đoán, và để không ai tưởng có thể "chạy lại cho sạch".
+
+**`models/model_metadata.json` là artifact mà code hiện tại không thể tái tạo.** Ba dấu vết:
+
+- `policy_id = "legacy_pre_validation_baseline_gate"`, khác `EXPERIMENT_POLICY_ID = "rolling_recent_cv_oof_threshold"`.
+- Thiếu hẳn `training_symbols` / `training_symbol_count` — hai field mà `build_model_metadata()` hiện tại luôn ghi (mục 10).
+- Ghi `validation_baseline_passed: false` kèm nguyên văn `"Selected candidate VALIDATION F1_UP=0.477340 is below Always UP=0.498219."`, và `baseline_passed: false` trên TEST.
+
+Chữ "below" trong câu warning đó chính là điều kiện mà `select_final_model()` hiện tại xử lý bằng `raise RuntimeError` (`services/model_evaluation.py:232`). Nói cách khác: **artifact này ghi lại một trạng thái mà code hiện hành không cho phép tồn tại**. Nó có trước khi cổng baseline VALIDATION được thêm vào, nên câu warning được *lưu* thay vì làm pipeline chết.
+
+**Nhưng dataset trên đĩa đã đi tiếp, và cổng chạy sạch đang MỞ.** Fingerprint tính thật bằng chính code path của pipeline, trên `data/processed/ml_dataset.csv` hiện tại:
+
+```text
+tuning_fingerprint     fa1cf401b4a6   khớp experiments/manual_config.json  →  is_config_complete() = True
+experiment_fingerprint 41580ec734ea   CHƯA có trong evaluation_registry.json  →  TEST còn nguyên
+registry chỉ chứa      fd7fa2887812   (snapshot legacy, status "published")
+lock                   pipeline.lock / fetch.lock đều không tồn tại (không có tuning.lock)
+```
+
+Đọc hai bảng này cạnh nhau là thấy toàn bộ tình hình: artifact **đang phục vụ** thuộc snapshot legacy `fd7fa2887812`, còn dataset **đang nằm trên đĩa** là một snapshot khác (`41580ec734ea`) chưa từng mở TEST. Hai thứ đó không phải một.
+
+Hệ quả: `_guard_unevaluated_snapshot()` (`scripts/run_pipeline.py:87`) sẽ **không** abort. `has_evaluated_snapshot("41580ec734ea")` trả `False` vì registry không có khóa đó, nên cả hai lần kiểm (trước cleanup và sau khi ghi `ml_dataset.csv`) đều đi qua. Cổng mục 8 cũng mở: `is_config_complete()` trả `True` với đủ 4 lớp — `policy_id` = `rolling_recent_cv_oof_threshold`, `schema_version` = 4, `cv_settings` khớp, `dataset_fingerprint` = `fa1cf401b4a6` khớp cả `content_sha256`, và cả ba model đều `selection_method = "manual"` với run_id + params + `decision_threshold` còn nguyên trong `tuning_history.csv`.
+
+Nghĩa là **một run pipeline sạch, đúng policy hiện hành, chạy được ngay bây giờ**, và nó sẽ thay artifact legacy bằng artifact đầu tiên thật sự đi qua cổng baseline VALIDATION. Điều kiện `can_run` trong UI (`app.py:1351`) vì vậy cũng đang thỏa — nút chạy pipeline ở Tuning Lab không bị chặn.
+
+Hai lưu ý trước khi bấm chạy:
+
+- **Cổng baseline VALIDATION có thể giết run này.** Artifact legacy được lưu chính vì nó trượt cổng đó (`F1_UP = 0.477340` < Always-UP `0.498219`). Ba config trong `manual_config.json` là config mới, chấm trên snapshot mới, nên số VALIDATION sẽ khác — nhưng không có gì bảo đảm nó vượt. Nếu trượt, `select_final_model()` raise `RuntimeError` và pipeline dừng **trước** khi mở TEST, registry không ghi gì, snapshot vẫn sạch để thử lại sau khi tune lại (mục 8).
+- **TEST chỉ mở được một lần cho snapshot này.** Ngay khi pipeline ghi `started`, `41580ec734ea` bị tiêu — kể cả khi run chết sau đó (`release_failed` cũng chặn, xem mục 12). Đừng chạy thử cho vui. Muốn một snapshot mới thì phải **chờ có phiên giao dịch mới** rồi `refresh_data.py`; đổi config chỉ tạo `tuning_fingerprint` mới, còn `experiment_fingerprint` gắn với nội dung dataset thì không đổi.
+
+Còn entry legacy trong registry thì vẫn là bản sửa tay: nó mang note `"Imported prior TEST evaluation without re-evaluation."` và field `"migration"` mà **không call site nào trong code ghi ra** — dấu hiệu rõ ràng của một lần import thủ công, không phải sản phẩm của pipeline.
+
+## 13. Lệnh chạy
+
+Chuẩn bị môi trường và bật web:
 
 ```powershell
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python app.py
-```
-
-Mở `http://127.0.0.1:5000`. Dự báo CLI:
-
-```powershell
-python scripts/predict_stock.py --symbol FPT
-python scripts/predict_stock.py --symbol FPT --log-db
-```
-
-### Khi thật sự muốn cập nhật dữ liệu và retrain
-
-Điều kiện trước:
-
-- File raw ngoài repo phải tồn tại đúng đường dẫn `RAW_DATA_PATH` trong `config/settings.py`.
-- Dataset mới phải được build xong.
-- Phải chốt đủ cấu hình LR/RF/GB cho đúng fingerprint mới.
-- TEST fingerprint đó chưa bị khóa.
-
-Quy trình an toàn cho người mới:
-
-```powershell
 python scripts/refresh_data.py
 python app.py
 ```
 
-Sau đó vào `/tuning`, thử/chọn đủ 3 cấu hình, rồi dùng nút **chạy pipeline** trên trang. Route web kiểm tra fingerprint, config, fetch/pipeline lock và TEST lock trước khi khởi chạy.
-
-**Cảnh báo trạng thái hiện tại:** fingerprint `f6cb3ac8f820` đã được đánh giá TEST và khóa. Không chạy lại `python scripts/run_pipeline.py` trên trạng thái hiện tại. Trong code hiện tại, CLI gọi `cleanup_outputs()` trước khi kiểm tra TEST lock; chạy lại có thể xóa processed data/model/report rồi mới báo lỗi. `STOCK_ALLOW_TEST_REEVAL=1` chỉ dành cho debug có chủ đích, không dùng để cải thiện điểm sau khi đã xem TEST.
-
-### Script từng bước
+Trên `/tuning`, thử và tự chọn một cấu hình cho LR, RF và GB. Sau khi đủ ba lựa chọn, chạy official pipeline từ UI hoặc:
 
 ```powershell
-python scripts/preprocess_data.py
-python scripts/build_features.py
-python scripts/train_tune_models.py
-python database/init_db.py
+python scripts/run_pipeline.py
 ```
 
-`preprocess_data.py` và `build_features.py` chuẩn bị dữ liệu. `train_tune_models.py` chỉ dùng TRAIN nhưng yêu cầu `manual_config.json` đầy đủ, đúng fingerprint.
+Chỉ chạy CV/tuning mà không chọn/promote Final Model: dùng nút "Chạy" trên `/tuning` (route `/tuning/evaluate`) cho từng model. Không có script CLI riêng cho việc này.
 
-Không dùng `evaluate_models.py` hoặc `select_final_model.py` như lệnh thử đi thử lại: cả hai đọc TEST nhưng không kiểm tra `test_evaluation_lock.json`. Chúng chỉ phù hợp cho debug/maintenance khi bạn hiểu rõ tác động.
+Prediction smoke test:
 
----
+```powershell
+python scripts/predict_stock.py --symbol FPT
+```
 
-## 25. Output quan trọng nên biết
+Các script trong [scripts/](../scripts/) và vai trò:
 
-| File | Vai trò |
-|---|---|
-| `data/processed/hose_stock_clean.csv` | Dữ liệu đã làm sạch |
-| `data/processed/hose_stock_features.csv` | Dữ liệu có 20 feature kỹ thuật |
-| `data/processed/ml_dataset.csv` | Feature + target dùng cho train/test |
-| `models/dummy.pkl` | Dummy baseline |
-| `models/logistic_regression_tuned.pkl` | Logistic Regression sau tuning |
-| `models/random_forest_tuned.pkl` | Random Forest sau tuning |
-| `models/gradient_boosting_tuned.pkl` | Gradient Boosting sau tuning |
-| `models/final_model.pkl` | Model cuối đang dùng (hiện = Gradient Boosting) |
-| `models/model_metadata.json` | Metadata model, feature order, metric, best params, decision_threshold |
-| `reports/model_comparison.csv` | Bảng so sánh model |
-| `reports/final_model_evaluation.csv` | Dòng kết quả của final model |
-| `reports/classification_report.csv` | Precision/Recall/F1 theo từng lớp |
-| `reports/confusion_matrix.csv` | Ma trận nhầm lẫn dạng CSV |
-| `reports/confusion_matrix.png` | Ma trận nhầm lẫn dạng hình |
-| `reports/feature_importance.csv` | Độ quan trọng feature |
-| `reports/best_params.json` | Bộ hyperparameter đã chốt |
-| `reports/train_test_summary.csv` | Tóm tắt train/test split |
-| `reports/pipeline_summary.json` | Tóm tắt toàn bộ pipeline |
-| `database/stock_prediction.db` | SQLite sync dữ liệu/report và log prediction |
-| `experiments/tuning_history.csv` | Lịch sử các lần đánh giá cấu hình từ UI hoặc script thí nghiệm dùng chung backend CV |
-| `experiments/manual_config.json` | Bộ tham số đã chốt cho 3 model, gắn fingerprint dataset |
-| `docs/bao_cao_project_hose_stock_prediction.docx` | Báo cáo Word (bản đã tạo sẵn trong docs) |
+| Script | Làm gì |
+| --- | --- |
+| `fetch_hose_data.py` | tải OHLCV HOSE từ `vnstock` về CSV thô |
+| `preprocess_data.py` | chạy riêng bước clean (mục 2) |
+| `build_features.py` | chạy riêng bước feature + nhãn (mục 3) |
+| `refresh_data.py` | gộp 3 bước trên thành một lệnh làm mới dữ liệu |
+| `run_pipeline.py` | official pipeline: dataset → tuning đã chốt → chọn model → TEST → promote |
+| `predict_stock.py` | dự báo 1 mã ở terminal, dùng để smoke test artifact |
+| `evaluate_chatbot_decisions.py` | bắn bộ scenario thật vào LLM decision, đo chọn đúng action/arguments chưa (cần `.env` LLM) |
+| `evaluate_chatbot_refusals.py` | bắn bộ câu dụ khị (xin lời khuyên, realtime...), soi câu compose viết ra ở `GENERAL_CHAT`/`OUT_OF_SCOPE` có rò mã cổ phiếu hay khuyến nghị không (cần `.env` LLM) |
 
-### Vì sao không chèn comment trực tiếp vào file output?
+Lưu ý: `RAW_DATA_PATH` trỏ ra ngoài repo (`shared_dataset/hose_stock_raw.csv`), nên clone repo về máy khác là chưa có dữ liệu — phải fetch lại.
 
-- `models/final_model.pkl` là file nhị phân do `joblib` tạo. Không mở sửa hoặc chèn chữ; làm vậy sẽ hỏng model.
-- `models/model_metadata.json` và `reports/pipeline_summary.json` là dữ liệu JSON cho code đọc. Chuẩn JSON không hỗ trợ comment.
-- `reports/model_comparison.csv` và các CSV khác là bảng máy đọc. Thêm dòng comment sẽ làm sai cấu trúc hoặc thành dữ liệu giả.
-- Muốn hiểu các artifact này, đọc bảng trên, comment trong code sinh file và các phần pipeline tương ứng của tài liệu này.
+Cách `fetch_hose_data.py` làm việc (tải **tăng dần**, không tải lại từ đầu):
 
----
+- Danh sách mã lấy từ **chính file raw hiện có**, không từ config. File raw là nguồn sự thật về phạm vi mã đang theo dõi; muốn thêm mã mới thì thêm dòng vào CSV, script tự bù lịch sử cho mã đó.
+- Mỗi mã có cửa sổ fetch **riêng** (`resolve_fetch_windows` trả `(start, end, should_fetch)`), vì các mã không cùng ngày cuối: mã mới thêm còn trống hẳn, mã lỗi lần trước thiếu vài phiên. Không mã nào cần fetch thì ghi report rồi return sớm, không gọi mạng lần nào.
+- `time.sleep(FETCH_SLEEP_SECONDS = 3.5)` sau **mỗi** mã, kể cả mã lỗi — rate limit của `vnstock` tính theo số request, không theo số request thành công. `FETCH_MAX_RETRIES = 3`, `FETCH_SOURCE = "KBS"` (tham số source truyền vào `vnstock`, không phải một lib khác), `FETCH_END_DATE = None` nghĩa là lấy tới hôm nay.
+- Một mã lỗi không giết cả vòng lặp (gom vào `failed_symbols`), nhưng cuối cùng script vẫn `raise RuntimeError` nếu có mã lỗi — dữ liệu mới đã ghi vào file, chỉ là exit code khác 0 để báo dataset đang **khuyết phiên**, tránh train trên dữ liệu thiếu mà tưởng đủ.
 
-## 26. Từ điển thuật ngữ nhanh
+`fetch_symbol_history()` phân biệt **ba loại phản hồi xấu**, và chỉ loại thứ ba mới tính là "mã lỗi":
 
-| Thuật ngữ | Nghĩa dễ hiểu |
-|---|---|
-| HOSE | Sở Giao dịch Chứng khoán TP.HCM |
-| Phiên giao dịch | Một ngày thị trường mở cửa; lưu ý code horizon thực tế đếm dòng có dữ liệu của từng mã |
-| OHLCV | Open, High, Low, Close, Volume |
-| Machine Learning | Cho máy học quy luật từ dữ liệu quá khứ |
-| Classification | Bài toán phân loại; ở đây là `UP` hoặc `NOT_UP` |
-| Binary classification | Phân loại 2 lớp |
-| Feature | Cột đầu vào cho model |
-| Target / Label | Đáp án model cần học |
-| Horizon | Số bước tương lai; code hiện lấy dòng thứ 5 kế tiếp của từng mã |
-| Threshold (nhãn) | Ngưỡng return để quyết định nhãn; ở đây là 1% |
-| Train set | Dữ liệu dùng để model học |
-| Test set | Dữ liệu tách riêng; project hiện dùng để đánh giá và chọn final model |
-| Cross Validation | Chia train thành nhiều fold để kiểm tra ổn định |
-| TimeSeriesSplit | Cross Validation giữ thứ tự thời gian |
-| Gap | Khoảng bỏ trống giữa train fold và validation fold; `gap=5` hiện là 5 dòng bảng gộp |
-| Hyperparameter | Tham số cấu hình trước khi train |
-| Tuning | Thử nhiều hyperparameter để tìm bộ tốt |
-| Decision threshold | Ngưỡng xác suất để quyết UP; tinh chỉnh riêng mỗi model thay cho 0.5 |
-| Class imbalance | Mất cân bằng lớp: số mẫu UP ít hơn NOT_UP |
-| class_weight / sample_weight | Cách tăng trọng số lớp thiểu số khi train (LR/RF dùng class_weight, GB dùng sample_weight) |
-| Fingerprint | Chữ ký từ row count, max date và config; không hash toàn bộ nội dung dataset |
-| Baseline | Mốc so sánh tối thiểu |
-| Dummy Classifier | Model rất đơn giản, dùng làm baseline |
-| Logistic Regression | Model phân loại tuyến tính |
-| Random Forest | Nhiều cây quyết định cùng bỏ phiếu |
-| Gradient Boosting | Nhiều cây học tuần tự, cây sau sửa lỗi cây trước |
-| Accuracy | Tỷ lệ dự báo đúng tổng thể |
-| Precision | Trong những lần đoán một lớp, bao nhiêu lần đúng |
-| Recall | Trong các mẫu thật sự thuộc một lớp, model bắt được bao nhiêu |
-| F1 | Chỉ số cân bằng Precision và Recall |
-| Confusion Matrix | Bảng đếm đúng/sai theo từng lớp |
-| Feature Importance | Mức đóng góp tương đối của feature trong model |
-| Data Leakage | Lỗi model nhìn thấy thông tin tương lai/đáp án |
-| Overfitting | Model học quá sát train, nhưng dùng tương lai thì kém |
-| Artifact | File sinh ra sau pipeline, ví dụ model/report |
-| Metadata | Thông tin mô tả model, feature order, metric |
-| Flask | Framework web Python dùng cho demo |
-| SQLite | Database nhẹ, lưu trong một file |
-| CLI | Command Line Interface, chạy bằng terminal |
+| Loại | Nhận diện | Xử lý |
+| --- | --- | --- |
+| Dữ liệu trống | `is_empty_data_error(exc)` — tìm chuỗi trong `EMPTY_DATA_MARKERS` (`"dữ liệu trống"`, `"du lieu trong"`) | trả **DataFrame rỗng**, coi là 0 dòng mới; **không** vào `failed_symbols` |
+| Rate limit | `is_rate_limit_error(exc)` — chuỗi trong `RATE_LIMIT_MARKERS` (`"rate limit"`, `"giới hạn"`, `"20/20"`) | `sleep(65)` cố định rồi `continue` (không tăng backoff) |
+| Lỗi khác | mọi exception còn lại | backoff tuyến tính `FETCH_SLEEP_SECONDS * attempt`, hết `FETCH_MAX_RETRIES` thì `raise RuntimeError` |
 
----
+Ba chi tiết dễ bỏ sót ở đây:
 
-## 27. Những câu nên nói khi bảo vệ
+- `is_empty_data_error()` **đi ngược chuỗi nhân quả** (`exc.__cause__ or exc.__context__` trong vòng `while`) vì vnstock hay bọc lỗi rỗng trong một `RetryError`. Chỉ đọc `str(exc)` ở tầng ngoài cùng là không thấy marker → mã "chưa có phiên mới" sẽ bị đếm oan thành mã lỗi và làm cả script exit khác 0.
+- Khối `except` bắt `(Exception, SystemExit)`, không phải `Exception` trơn. Lý do: lib `vnai` phát rate limit bằng cách gọi `sys.exit()`, mà `SystemExit` **không** phải con của `Exception` nên `except Exception` để nó thoát ra và giết cả tiến trình fetch. Ngay sau đó có một guard đối xứng — `SystemExit` mà **không** phải rate limit thì `raise` lại nguyên trạng, để `Ctrl+C`-kiểu-exit vẫn dừng được script.
+- Con số `65` giây chọn cố tình lớn hơn 60: cửa sổ đếm request của API là 1 phút, nghỉ 65s là chắc chắn qua hẳn cửa sổ. Nhận diện rate limit bằng **chuỗi trong message** là điểm giòn nhất của script — vnstock không phơi ra error code riêng, nên library đổi wording là mất cơ chế chờ.
 
-**Project làm gì:**
-> Project của em xây dựng hệ thống hỗ trợ dự báo xu hướng cổ phiếu HOSE bằng Machine Learning. Bài toán là phân loại nhị phân: giá ở bước quan sát thứ 5 tiếp theo của cùng mã có tăng hơn 1% hay không. Với mã giao dịch đều, bước này gần với 5 phiên thị trường; mã dữ liệu thưa có thể kéo dài hơn.
+Ba chi tiết trong lớp bắt lỗi của `fetch_hose_data.py` đáng đọc kỹ, vì `vnstock` không phơi ra mã lỗi có cấu trúc — tất cả phải nhận diện bằng **chuỗi trong message**:
 
-**Dữ liệu đầu vào:**
-> Em sử dụng dữ liệu OHLCV theo ngày, gồm mã cổ phiếu, ngày giao dịch, giá mở cửa, cao nhất, thấp nhất, đóng cửa và khối lượng giao dịch.
+- **Bắt cả `SystemExit`**: `except (Exception, SystemExit)` (`:139`). Lib `vnai` bên dưới `vnstock` có thể gọi `sys.exit()` khi bị rate limit, mà `SystemExit` **không** phải subclass của `Exception` nên một `except Exception` thường sẽ để nó bay lên và giết cả script. Bắt xong lại phân loại ngay: nếu là `SystemExit` mà **không** phải rate limit thì `raise` lại (`:140`) — tôn trọng ý định thoát thật, chỉ chặn đúng trường hợp rate limit.
+- **Rate limit chờ cố định 65 giây**, không backoff theo `attempt` (`:145-146`). Nhận diện qua `RATE_LIMIT_MARKERS = ("rate limit", "giới hạn", "gioi han", "20/20")`. Lý do không backoff: cửa sổ rate limit của provider là theo phút, nghỉ đủ lâu một lần là đủ; backoff chỉ làm lần chờ đầu quá ngắn (vẫn bị chặn) rồi lần sau quá dài.
+- **"Dữ liệu trống" không phải lỗi.** `is_empty_data_error()` (`:105`) so `EMPTY_DATA_MARKERS = ("dữ liệu trống", "du lieu trong")` và **đi ngược chuỗi `__cause__` / `__context__`** vì `vnstock` thường bọc lỗi gốc trong một exception khác. Khớp thì trả về một DataFrame rỗng thay vì đẩy mã vào `failed_symbols`. Đây là phân biệt quan trọng: mã bị hủy niêm yết hoặc ngày cuối tuần thì đúng là **không có phiên nào** — coi đó là lỗi thì script không bao giờ exit 0 được.
 
-**Cách tạo nhãn:**
-> Với mỗi mã tại ngày t, code lấy close ở dòng thứ 5 kế tiếp của chính mã đó, tính future_return_5d = close(t+5)/close(t) - 1. Nếu return lớn hơn 1% thì nhãn là UP, ngược lại là NOT_UP.
+`refresh_data.py` gọi 3 bước theo dây (fetch → preprocess → build_features), không song song hóa được vì bước sau đọc output bước trước. Nó in các marker `[1/3]` / `[2/3]` / `[3/3]` và dòng cuối `Refresh data completed.` — chính ba marker này là thứ `app._infer_refresh_progress` bắt để vẽ thanh tiến độ ở `/tuning/fetch-status` (mốc phần trăm 0/33/66/90/100). Đổi chữ trong marker = mất thanh tiến độ. Job này **không** train model: sau khi xong, `ml_dataset.csv` mới có fingerprint khác → cấu hình Tuning Lab cũ hết hiệu lực, `/tuning` hiện banner `config_stale` và pipeline sẽ đòi chọn lại tham số cho snapshot mới.
 
-**Vì sao không random split:**
-> Dữ liệu cổ phiếu là chuỗi thời gian nên random split dễ làm tương lai lọt vào train. Project chia theo label_end_date với mốc 2025-06-30 để giữ mọi nhãn TRAIN kết thúc trước hoặc tại mốc đó. Em cũng thừa nhận split hiện chưa tách tuyệt đối trading_date giữa TRAIN/TEST đối với mã dữ liệu thưa.
+Chạy toàn bộ test từ root repo:
 
-**Vì sao chọn Gradient Boosting:**
-> Final model được chọn theo TEST F1_UP, hòa thì xét Recall_UP rồi độ đơn giản. Ba model rất sát nhau; Gradient Boosting đạt 0.5053 nên được chọn. Đây chỉ là chiến thắng nhỏ trên TEST hiện tại, và vì TEST tham gia chọn model nên metric sau chọn có selection bias.
+```powershell
+python -m pytest -p no:cacheprovider tests
+```
 
-**Vì sao không chọn model accuracy cao nhất:**
-> Accuracy dễ bị lệch vì lớp NOT_UP nhiều hơn UP. Dummy đoán toàn NOT_UP nên accuracy cao nhất nhưng F1_UP bằng 0. Project ưu tiên F1_UP vì mục tiêu là nhận diện trường hợp tăng hơn 1%.
+Baseline hiện tại: **10 file test, 161 test pass** (nhiều test còn lặp thêm subTest bên trong), 0 fail, còn 2 warning thông báo có bản `vnstock`/`vnai` mới (phát ra từ `test_unified_pipeline.py::FetchWindowTests`), không phải lỗi code.
 
-**Vì sao Accuracy các model chính thấp (~0.39–0.41):**
-> Decision threshold dưới 0.5 làm model dự báo UP nhiều, nên Recall_UP cao nhưng false positive nhiều, kéo Accuracy và Precision xuống. Đây là một nguyên nhân lớn, nhưng không đủ để khẳng định model tốt; phải đọc thêm F1, confusion matrix và baseline luôn-UP.
+Số test từng file (`--collect-only -q`):
 
-**Tuning làm thế nào:**
-> Backend Tuning Lab đánh giá mỗi cấu hình bằng TimeSeriesSplit trên TRAIN, lấy trung bình F1_UP của 5 validation fold thành CV F1_UP và ghi history. UI cho thử từng cấu hình; repo cũng có script gọi tự động nhiều cấu hình. Người dùng chốt đủ 3 config rồi pipeline mới fit model, evaluate TEST và chọn final.
+```text
+test_chatbot          40     test_unified_pipeline   13
+test_prediction_flow  26     test_model_selection    11
+test_ui_shell         23     test_data_protocol       6
+test_tuning_history   21     test_recent_cv           3
+test_tuning_lab       17     test_decision_policy     1
+```
 
-**Giới hạn phương pháp hiện tại:**
-> Em không khẳng định hệ thống hoàn toàn không leakage. TimeSeriesSplit đang chạy trên bảng gộp nhiều mã và gap=5 chỉ là 5 dòng, nên fold có thể chồng ngày và label window. Threshold cũng được chọn trên chính dữ liệu model vừa fit. Hướng cải thiện là split theo ngày, loại train row có label lấn validation và chọn threshold trên prediction ngoài mẫu.
+Suite chatbot tập trung trong [tests/test_chatbot.py](../tests/test_chatbot.py): decision JSON, schema 5 action, tối đa hai provider call (decision + compose với đủ nhánh fallback: lỗi, rỗng, quá 900 ký tự, hết deadline, `CHATBOT_COMPOSE=0`), dispatcher, formatter, API/error mapping, follow-up history và contract asset/DOM của frontend. [tests/test_prediction_flow.py](../tests/test_prediction_flow.py) giữ integration ML inference. Tám file còn lại khóa các bất biến pipeline/UI: split + purge, recent CV, decision policy, model selection/baseline, Tuning Lab/history, UI shell và unified pipeline.
 
-**Có dùng database không:**
-> Có. Project dùng SQLite để sync raw data, clean data, features, tuning results, model evaluations và lưu lịch sử predictions. Tuy nhiên source chính để xem kết quả model là các file report và model_metadata.json.
+Ba nhóm test mới đáng biết vì chúng khóa đúng ba tính năng mới của lần cập nhật này:
 
-**Có phải khuyến nghị đầu tư không:**
-> Không. Đây là hệ thống demo học thuật để dự báo xu hướng theo dữ liệu lịch sử OHLCV. Kết quả chỉ mang tính tham khảo, không phải khuyến nghị mua bán.
+- `test_chatbot.py::test_chat_page_and_floating_dock_load_assets_locally_once` — assert `base.html` nhúng **đúng một lần** mỗi file `chat-client.js` / `chat-dock.js` / `chat-dock.css`, **không** nhúng `chat-ui.css`, có đúng 2 khối `{% if active_page != 'chat' %}`, và đủ 5 id `chat-dock-*`. Đây là chốt chặn cho chat dock ở mục 11.2.1.
+- `test_tuning_history.py::HistoryTrendTests` (9 test) — khóa `history_trend`: sắp theo thời gian chứ không theo điểm, `?sort=` không được đổi thứ tự, loại row sai fingerprint/model, loại giá trị non-finite, loại row legacy, cờ best/selected, rỗng thì trả `[]`, và phải JSON-serializable.
+- `test_unified_pipeline.py::FetchWindowTests` (4 test) — khóa ba loại phản hồi xấu ở mục 13: dữ liệu trống **không** tính là mã lỗi, lỗi thật vẫn fail sau khi hết retry, `SystemExit` do rate limit thì chờ rồi retry, `SystemExit` không phải rate limit thì không được nuốt.
 
----
+## 14. Sơ đồ và tài liệu liên quan
 
-## 28. Những điều không nên nói sai
+| Thư mục | Nội dung |
+| --- | --- |
+| [docs/diagrams/drawio/](diagrams/drawio/) | Sơ đồ hoạt động tổng quan và các ảnh xuất từ Draw.io |
+| [docs/diagrams/](diagrams/) | Hai ảnh tổng quan `pipeline_flow.png` và `chatbot_flow.png` |
+| [docs/report_assets/](report_assets/) | Hình, biểu đồ và ảnh giao diện dùng trong báo cáo |
 
-| Không nói | Nên nói |
-|---|---|
-| Project dự báo chính xác giá cổ phiếu. | Project phân loại UP / NOT_UP theo ngưỡng 1% ở dòng quan sát thứ 5 kế tiếp của mã. |
-| Xác suất model là độ tin cậy tuyệt đối. | Đó là xác suất dự báo của model cho lớp UP. |
-| Code luôn dự báo đúng 5 ngày thị trường mở cửa. | Code lấy dòng thứ 5 kế tiếp của từng mã; mã dữ liệu thưa có thể kéo dài nhiều tuần/tháng. |
-| Web chạy realtime. | Web demo dùng dữ liệu offline đã xử lý và model đã train sẵn. |
-| Feature importance chứng minh thị trường bị feature đó gây ra. | Feature importance chỉ cho biết model đã dựa vào feature đó nhiều, không chứng minh quan hệ nhân quả. |
-| F1 lưu trong tuning history là F1 trên TEST. | History lưu CV F1_UP trung bình trên các validation fold thuộc TRAIN; TEST F1_UP chỉ sinh ở bước evaluate sau khi đã chốt cấu hình. |
-| `gap=5` nghĩa là cách đúng 5 phiên thị trường. | Với bảng gộp hiện tại, `gap=5` chỉ là 5 dòng và chưa đủ purge horizon 5 bước. |
-| TEST chỉ dùng để báo cáo. | Project hiện dùng TEST để vừa tính metric vừa chọn final model. |
-| Toàn bộ tuning đều nhập tay trên web. | UI hỗ trợ nhập/chốt; các script thí nghiệm cũng tự động gọi cùng backend để thử nhiều config. |
-| Pipeline hiện hoàn toàn không leakage. | Project có biện pháp giảm leakage nhưng CV/split hiện vẫn còn giới hạn đã nêu ở mục 14 và 29. |
+Báo cáo hoàn thiện nằm tại [bao_cao_project_hose_stock_prediction_hoan_thien.docx](bao_cao_project_hose_stock_prediction_hoan_thien.docx). Các tài liệu và hình ảnh trong `docs/` không nằm trong đường chạy của ứng dụng.
 
----
+Tài liệu chatbot canonical là [docs/CHATBOT_ARCHITECTURE.md](CHATBOT_ARCHITECTURE.md): đúng 5 action, LLM decision + grounded compose có fallback, fixed dispatcher, formatter deterministic, hai UI (`/chat` + khung chat nổi, mục 11.2.1) dùng chung `/api/chat`. Khi tài liệu và code khác nhau, tin `services/chatbot_service.py` cùng `services/chatbot_tools.py`.
 
-## 29. Giới hạn và điểm kỹ thuật cần biết
+[README.md](../README.md) và [docs/SO_DO_KIEN_TRUC_HE_THONG.md](SO_DO_KIEN_TRUC_HE_THONG.md) đã được đồng bộ về policy `rolling_recent_cv_oof_threshold` và mốc rolling suy từ dataset. Khi có xung đột, tin code (`config/settings.py`, `models/model_metadata.json`) trước tiên.
 
-1. Khi cần số mới nhất, ưu tiên `reports/pipeline_summary.json`, `reports/model_comparison.csv`, `reports/train_test_summary.csv`, `models/model_metadata.json`. `README.md` hiện vẫn ghi final model là Random Forest và là thông tin cũ; final hiện tại theo metadata/report là Gradient Boosting. Một số sơ đồ/tài liệu khác cũng có thể cũ hơn artifact.
+## 15. Cạm bẫy khi đọc code
 
-2. Trong `templates/index.html`, phần `details` kỹ thuật có dùng `result.selected_report_model` và `result.model_match`, nhưng `services/prediction_service.py` hiện chưa trả hai field này. Phần dự báo chính vẫn hoạt động dựa trên `final_model.pkl` và `model_metadata.json`.
+Mục này gom những tên gọi và hằng số mà nghĩa thật **khác** với nghĩa cái tên gợi ra. Đọc trước khi sửa code, tránh mất thời gian đổi một hằng số không có tác dụng gì.
 
-3. `scripts/finetune_model.py` chỉ là thông báo deprecated. Việc chốt tham số nay làm qua Tuning Lab (`/tuning`); pipeline chính thức đọc `experiments/manual_config.json` để train.
+| Thứ trông như | Sự thật | Chỗ kiểm |
+| --- | --- | --- |
+| `TEST_WINDOW_DAYS = 94`, `VALIDATION_WINDOW_DAYS = 274` là số **phiên** | là **ngày lịch** (`pd.Timedelta(days=...)`), gồm cả cuối tuần và nghỉ lễ | `services/protocol_dates.py:69-70` |
+| `TUNING_SCORING = "f1"` chọn metric tối ưu | chỉ là **text metadata** ghi vào `best_params.json`; metric thật hardcode trong `select_oof_threshold` | `services/model_tuning.py:464` vs `:261` |
+| `TUNABLE_PARAM_SCHEMA` là search space | là **domain validate form** nhập tay; repo không có grid search | `config/settings.py` |
+| `CV_START_DATE` giới hạn dữ liệu train | chỉ cắt **fold CV**; fit cuối dùng toàn bộ TRAIN | `services/model_tuning.py:400-405` |
+| `select_final_model` chỉ "chọn" | có thể `raise RuntimeError` và **giết pipeline** | `services/model_evaluation.py:232` |
+| `SIMPLICITY_RANK` quyết định model thắng | là khóa sort **thứ ba**, sau `f1_up` và `recall_up` | `services/model_evaluation.py:196-200` |
+| `split_date` là một mốc riêng | trùng hoàn toàn `train_end_date` (cùng biểu thức) | `services/model_evaluation.py:642-643` |
+| `test_metrics` khác `final_test_metrics` | cùng một dict, giữ cho back-compat | `services/model_evaluation.py:662` |
+| `MANUAL_BASELINE_PARAMS` là "baseline hợp lý" | LR có `C = 4.12316e-7` — regularize gần như tuyệt đối | `config/settings.py:164` |
 
-4. SQLite có bảng `tuning_results`, nhưng best params chi tiết nên xem trong `reports/best_params.json`.
+Ba cạm bẫy đáng giải thích dài hơn một dòng:
 
-5. Dữ liệu raw nằm **ngoài** repo ở `shared_dataset`, còn output đã xử lý nằm trong `data/processed/`.
+**Ngày lịch, không phải phiên.** Repo rất kỹ chuyện phân biệt phiên với ngày ở những chỗ khác (`CV_GAP_SESSIONS` đếm phiên, nhãn t+5 đếm phiên thị trường chung, `exact_market_t5`), nên rất dễ mặc định `TEST_WINDOW_DAYS = 94` cũng là phiên. Không phải: `resolve_protocol_dates()` lùi bằng `pd.Timedelta(days=94)`, tức 94 ngày lịch ≈ 64–66 phiên. Đây là lý do TEST chỉ có ~21k row chứ không phải ~94 × 396 (release legacy 20.350 row, snapshot trên đĩa hiện tại 20.965 row).
 
-6. Accuracy thấp một phần lớn vì ngưỡng tối ưu F1 trên TRAIN thấp hơn 0.5 và làm model báo UP nhiều; code không tối ưu Recall trực tiếp. TEST F1_UP final chỉ `0.5053`; baseline tính thêm kiểu luôn-UP khoảng `0.4939`, nên mức cải thiện nhỏ.
+**`CV_START_DATE` và khoảng trống giám sát.** `iter_purged_date_splits` bỏ mọi phiên trước `2021-01-01` khi chia fold, nhưng `tune_models` fit estimator cuối trên **toàn bộ** TRAIN không filter start date (`model_tuning.py:400-405`). Hệ quả thật: model được publish đã học từ row 2019-10 → 2020-12 mà **không fold CV nào từng chấm điểm phần dữ liệu đó**. Không phải bug — cố ý cho model dùng hết dữ liệu — nhưng khi báo cáo thì con số CV F1_UP chỉ nói về giai đoạn từ 2021 trở đi, không nói về toàn bộ dữ liệu đã train.
 
-7. Pipeline có `pipeline.lock` và `test_evaluation_lock.json`, nhưng CLI kiểm tra TEST lock **sau** `cleanup_outputs()`. Rerun fingerprint đã khóa có thể xóa artifact trước khi abort. Route web kiểm tra trước và an toàn hơn. Hai script `evaluate_models.py` / `select_final_model.py` không kiểm tra TEST lock.
+**`select_final_model` có 3 khóa sort, không phải 1.** `SIMPLICITY_RANK` (LR=1, RF=2, GB=3) hay bị đọc thành "project ưu tiên model đơn giản". Thực tế nó là khóa thứ ba (`["f1_up", "recall_up", "simplicity_rank"]`, `model_evaluation.py:196-200`) và chỉ có tiếng nói khi cả F1_UP **và** Recall_UP của hai candidate bằng nhau tới từng chữ số float — gần như không bao giờ xảy ra với dữ liệu thật. Việc RF đang thắng là do F1_UP, không phải do rank.
 
-8. **Trạng thái hiện tại: code, dữ liệu và report đã đồng bộ.** Pipeline chính thức đã chạy xong trên **20 feature** (`trained_at = 2026-07-17`, fingerprint `f6cb3ac8f820`). Cả 3 model đã chốt tham số, final model = **Gradient Boosting**. Không còn tình trạng "report lệch code" như các lần trước.
+## 16. Giới hạn trình bày trong báo cáo
 
-9. Fingerprint gắn vào `manual_config.json` được hash từ row count, max trading date, split/horizon/threshold và feature list; nó **không hash nội dung OHLCV**. Sửa giá nhưng giữ số dòng/max date có thể không đổi fingerprint. Nếu fingerprint thật sự đổi, cần chốt lại đủ 3 model trước official pipeline.
-
-10. CV hiện chia bảng nhiều mã theo vị trí dòng. `gap=5` không phải 5 ngày; audit hiện tại cho thấy fold có thể chung ngày và train label window lấn vào VAL. CV F1_UP có thể lạc quan. Cần grouped time split + purge theo `label_end_date` để sửa.
-
-11. Outer TRAIN/TEST split bảo vệ `label_end_date`, nhưng không tách tuyệt đối `trading_date`; mã thưa như TTE làm TEST có reference date sớm hơn một số TRAIN rows.
-
-12. TEST đang dùng để chọn final model trong ba ứng viên. Đây không phải hyperparameter leakage, nhưng làm TEST mất vai trò holdout hoàn toàn độc lập sau chọn model.
-
-13. Decision threshold được tune từ prediction in-sample của fold-train và toàn TRAIN. Thiết kế chặt hơn dùng OOF hoặc một validation tầng trong.
-
-14. `database/init_db.sql` chỉ là schema khởi tạo. Ba bảng được pandas ghi `replace` có thể mất PK/UNIQUE/NOT NULL sau sync.
-
----
-
-## 30. Thứ tự học project cho dễ
-
-1. Hiểu câu hỏi chính: dòng thứ 5 kế tiếp của mã có tăng hơn 1% không.
-2. Hiểu OHLCV: open, high, low, close, volume.
-3. Hiểu `future_return_5d` và cách tạo `target`.
-4. Học 20 feature, đặc biệt return, SMA, RSI, volatility, volume ratio, và nhóm vị trí giá (return 10/20 phiên, khoảng cách đỉnh/đáy 20 phiên, tháng).
-5. Phân biệt hai threshold: 1% để tạo target và ~0.4129 để đổi P(UP) thành prediction.
-6. Hiểu hai luồng riêng: tuning trên TRAIN và official evaluate/select trên TEST.
-7. Hiểu data leakage và giới hạn split hiện tại.
-8. Hiểu Cross Validation; nhớ `gap=5` hiện chỉ là 5 dòng.
-9. Hiểu Precision, Recall, F1, Confusion Matrix và baseline.
-10. Đọc `reports/model_comparison.csv` để hiểu vì sao chọn Gradient Boosting và vì sao lợi thế nhỏ.
-11. Đọc `services/feature_engineering.py` để hiểu feature/label.
-12. Đọc `services/model_tuning.py` để hiểu CV, fit và tune ngưỡng.
-13. Đọc `services/prediction_service.py` và `app.py` để hiểu web/CLI dự báo.
-
-Nắm chắc các ý trên là bạn đã hiểu lõi project đủ để đọc code, chạy demo và giải thích khi bảo vệ.
+- Policy hiện hành dùng dữ liệu hiện có; ranh giới split resolve từ ngày cuối dataset, dịch theo thời gian (rolling), không phải mốc cố định.
+- Artifact đang phục vụ (`final_model.pkl`) thuộc `policy_id` legacy khác `EXPERIMENT_POLICY_ID` hiện hành, được import một lần chứ không sinh ra từ pipeline hiện tại — phải nêu rõ khi báo cáo, không trình bày như thể nó vừa được huấn luyện bằng cổng VALIDATION/TEST hiện hành.
+- Final Model hiện tại (Random Forest) **chưa vượt baseline Always-UP** trên VALIDATION lẫn TEST; phải nêu đúng trạng thái này khi báo cáo.
+- **Dataset trên đĩa không phải dataset của release đang serve.** `reports/` + `models/` là số của snapshot legacy (510.862 row, TEST tới 2026-07-13); `data/processed/ml_dataset.csv` đã là snapshot khác (513.971 row, TEST tới 2026-07-24) và chưa từng mở TEST. Trích số vào báo cáo phải nói rõ đang trích nguồn nào — đừng ghép số dataset mới với metric model cũ.
+- Cổng chạy pipeline sạch **đang mở** (mục 12.1). Nếu chạy trước khi nộp báo cáo thì toàn bộ số ở mục 4, 7, 9, 10 đổi hết, và `/evaluation` chuyển từ view legacy sang view policy hiện hành. Chốt một lần: hoặc báo cáo theo artifact legacy (nêu rõ là legacy), hoặc chạy pipeline rồi viết lại số — không trộn hai.
+- Chatbot dùng **action decision**: LLM hiểu câu hỏi và chỉ chọn một trong 5 action kèm arguments; backend validate, gọi dispatcher cố định rồi format dữ liệu thật làm nguồn số liệu kiêm fallback — LLM call 2 (compose) chỉ diễn đạt lại, kể cả câu xã giao/từ chối (nhánh này không nhận mã hay số nào). Không dùng RAG, tool loop hoặc custom memory; call decision không nhận context dữ liệu; LLM không trực tiếp dự đoán cổ phiếu và không tự viết số liệu ML.
+- Số liệu trong báo cáo/slide nên lấy từ `reports/pipeline_summary.json` và `models/model_metadata.json` (bộ script ở mục 14 đọc trực tiếp hai nguồn này), không gõ tay — tránh lệch giữa văn bản và artifact đang serve. **Một ngoại lệ phải biết:** `reports/split_summary.csv` đã bị ghi lại sau đó (mtime 2026-07-31) nên nó chứa split của snapshot **mới**, lệch với `pipeline_summary.json` (2026-07-21) ngay trong cùng thư mục. Đừng trộn hai file này vào một bảng.
+- Kết quả chỉ phục vụ nghiên cứu/học tập, không phải khuyến nghị đầu tư.

@@ -4,70 +4,152 @@ Tuning Lab và official pipeline dùng chung các hàm ở đây để cấu hì
 nhau. Module không đánh giá TEST; TEST metrics nằm ở model_evaluation.py.
 """
 
+import json
 from datetime import datetime
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
-from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, precision_recall_curve, precision_score, recall_score
-from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
 
 from config.settings import (
     BEST_PARAMS_PATH,
-    CV_GAP,
+    CV_GAP_SESSIONS,
+    CV_FOLD_RESULTS_PATH,
     CV_N_SPLITS,
+    DECISION_THRESHOLD,
+    EXPERIMENT_POLICY_ID,
     FEATURE_COLUMNS,
     MANUAL_CONFIG_SCHEMA_VERSION,
     MODEL_DEFINITIONS,
     MODEL_KEY,
-    MODEL_PATHS,
     PREDICTION_HORIZON,
     RANDOM_STATE,
     TUNING_RESULTS_PATH,
     TUNING_SCORING,
+    THRESHOLD_MAX,
+    THRESHOLD_MAX_PREDICTED_UP_RATIO,
+    THRESHOLD_MIN,
+    THRESHOLD_STEP,
     UP_THRESHOLD,
 )
-from services.experiment_state import compute_dataset_fingerprint, read_manual_config
-from services.pipeline_utils import write_json
+from services.experiment_state import (
+    compute_dataset_fingerprint,
+    is_config_complete,
+    read_manual_config,
+)
+from services.pipeline_utils import atomic_dataframe_to_csv, write_json
+from services.time_splitting import iter_purged_date_splits, sort_panel_frame
 
 TUNABLE_MODEL_IDS = [2, 3, 4]
 REQUIRED_MODEL_KEYS = ["logistic_regression", "random_forest", "gradient_boosting"]
 
 
-def tune_threshold(y_true, proba) -> float:
-    """Return the P(UP) cutoff that maximizes F1 for the UP class.
-
-    Target is imbalanced (~39% UP) so the default 0.5 cutoff under-predicts UP.
-    Clamped to [0.05, 0.95] to reject degenerate all-positive/all-negative rules.
-    """
-    precision, recall, thresholds = precision_recall_curve(y_true, proba, pos_label=1)
-    if not len(thresholds):
-        return 0.5
-    f1 = 2 * precision * recall / (precision + recall + 1e-12)
-    best = int(np.argmax(f1[:-1]))
-    return float(np.clip(thresholds[best], 0.05, 0.95))
-
-
 def _proba_up(model, X) -> np.ndarray:
+    """Lấy cột xác suất của lớp UP (=1) trong output ``predict_proba``.
+
+    Vì sao không hardcode ``proba[:, 1]``: sklearn xếp cột theo thứ tự
+    ``model.classes_`` (đã sort). Nếu một fold CV nào đó chỉ chứa duy nhất
+    lớp 0 thì ``classes_ == [0]`` và ``proba`` chỉ có 1 cột — lấy cứng index 1
+    sẽ IndexError; còn nếu nhãn được mã hóa khác (vd. [-1, 1]) thì index 1 lại
+    là lớp khác. Tra vị trí của giá trị 1 trong ``classes_`` là cách duy nhất
+    luôn trả về đúng P(UP).
+    """
     proba = model.predict_proba(X)
     classes = list(model.classes_)
     return proba[:, classes.index(1)]
 
 
-def predict_with_threshold(model, X, threshold: float) -> np.ndarray:
-    """Classify UP=1 when P(UP) >= threshold instead of sklearn's 0.5 default."""
+def predict_with_threshold(model, X, threshold: float = DECISION_THRESHOLD) -> np.ndarray:
+    """Classify UP=1 from the project's explicit decision policy."""
     return (_proba_up(model, X) >= threshold).astype(int)
 
 
-def _time_series_cv() -> TimeSeriesSplit:
-    return TimeSeriesSplit(n_splits=CV_N_SPLITS, gap=CV_GAP)
+def select_oof_threshold(y_true, probabilities) -> dict:
+    """Chọn MỘT ngưỡng quyết định (decision threshold) từ xác suất OOF.
+
+    Bài toán: mặc định sklearn cắt ở 0.5, nhưng lớp UP ở đây là lớp thiểu số
+    nên 0.5 gần như không bao giờ tối ưu. Hàm này quét ngưỡng trong
+    [THRESHOLD_MIN, THRESHOLD_MAX] theo bước THRESHOLD_STEP và chọn ngưỡng
+    F1_UP cao nhất — nhưng chỉ trong số ngưỡng vượt được 2 rào chắn.
+
+    Hai rào chắn (vì sao cần):
+    1. ``predicted_up_ratio <= THRESHOLD_MAX_PREDICTED_UP_RATIO`` — chặn kiểu
+       "gian lận" kinh điển: hạ ngưỡng xuống rất thấp để dự đoán UP cho gần
+       như mọi dòng. Khi đó recall_up ≈ 1 và F1_UP trông đẹp, nhưng model
+       thực chất không phân biệt được gì (đúng bằng baseline Always UP).
+    2. ``precision >= up_rate`` — precision phải ít nhất bằng tỷ lệ UP tự
+       nhiên của dữ liệu (``up_rate``). Đoán bừa UP cho ngẫu nhiên một số
+       dòng cũng đã đạt precision ≈ up_rate; nên dưới mức đó là model tệ hơn
+       cả đoán bừa và không được phép chọn.
+
+    ``+ 1e-12``: bù sai số dấu phẩy động, để một ngưỡng đúng-bằng-giới-hạn
+    (vd. precision bằng chằn chặn up_rate) không bị loại oan vì lệch bit.
+
+    ``THRESHOLD_MAX + THRESHOLD_STEP / 2`` trong ``np.arange``: arange loại
+    trừ điểm cuối, cộng nửa bước để THRESHOLD_MAX chắc chắn được quét, đồng
+    thời không kéo thêm một bước dư (cộng đủ 1 bước sẽ sinh ngưỡng ngoài dải).
+
+    Tie-break xác định (deterministic): sort theo (F1, precision, threshold)
+    giảm dần theo F1 rồi precision, cuối cùng ưu tiên threshold LỚN hơn. Nhờ
+    khóa thứ ba này, hai lần chạy trên cùng dữ liệu luôn ra cùng một ngưỡng —
+    điều kiện để fingerprint/CV provenance ở Tuning Lab còn ý nghĩa.
+    """
+    y_true = np.asarray(y_true, dtype=int)
+    probabilities = np.asarray(probabilities, dtype=float)
+    if len(y_true) == 0 or len(y_true) != len(probabilities):
+        raise ValueError("OOF labels and probabilities must be non-empty and aligned.")
+
+    up_rate = float(np.mean(y_true))
+    candidates = []
+    for threshold in np.arange(
+        THRESHOLD_MIN, THRESHOLD_MAX + THRESHOLD_STEP / 2, THRESHOLD_STEP
+    ):
+        # arange trên float tích lũy sai số (0.35000000000000003); round 2 chữ số
+        # để ngưỡng ghi ra report/artifact là số "đẹp" và so sánh được bằng ==.
+        threshold = round(float(threshold), 2)
+        predicted = (probabilities >= threshold).astype(int)
+        # Trung bình của vector 0/1 = tỷ lệ dòng bị dự đoán UP.
+        predicted_up_ratio = float(np.mean(predicted))
+        precision = float(
+            precision_score(y_true, predicted, pos_label=1, zero_division=0)
+        )
+        if (
+            predicted_up_ratio <= THRESHOLD_MAX_PREDICTED_UP_RATIO + 1e-12
+            and precision + 1e-12 >= up_rate
+        ):
+            candidates.append(
+                (
+                    float(f1_score(y_true, predicted, pos_label=1, zero_division=0)),
+                    precision,
+                    threshold,
+                    predicted_up_ratio,
+                    float(recall_score(y_true, predicted, pos_label=1, zero_division=0)),
+                )
+            )
+    if not candidates:
+        # Không có ngưỡng nào hợp lệ = cấu hình này không dùng được. Cố tình
+        # raise thay vì fallback 0.5, để cấu hình xấu không lọt vào pipeline.
+        raise ValueError("No OOF threshold satisfies precision and UP-ratio constraints.")
+
+    # max trên tuple = so sánh theo thứ tự phần tử: F1 → precision → threshold.
+    f1_up, precision_up, threshold, predicted_up_ratio, recall_up = max(
+        candidates, key=lambda item: (item[0], item[1], item[2])
+    )
+    return {
+        "decision_threshold": threshold,
+        "oof_f1_up": f1_up,
+        "oof_precision_up": precision_up,
+        "oof_recall_up": recall_up,
+        "oof_up_rate": up_rate,
+        "oof_predicted_up_ratio": predicted_up_ratio,
+        "threshold_constraint_passed": True,
+    }
 
 
 def build_estimator(model_id: int, params: dict):
@@ -115,26 +197,39 @@ def build_estimator(model_id: int, params: dict):
     raise ValueError(f"Unsupported model_id for build_estimator: {model_id}")
 
 
-def run_cv_metrics(estimator, X: pd.DataFrame, y: pd.Series, model_id: int | None = None) -> dict:
-    """Run TimeSeriesSplit CV on TRAIN and return F1/precision/recall for UP.
+def run_cv_metrics(
+    estimator, train: pd.DataFrame, model_id: int | None = None
+) -> dict:
+    """Chạy purged CV trên TRAIN, chọn 1 ngưỡng từ xác suất OOF gộp.
 
-    The decision threshold is tuned on each TRAIN fold and applied to the held-out
-    VAL fold. It does not read VAL labels while selecting the threshold, but the
-    threshold is still selected from in-sample TRAIN predictions. Also, gap=5 is
-    five pooled rows rather than five trading dates; CV can therefore be optimistic.
+    Trình tự (thứ tự này quan trọng):
+    1. Sort panel xác định → fit từng fold → thu (y_val, P(UP)) của MỌI fold.
+    2. Gộp toàn bộ fold lại thành một mảng OOF duy nhất, chọn 1 ngưỡng chung.
+    3. Mới dùng ngưỡng đó tính lại F1/precision/recall trên từng fold.
 
-    GradientBoostingClassifier has no class_weight param (unlike RandomForest's
-    balanced_subsample and LogisticRegression's balanced), so when model_id == 4
-    we pass a "balanced" sample_weight into fit() to reach the same effect.
+    Vì sao gộp rồi mới chọn ngưỡng, thay vì chọn ngưỡng tối ưu riêng từng
+    fold: chọn riêng từng fold nghĩa là mỗi fold được tự chỉnh cho vừa dữ
+    liệu validation của chính nó → điểm CV bị thổi phồng, và cũng không trả
+    về được MỘT ngưỡng để đem đi production. Gộp OOF cho ra một ngưỡng duy
+    nhất, và điểm từng fold trở thành đánh giá trung thực của ngưỡng đó.
+
+    ``model_id == 4`` (Gradient Boosting) được xử lý riêng: LR có
+    ``class_weight="balanced"``, RF có ``balanced_subsample``, nhưng
+    GradientBoostingClassifier KHÔNG có tham số class_weight. Cách duy nhất
+    cân bằng lớp cho GB là truyền ``sample_weight`` vào ``fit``. Thiếu dòng
+    này GB sẽ bị lớp NOT_UP áp đảo và gần như không bao giờ dự đoán UP.
     """
-    cv = _time_series_cv()
-    X = X.reset_index(drop=True)
-    y = y.reset_index(drop=True)
-    y_arr = np.asarray(y)
+    required = {*FEATURE_COLUMNS, "symbol", "trading_date", "label_end_date", "target"}
+    if missing := required - set(train.columns):
+        raise ValueError(f"TRAIN missing CV columns: {sorted(missing)}")
 
-    f1_folds, precision_folds, recall_folds, threshold_folds = [], [], [], []
-    for train_idx, val_idx in cv.split(X):
-        # Mỗi fold tạo model mới để không mang trạng thái học từ fold trước.
+    frame = sort_panel_frame(train)
+    X = frame[FEATURE_COLUMNS]
+    y_arr = frame["target"].to_numpy()
+    fold_outputs, fold_ranges = [], []
+    for fold_number, (train_idx, val_idx) in enumerate(
+        iter_purged_date_splits(frame), start=1
+    ):
         model = clone(estimator)
         X_tr, y_tr = X.iloc[train_idx], y_arr[train_idx]
         X_val, y_val = X.iloc[val_idx], y_arr[val_idx]
@@ -143,32 +238,110 @@ def run_cv_metrics(estimator, X: pd.DataFrame, y: pd.Series, model_id: int | Non
         else:
             model.fit(X_tr, y_tr)
 
-        # Threshold tối ưu F1 trên fold-train, sau đó mới chấm fold-validation.
-        threshold = tune_threshold(y_tr, _proba_up(model, X_tr))
-        y_pred = (_proba_up(model, X_val) >= threshold).astype(int)
+        fold_outputs.append((y_val, _proba_up(model, X_val)))
+
+        train_fold = frame.iloc[train_idx]
+        validation_fold = frame.iloc[val_idx]
+        fold_ranges.append(
+            {
+                "fold": fold_number,
+                "train_start": str(train_fold["trading_date"].min()),
+                "train_end": str(train_fold["trading_date"].max()),
+                "train_label_end_max": str(train_fold["label_end_date"].max()),
+                "validation_start": str(validation_fold["trading_date"].min()),
+                "validation_end": str(validation_fold["trading_date"].max()),
+                "train_rows": int(len(train_fold)),
+                "validation_rows": int(len(validation_fold)),
+            }
+        )
+
+    # Nối nhãn của mọi fold thành 1 mảng, xác suất của mọi fold thành 1 mảng.
+    # Mỗi dòng TRAIN nằm trong validation của đúng 1 fold, nên mảng gộp này là
+    # dự đoán out-of-fold (OOF): không dòng nào được model của chính nó chấm.
+    threshold_metrics = select_oof_threshold(
+        np.concatenate([item[0] for item in fold_outputs]),
+        np.concatenate([item[1] for item in fold_outputs]),
+    )
+    # Một ngưỡng chung, áp lại cho từng fold → mean/std phản ánh độ ổn định
+    # của ngưỡng đó qua thời gian, không phải độ ổn định của việc tự chỉnh ngưỡng.
+    threshold = threshold_metrics["decision_threshold"]
+    f1_folds, precision_folds, recall_folds = [], [], []
+    for y_val, probabilities in fold_outputs:
+        y_pred = (probabilities >= threshold).astype(int)
         f1_folds.append(f1_score(y_val, y_pred, pos_label=1, zero_division=0))
-        precision_folds.append(precision_score(y_val, y_pred, pos_label=1, zero_division=0))
+        precision_folds.append(
+            precision_score(y_val, y_pred, pos_label=1, zero_division=0)
+        )
         recall_folds.append(recall_score(y_val, y_pred, pos_label=1, zero_division=0))
-        threshold_folds.append(threshold)
 
     return {
         "f1_up_mean": float(np.mean(f1_folds)),
         "f1_up_std": float(np.std(f1_folds)),
         "f1_up_folds": [float(v) for v in f1_folds],
+        "precision_up_folds": [float(v) for v in precision_folds],
+        "recall_up_folds": [float(v) for v in recall_folds],
         "precision_up_mean": float(np.mean(precision_folds)),
         "recall_up_mean": float(np.mean(recall_folds)),
-        "decision_threshold": float(np.mean(threshold_folds)),
+        "fold_date_ranges": fold_ranges,
+        **threshold_metrics,
     }
 
 
-def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dict]:
-    """Train models from manual_config.json, re-running CV on the current TRAIN.
+def _cv_from_selected(choice: dict) -> dict:
+    """Dựng lại nguyên kết quả CV đã trả giá tính toán ở Tuning Lab.
 
-    The CV score in manual_config is only provenance; here we always recompute
-    CV against the current data so the reported numbers stay correct even after
-    the dataset changes.
+    Pipeline chính KHÔNG chạy lại CV. Người dùng đã chạy CV trong Tuning Lab
+    và chốt cấu hình; hàm này chỉ đọc lại số cũ từ ``manual_config.json``.
+    Lợi ích: pipeline nhanh hơn nhiều, và số CV trong báo cáo khớp chính xác
+    số người dùng thấy khi chọn (không lệch do random state hay dữ liệu mới).
+
+    Khối kiểm tra ``required`` là chốt an toàn cho việc tái dùng đó: nếu bản
+    ghi cũ thiếu field, hoặc số fold lưu được khác ``CV_N_SPLITS`` hiện hành
+    (ví dụ config tạo từ thời cấu hình CV khác), ta raise thay vì im lặng
+    xuất báo cáo với provenance khuyết.
     """
-    train_sorted = train.sort_values("trading_date").reset_index(drop=True)
+    cv = {
+        "f1_up_mean": choice.get("cv_f1_up_mean"),
+        "f1_up_std": choice.get("cv_f1_up_std"),
+        "f1_up_folds": list(choice.get("f1_up_folds") or []),
+        "precision_up_mean": choice.get("cv_precision_up_mean"),
+        "precision_up_folds": list(choice.get("precision_up_folds") or []),
+        "recall_up_mean": choice.get("cv_recall_up_mean"),
+        "recall_up_folds": list(choice.get("recall_up_folds") or []),
+        "fold_date_ranges": list(choice.get("fold_date_ranges") or []),
+        "decision_threshold": choice.get("decision_threshold"),
+        "oof_f1_up": choice.get("oof_f1_up"),
+        "oof_precision_up": choice.get("oof_precision_up"),
+        "oof_recall_up": choice.get("oof_recall_up"),
+        "oof_up_rate": choice.get("oof_up_rate"),
+        "oof_predicted_up_ratio": choice.get("oof_predicted_up_ratio"),
+        "threshold_constraint_passed": choice.get("threshold_constraint_passed"),
+    }
+    required = (
+        "f1_up_mean",
+        "f1_up_std",
+        "precision_up_mean",
+        "recall_up_mean",
+        "decision_threshold",
+        "oof_up_rate",
+        "oof_predicted_up_ratio",
+    )
+    if any(cv[field] is None for field in required) or any(
+        len(cv[field]) != CV_N_SPLITS
+        for field in (
+            "f1_up_folds",
+            "precision_up_folds",
+            "recall_up_folds",
+            "fold_date_ranges",
+        )
+    ):
+        raise ValueError("Selected tuning run lacks complete CV provenance.")
+    return cv
+
+
+def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dict]:
+    """Fit selected configs once on TRAIN, reusing their fingerprinted CV runs."""
+    train_sorted = sort_panel_frame(train)
     X_train = train_sorted[FEATURE_COLUMNS]
     y_train = train_sorted["target"]
 
@@ -190,48 +363,58 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
             f"Thieu cau hinh cho: {', '.join(missing)}. Hay chot du 3 model trong Tuning Lab."
         )
 
+    # Ba cửa kiểm tra dưới đây bảo đảm "cấu hình đã chốt" và "dữ liệu đang
+    # train" là cùng một thế giới:
+    #   policy_id            → cùng luật thí nghiệm (horizon, ngưỡng, cách split)
+    #   dataset_fingerprint  → cùng phạm vi dữ liệu (số dòng/mã/khoảng ngày)
+    #   content_fingerprint  → cùng NỘI DUNG dữ liệu (giá trị từng ô)
+    # Thiếu cửa content: fetch lại dữ liệu, nhà cung cấp sửa giá cũ nhưng số
+    # dòng không đổi → fingerprint phạm vi vẫn khớp, và ta sẽ dùng số CV của
+    # dữ liệu đã lỗi thời mà không hay biết.
     current = compute_dataset_fingerprint()
+    if config.get("policy_id") != EXPERIMENT_POLICY_ID:
+        raise ValueError("manual_config.json không thuộc experiment policy hiện hành.")
     if config.get("dataset_fingerprint") != current["hash"]:
         raise ValueError(
             "manual_config.json thuoc dataset khac (fingerprint khong khop). "
             "Hay tuning lai trong Tuning Lab voi du lieu hien tai."
         )
+    if config.get("content_fingerprint") != current.get("content_hash"):
+        raise ValueError("manual_config.json không khớp content fingerprint hiện tại.")
+    if not is_config_complete(config, current["hash"]):
+        raise ValueError(
+            "Cần cấu hình CV do người dùng tự chọn cho cả LR, RF, GB."
+        )
 
     tuning_rows = []
+    fold_rows = []
     best_params = {}
     fitted_artifacts: dict[int, dict] = {}
 
-    # Dummy luôn đoán lớp phổ biến nhất; chỉ là baseline, không được chọn final.
-    dummy = DummyClassifier(strategy="most_frequent", random_state=RANDOM_STATE)
-    dummy.fit(X_train, y_train)
-    dummy_artifact = _make_artifact(
-        1, dummy, cv_f1_up=None, best_params={}, decision_threshold=0.5
-    )
-    joblib.dump(dummy_artifact, MODEL_PATHS[1])
-    fitted_artifacts[1] = dummy_artifact
-
     for model_id in TUNABLE_MODEL_IDS:
         model_key = MODEL_KEY[model_id]
-        params = selected[model_key].get("params", {})
+        choice = selected[model_key]
+        params = choice.get("params", {})
 
-        # CV tạo metric; fit ngay sau đó huấn luyện artifact trên toàn TRAIN.
+        # CV đã chạy một lần trong Tuning Lab; pipeline chỉ fit full TRAIN.
         estimator = build_estimator(model_id, params)
-        cv = run_cv_metrics(estimator, X_train, y_train, model_id=model_id)
+        cv = _cv_from_selected(choice)
         if model_id == 4:
             estimator.fit(X_train, y_train, sample_weight=compute_sample_weight("balanced", y_train))
         else:
             estimator.fit(X_train, y_train)
 
-        decision_threshold = tune_threshold(y_train, _proba_up(estimator, X_train))
         artifact = _make_artifact(
             model_id,
             estimator,
             cv_f1_up=cv["f1_up_mean"],
             best_params=params,
-            decision_threshold=decision_threshold,
+            decision_threshold=float(cv["decision_threshold"]),
         )
         artifact["cv_metrics"] = cv
-        joblib.dump(artifact, MODEL_PATHS[model_id])
+        artifact["policy_id"] = EXPERIMENT_POLICY_ID
+        artifact["content_fingerprint"] = current.get("content_hash", current["hash"])
+        artifact["train_through_date"] = str(train_sorted["label_end_date"].max())
         fitted_artifacts[model_id] = artifact
 
         tuning_rows.append(
@@ -242,23 +425,44 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
                 "cv_f1_up_std": cv["f1_up_std"],
                 "cv_precision_up": cv["precision_up_mean"],
                 "cv_recall_up": cv["recall_up_mean"],
+                "decision_threshold": cv["decision_threshold"],
+                "oof_predicted_up_ratio": cv["oof_predicted_up_ratio"],
+                "threshold_constraint_passed": cv["threshold_constraint_passed"],
                 "best_score": cv["f1_up_mean"],
                 "cv_n_splits": CV_N_SPLITS,
-                "cv_gap": CV_GAP,
+                "cv_gap": CV_GAP_SESSIONS,
             }
         )
         best_params[MODEL_DEFINITIONS[model_id]] = params
+        for index, fold_range in enumerate(cv["fold_date_ranges"]):
+            fold_rows.append(
+                {
+                    "model_id": model_id,
+                    "model_name": MODEL_DEFINITIONS[model_id],
+                    "policy_id": EXPERIMENT_POLICY_ID,
+                    "content_fingerprint": current.get("content_hash", current["hash"]),
+                    "params_json": json.dumps(params, sort_keys=True, ensure_ascii=False),
+                    **fold_range,
+                    "f1_up": cv["f1_up_folds"][index],
+                    "precision_up": cv["precision_up_folds"][index],
+                    "recall_up": cv["recall_up_folds"][index],
+                    "decision_threshold": cv["decision_threshold"],
+                }
+            )
 
     tuning_df = pd.DataFrame(tuning_rows)
     TUNING_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tuning_df.to_csv(TUNING_RESULTS_PATH, index=False)
+    atomic_dataframe_to_csv(tuning_df, TUNING_RESULTS_PATH, index=False)
+    atomic_dataframe_to_csv(
+        pd.DataFrame(fold_rows), CV_FOLD_RESULTS_PATH, index=False
+    )
     write_json(
         BEST_PARAMS_PATH,
         {
             "cv_n_splits": CV_N_SPLITS,
-            "cv_gap": CV_GAP,
+            "cv_gap": CV_GAP_SESSIONS,
             "scoring": TUNING_SCORING,
-            "source": "manual_config",
+            "source": "selected_tuning_run",
             "dataset_fingerprint": current["hash"],
             "best_params": best_params,
         },
@@ -267,8 +471,8 @@ def tune_models(train: pd.DataFrame) -> tuple[dict[int, dict], pd.DataFrame, dic
     return fitted_artifacts, tuning_df, {
         "tuned_models": len(TUNABLE_MODEL_IDS),
         "cv_n_splits": CV_N_SPLITS,
-        "cv_gap": CV_GAP,
-        "source": "manual_config",
+        "cv_gap": CV_GAP_SESSIONS,
+        "source": "selected_tuning_run",
         "dataset_fingerprint": current["hash"],
     }
 
@@ -280,16 +484,32 @@ def _make_artifact(
     best_params: dict,
     decision_threshold: float,
 ) -> dict:
+    """Đóng gói model đã fit kèm ĐỦ metadata để tầng serving tự kiểm tra được.
+
+    Artifact không chỉ chứa model — nó chứa cả hợp đồng suy luận, vì file .pkl
+    sống lâu hơn code sinh ra nó:
+    - ``feature_columns``/``feature_order``: cùng một ``FEATURE_COLUMNS`` nhưng lưu
+      hai key để tương thích artifact cũ; serving so thứ tự này với dataset hiện
+      tại, lệch thì từ chối dự báo (cột đúng tên nhưng sai thứ tự sẽ cho ra số
+      trông-vẫn-hợp-lý mà hoàn toàn sai).
+    - ``decision_threshold``: ngưỡng chọn từ OOF, KHÔNG phải 0.5. Không lưu kèm
+      thì lúc dự báo phải đoán ngưỡng → sai toàn bộ nhãn UP/NOT_UP.
+    - ``up_threshold`` + ``prediction_horizon``: định nghĩa nhãn (tăng ≥1% sau 5
+      phiên). Đây là ý nghĩa của con số model xuất ra, đổi thì artifact vô nghĩa.
+    - ``cv_config`` + ``cv_f1_up`` + ``best_params``: dấu vết tái lập, cho phép
+      truy lại run tuning nào sinh ra model này.
+    """
     return {
         "model": model,
         "model_id": model_id,
         "model_name": MODEL_DEFINITIONS[model_id],
         "feature_columns": FEATURE_COLUMNS,
+        "feature_order": FEATURE_COLUMNS,
         "prediction_horizon": PREDICTION_HORIZON,
         "up_threshold": UP_THRESHOLD,
         "decision_threshold": decision_threshold,
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "cv_f1_up": cv_f1_up,
         "best_params": best_params,
-        "cv_config": {"n_splits": CV_N_SPLITS, "gap": CV_GAP},
+        "cv_config": {"n_splits": CV_N_SPLITS, "gap_sessions": CV_GAP_SESSIONS},
     }

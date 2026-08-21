@@ -1,0 +1,201 @@
+/* page-evaluation.css — phần riêng của trang Đánh giá model (evaluation.html).
+
+   Nạp qua {% block page_styles %} nên đứng SAU app.css + ui-kit.css: được phép
+   ghi đè hai file đó, nhưng ở đây chỉ thêm lớp mới, không restyle lớp chung.
+
+   Ngôn ngữ thiết kế giữ nguyên "editorial data-terminal": nền giấy, mực đơn sắc,
+   số liệu mono tabular. Nguyên tắc riêng của trang này: KHÔNG dùng màu ngữ nghĩa
+   tài chính (--up / --down) để nói "model tốt hơn". Trong app này --up nghĩa là
+   "dự báo giá tăng"; tô metric bằng nó sẽ đọc thành khuyến nghị mua. Chất lượng
+   model chỉ được đánh dấu bằng mực trung tính + dấu hình học.
+
+   Mọi màu đi qua var() nên dark mode tự đúng, không có hex trần. */
+
+/* ============================================================
+   1. Ô cao nhất mỗi cột trong bảng so sánh
+   ============================================================ */
+
+/* Số và dấu ✓ nằm cùng dòng, dấu đẩy sang phải để cột số vẫn thẳng hàng. */
+.metric-cell {
+    white-space: nowrap;
+}
+
+.metric-cell-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Đánh dấu bằng ba tín hiệu độc lập với màu: viền trái đậm, chữ in đậm, dấu ✓.
+   Người mù màu hoặc in trắng đen vẫn đọc được. */
+.metric-cell.is-best {
+    box-shadow: inset 2px 0 0 var(--ink);
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.best-mark {
+    margin-left: var(--space-2);
+    color: var(--ink-soft);
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.best-legend {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+/* Dòng chú giải: dấu ✓ ở đây chỉ là hình minh hoạ, không thụt theo bảng. */
+.best-legend .best-mark {
+    margin-left: 0;
+}
+
+/* ============================================================
+   2. Trạng thái rỗng (chưa chạy pipeline lần nào)
+   ============================================================ */
+.eval-empty {
+    margin-top: var(--space-5);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-md);
+    background: var(--paper-2);
+}
+
+.eval-empty code {
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    font-family: var(--mono);
+    font-size: 12px;
+}
+
+/* ============================================================
+   3. Biểu đồ so sánh model
+   ============================================================ */
+.eval-chart-card {
+    margin-top: var(--space-5);
+}
+
+/* Cao hơn .chart-wrap mặc định (360px): 4 nhóm × 3 cột cần chỗ cho nhãn trục. */
+.eval-chart-wrap {
+    height: 380px;
+}
+
+@media (max-width: 720px) {
+    .eval-chart-wrap {
+        height: 320px;
+    }
+}
+
+/* ============================================================
+   4. Khối kết quả Final Model trên TEST
+   ============================================================ */
+.final-test-block {
+    margin-top: var(--space-6);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--line-soft);
+}
+
+.final-test-title {
+    margin: 0 0 var(--space-2);
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* .fetch-stats của app.css là grid 3 cột; 6 thẻ ở đây xếp vừa 2 hàng nên giữ
+   nguyên, chỉ thu nhỏ cỡ số cho khớp 4 chữ số thập phân. */
+.eval-final-stats .fetch-stat-value {
+    font-size: 22px;
+}
+
+.eval-final-stats .fetch-stat-value-sm {
+    font-size: 15px;
+    /* Tên model dài (Gradient Boosting) phải xuống dòng thay vì tràn thẻ. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   5. Ma trận nhầm lẫn nhúng inline
+   ============================================================ */
+.cm-figure {
+    margin: var(--space-5) 0 0;
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--panel);
+    box-shadow: var(--shadow-sm);
+}
+
+/* width/height trên <img> giữ chỗ sẵn theo tỉ lệ 800x640 → không giật layout khi
+   ảnh tải xong. height:auto để tỉ lệ đúng khi bị co lại. */
+.cm-image {
+    display: block;
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    margin: 0 auto;
+    border-radius: var(--r-sm);
+    background: var(--panel);
+}
+
+.cm-caption {
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+    text-align: center;
+    text-wrap: pretty;
+}
+
+/* Ảnh do matplotlib xuất ra có nền trắng và chữ đen cố định. Ở dark mode nó thành
+   một khối trắng chói. Giảm sáng nhẹ + hạ tương phản thay vì invert (invert sẽ
+   đảo luôn thang màu của heatmap → đọc sai số liệu). */
+[data-theme="dark"] .cm-image {
+    filter: brightness(0.88) contrast(0.94);
+}
+
+.cm-missing {
+    margin: var(--space-5) 0 0;
+    padding: var(--space-4);
+    border: 1px dashed var(--warn-line);
+    border-radius: var(--r-md);
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: 13px;
+    line-height: 1.65;
+}
+
+.cm-missing code {
+    font-family: var(--mono);
+    font-size: 12px;
+}
+
+/* [hidden] mặc định là display:none, nhưng display ở rule trên có thể ghi đè khi
+   thứ tự cascade đổi → khoá lại cho chắc. */
+.cm-figure[hidden],
+.cm-missing[hidden] {
+    display: none;
+}
+
+/* ============================================================
+   6. Giảm chuyển động
+   ============================================================ */
+/* Trang này không tự chạy animation nào (stagger + countUp do ui-kit lo và ui-kit
+   đã tự tắt khi reduced motion). Nhánh dưới chỉ khoá phần transition mà lớp
+   chung có thể áp lên thẻ số liệu, để tổng thể không còn chuyển động nào. */
+@media (prefers-reduced-motion: reduce) {
+    .eval-final-stats .fetch-stat-card,
+    .cm-image {
+        transition: none;
+        animation: none;
+    }
+}

@@ -1,39 +1,36 @@
-<!doctype html>
-<!-- Tuning Lab: form gửi tham số về Flask; CV thật chạy ở service trên TRAIN. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tuning Lab — HOSE ML</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
-            <div>
-                <p class="eyebrow">Tuning Lab</p>
-                <h1>Tự tìm cấu hình cho từng model</h1>
-                <p class="subtitle">
-                    Nhập hyperparameter, train và đánh giá CV F1 (lớp UP) chỉ trên tập TRAIN.
-                    Tập TEST chỉ dùng một lần ở pipeline chính thức.
-                </p>
-            </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('index') }}">Trang dự báo</a>
-                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
-            </div>
-        </nav>
+{% extends "base.html" %}
+{# Tuning Lab: form gửi tham số về Flask; CV thật chạy ở service trên TRAIN.
+   AJAX chỉ thay #main-content (không nuốt shell) — xem block page_scripts. #}
 
+{% block title %}Tuning Lab — HOSE ML{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='tuning-lab.css') }}?v={{ asset_ver }}">
+{% endblock %}
+
+{% block page_header %}
+<p class="eyebrow">Tuning Lab</p>
+<h1>Tự tìm cấu hình cho từng model</h1>
+<p class="subtitle">
+    Tự nhập hyperparameter và chạy CV bao nhiêu lần tùy ý; hệ thống luôn đánh dấu cấu hình tốt nhất.
+    Khi muốn dừng, chọn một cấu hình cho từng model. CV chỉ dùng TRAIN;
+    VALIDATION chọn loại model và TEST chỉ đánh giá một lần.
+</p>
+{% endblock %}
+
+{% block dataset_status %}{% endblock %}
+
+{% block content %}
+        {% if fingerprint_parts %}
         <p class="dataset-banner">
             Dataset fingerprint hiện tại: <strong>{{ current_fingerprint }}</strong>
             — {{ fingerprint_parts.dataset_rows }} dòng,
             đến ngày <strong>{{ fingerprint_parts.max_trading_date or "—" }}</strong>.
-            CV: TimeSeriesSplit(n_splits={{ manual_config.cv_settings.n_splits }},
-            gap={{ manual_config.cv_settings.gap }}), metric = F1_UP.
+            Cấu hình đánh giá rolling theo dữ liệu hiện tại.
+                CV: 4 fold theo ngày từ 2021, gap 5 phiên, purge label overlap,
+                threshold OOF riêng từng model.
         </p>
+        {% endif %}
 
         {% if error %}
         <section class="alert" role="alert">{{ error }}</section>
@@ -46,69 +43,193 @@
         {% if config_stale %}
         <section class="alert warn" role="alert">
             Cấu hình đã chốt thuộc dataset khác (fingerprint {{ manual_config.dataset_fingerprint }}).
-            Dữ liệu hiện tại đã thay đổi — hãy train lại và chốt cấu hình mới.
+            Dữ liệu hiện tại đã thay đổi. Hãy chạy CV và tự chọn lại cấu hình.
         </section>
         {% endif %}
 
-        {% if eval_result %}
+        {# Vùng trạng thái job CV. Trước đây cả trang tự reload bằng
+           <meta http-equiv="refresh" content="5"> — mỗi 5s scroll nhảy về đầu
+           trang và mọi ô input đang gõ ở 2 model còn lại bị xoá. Nay chỉ chính
+           element này bị thay bằng fetch + DOMParser trong static/tuning-lab.js.
+           data-job-running là cờ duy nhất mà JS đọc để quyết định có poll hay
+           không (đừng suy từ sự tồn tại của panel). #}
+        <div id="tuning-job-status" class="job-status-region"
+             data-job-status="{{ tuning_job.status | default('idle', true) }}"
+             {% if tuning_job.status == "running" %}data-job-running="1"{% endif %}
+             {% if tuning_job.status == "running" and tuning_job.started_at %}data-job-started="{{ tuning_job.started_at }}"{% endif %}>
+        {% if tuning_job.status == "running" %}
+        {# Không đặt aria-live ở đây: đồng hồ nhích mỗi giây sẽ bị đọc lại liên
+           tục. Lúc CV xong, tuning-lab.js báo bằng toast (#toast-stack của
+           base.html vốn đã là live region ổn định). #}
+        <section class="job-running-panel">
+            <div class="job-running-head">
+                <p class="job-running-title">
+                    Đang chạy CV nền cho {{ history_model_labels.get(tuning_job.model_key, tuning_job.model_key) }}.
+                    Trang tự cập nhật phần này, không tải lại cả trang.
+                </p>
+                {% if tuning_job.started_at %}
+                <span class="job-elapsed-label">Đã chạy</span>
+                {# role="timer" có aria-live ngầm là off — số nhích mỗi giây
+                   không làm screen reader đọc lặp. #}
+                <span class="job-elapsed" id="tuning-job-elapsed" role="timer"
+                      aria-label="Thời gian job CV đã chạy">—</span>
+                {% endif %}
+            </div>
+            {# Thanh vô định: CV không báo được % thật (4 fold, thời gian mỗi fold
+               khác nhau), nên chỉ thể hiện "vẫn đang chạy". #}
+            <div class="progress-indeterminate" aria-hidden="true"><span></span></div>
+            <p class="job-running-meta">Job {{ tuning_job.job_id }}</p>
+        </section>
+        {% elif tuning_job.status == "error" %}
+        <section class="alert" role="alert">
+            Job {{ tuning_job.job_id }} thất bại: {{ tuning_job.error }}
+        </section>
+        {% elif tuning_job.status == "completed" and tuning_job.result %}
+        {% set eval_result = tuning_job.result %}
         <section class="result-panel cv-result">
-            <p class="section-label">Kết quả CV vừa chạy — {{ eval_result.model_name }}</p>
+            <p class="section-label">CV hoàn tất — {{ eval_result.model_name }}</p>
             <p class="summary-line">
                 CV F1_UP = <strong>{{ "%.4f"|format(eval_result.cv_f1_up_mean) }}</strong>
                 ± {{ "%.4f"|format(eval_result.cv_f1_up_std) }}
                 (Precision_UP {{ "%.4f"|format(eval_result.precision_up_mean) }},
                 Recall_UP {{ "%.4f"|format(eval_result.recall_up_mean) }},
+                Threshold {{ "%.2f"|format(eval_result.decision_threshold) }},
                 {{ "%.2f"|format(eval_result.train_seconds) }}s)
             </p>
-            <p class="folds">Điểm từng fold:
+            <p class="folds">Điểm từng fold</p>
+            {# Con số giữ nguyên trong .fold-bar-value; thanh chỉ thêm chiều dài
+               để so 4 fold bằng mắt. Thang tuyệt đối 0–1 (F1 luôn trong khoảng
+               này) nên độ dài đọc được như một giá trị, không chuẩn hóa theo max
+               của nhóm. Bề rộng là dữ liệu động nên buộc phải inline style. #}
+            <ul class="fold-bars">
                 {% for f in eval_result.cv_f1_up_folds %}
-                <span class="fold-chip">{{ "%.4f"|format(f) }}</span>
+                {% set raw_pct = (f | float) * 100 %}
+                {% set pct = 0 if raw_pct < 0 else (100 if raw_pct > 100 else raw_pct) %}
+                <li class="fold-bar-item" role="img"
+                    aria-label="Fold {{ loop.index }} trên {{ loop.length }}: CV F1_UP {{ "%.4f"|format(f) }}">
+                    <span class="fold-bar-head">
+                        <span class="fold-bar-label">Fold {{ loop.index }}</span>
+                        <span class="fold-bar-value">{{ "%.4f"|format(f) }}</span>
+                    </span>
+                    <span class="fold-bar-track">
+                        <span class="fold-bar-fill" style="width: {{ "%.2f"|format(pct) }}%;"></span>
+                    </span>
+                </li>
                 {% endfor %}
-            </p>
+            </ul>
             <form method="post" action="{{ url_for('tuning_use_config') }}">
                 <input type="hidden" name="run_id" value="{{ eval_result.run_id }}">
-                <button type="submit">Dùng cấu hình này (run {{ eval_result.run_id }})</button>
+                <button type="submit">Dùng cấu hình này</button>
             </form>
         </section>
         {% endif %}
+        </div>
 
         <section class="model-grid">
             {% for model_id, model_key in model_key_map.items() %}
-            <div class="model-card" id="card-{{ model_key }}">
-                <h2>{{ manual_config.selected_models.get(model_key) and "★ " or "" }}
-                    {% if model_key == "logistic_regression" %}Logistic Regression
-                    {% elif model_key == "random_forest" %}Random Forest
-                    {% else %}Gradient Boosting{% endif %}</h2>
+            {% set progress = tuning_progress.models.get(model_key) %}
+            {% set stored_choice = manual_config.selected_models.get(model_key) %}
+            {% set chosen = stored_choice if stored_choice and stored_choice.selection_method == "manual" else none %}
+            <div class="model-card{{ ' is-chosen' if chosen else '' }}" id="card-{{ model_key }}">
+                <header class="model-card-head">
+                    <h2>{% if chosen %}<span class="model-star" aria-label="Đã chọn cấu hình">★</span>{% endif %}
+                        {% if model_key == "logistic_regression" %}Logistic Regression
+                        {% elif model_key == "random_forest" %}Random Forest
+                        {% else %}Gradient Boosting{% endif %}</h2>
+                    <span class="try-count" title="Số lần chạy CV hợp lệ trên dataset hiện tại">
+                        {{ progress.valid_config_count }} lần CV
+                    </span>
+                </header>
                 <form class="train-form" method="post" action="{{ url_for('tuning_evaluate') }}">
                     <input type="hidden" name="model_key" value="{{ model_key }}">
-                    {% for field, spec in param_schema[model_key].items() %}
-                    <label for="{{ model_key }}-{{ field }}">{{ spec.label }}</label>
-                    {% if spec.type == "choice" %}
-                    <select id="{{ model_key }}-{{ field }}" name="{{ field }}">
-                        {% for choice in spec.choices %}
-                        <option value="{{ choice }}"
-                            {% if param_defaults[model_key][field] == choice %}selected{% endif %}>
-                            {{ choice }}</option>
+                    <div class="train-fields">
+                        {% for field, spec in param_schema[model_key].items() %}
+                        <div class="train-field">
+                            <label for="{{ model_key }}-{{ field }}">{{ spec.label }}</label>
+                            {% if spec.type == "choice" %}
+                            <select id="{{ model_key }}-{{ field }}" name="{{ field }}">
+                                {% for choice in spec.choices %}
+                                <option value="{{ choice }}"
+                                    {% if param_defaults[model_key][field] == choice %}selected{% endif %}>
+                                    {{ choice }}</option>
+                                {% endfor %}
+                            </select>
+                            {% else %}
+                            <input id="{{ model_key }}-{{ field }}" name="{{ field }}" type="text"
+                                   value="{{ param_defaults[model_key][field] }}">
+                            {% endif %}
+                        </div>
                         {% endfor %}
-                    </select>
-                    {% else %}
-                    <input id="{{ model_key }}-{{ field }}" name="{{ field }}" type="text"
-                           value="{{ param_defaults[model_key][field] }}">
-                    {% endif %}
-                    {% endfor %}
-                    <button type="submit">Train &amp; đánh giá CV</button>
+                    </div>
+                    <button type="submit" {% if tuning_running or pipeline_running or fetch_running %}disabled{% endif %}>
+                        Chạy thử CV
+                    </button>
                 </form>
-                {% set chosen = manual_config.selected_models.get(model_key) %}
-                {% if chosen %}
-                <p class="model-chip">
-                    Đã chốt: {{ chosen.params }}
-                    {% if chosen.cv_f1_up_mean_when_selected is not none %}
-                    (CV F1_UP lúc chốt {{ "%.4f"|format(chosen.cv_f1_up_mean_when_selected) }})
+
+                {% set best = progress.best_run %}
+                <div class="model-state">
+                    {% if chosen %}
+                    <div class="model-state-row is-current">
+                        <p class="model-state-label">Đang dùng</p>
+                        <ul class="param-kv">
+                            {% for key, value in chosen.params.items() %}
+                            <li><span>{{ key }}</span><b>{% if value is none %}None{% else %}{{ value }}{% endif %}</b></li>
+                            {% endfor %}
+                        </ul>
+                        <p class="model-state-metric">
+                            F1_UP <strong>{{ "%.4f"|format(chosen.cv_f1_up_mean) }}</strong>
+                            · thr {{ "%.2f"|format(chosen.decision_threshold|default(0.5, true)) }}
+                        </p>
+                    </div>
+                    {% else %}
+                    <div class="model-state-row is-empty">
+                        <p class="model-state-label">Đang dùng</p>
+                        <p class="model-state-metric muted">Chưa chọn cấu hình.</p>
+                    </div>
                     {% endif %}
-                </p>
-                {% else %}
-                <p class="model-chip muted">Chưa chốt cấu hình.</p>
-                {% endif %}
+
+                    {% if best %}
+                    <div class="model-state-row">
+                        <p class="model-state-label">CV cao nhất tham khảo</p>
+                        <ul class="param-kv">
+                            {% for key, value in best.params.items() %}
+                            <li><span>{{ key }}</span><b>{% if value is none %}None{% else %}{{ value }}{% endif %}</b></li>
+                            {% endfor %}
+                        </ul>
+                        <p class="model-state-metric">
+                            F1_UP <strong>{{ "%.4f"|format(best.cv_f1_up_mean) }}</strong>
+                            ± {{ "%.4f"|format(best.cv_f1_up_std) }}
+                            · thr {{ "%.2f"|format(best.decision_threshold|default(0.5, true)) }}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    {# Chênh lệch chỉ có nghĩa khi cả hai vế đều có số thật; thiếu một
+                       vế thì hai khối trên đã tự nói đủ. Dấu theo hướng "đang dùng −
+                       cao nhất": âm = đang bỏ lại hiệu năng trên bàn. #}
+                    {% if chosen and best
+                          and chosen.cv_f1_up_mean is not none
+                          and best.cv_f1_up_mean is not none %}
+                    {% set f1_delta = (chosen.cv_f1_up_mean | float) - (best.cv_f1_up_mean | float) %}
+                    {# Ngưỡng 1e-9 thay vì == 0: hai float cùng nguồn CSV/JSON có thể
+                       lệch ở chữ số cuối dù thực chất là cùng một run. #}
+                    {% set is_flat = f1_delta > -1e-9 and f1_delta < 1e-9 %}
+                    <div class="model-delta-row">
+                        <p class="model-delta-label">Chênh lệch so với CV cao nhất</p>
+                        <span class="delta {{ 'delta-flat' if is_flat else ('delta-up' if f1_delta > 0 else 'delta-down') }}">
+                            {{ "%+.4f"|format(f1_delta) }}
+                        </span>
+                        <p class="model-delta-note">
+                            {% if is_flat %}
+                            Cấu hình đang dùng đã là cấu hình có CV F1_UP cao nhất — không cần đổi.
+                            {% else %}
+                            Cấu hình đang dùng còn thấp hơn {{ "%.4f"|format(-f1_delta) }} F1_UP
+                            so với lần CV tốt nhất — có thể chốt lại cấu hình best ở bảng lịch sử.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
             {% endfor %}
         </section>
@@ -130,6 +251,8 @@
                 </span>
                 {% elif pipeline_running %}
                 <span class="status-badge status-badge-warn">Pipeline đang chiếm lock</span>
+                {% elif tuning_running %}
+                <span class="status-badge status-badge-warn">CV tuning đang chạy</span>
                 {% else %}
                 <span class="status-badge status-badge-idle">Sẵn sàng</span>
                 {% endif %}
@@ -166,7 +289,7 @@
 
             <div class="fetch-actions">
                 <form id="fetch-data-form" method="post" action="{{ url_for('tuning_fetch_data') }}">
-                    <button type="submit" class="btn-fetch" {% if fetch_running or pipeline_running %}disabled{% endif %}>
+                    <button type="submit" class="btn-fetch" {% if fetch_running or pipeline_running or tuning_running %}disabled{% endif %}>
                         Lấy dữ liệu mới
                     </button>
                 </form>
@@ -175,10 +298,11 @@
         </section>
 
         <section class="config-panel">
-            <p class="section-label">Cấu hình đã chốt &amp; chạy pipeline chính thức</p>
+            <p class="section-label">Cấu hình tự chọn &amp; pipeline chính thức</p>
             <ul class="config-summary">
                 {% for model_id, model_key in model_key_map.items() %}
-                {% set chosen = manual_config.selected_models.get(model_key) %}
+                {% set stored_choice = manual_config.selected_models.get(model_key) %}
+                {% set chosen = stored_choice if stored_choice and stored_choice.selection_method == "manual" else none %}
                 <li>
                     <strong>
                         {% if model_key == "logistic_regression" %}Logistic Regression
@@ -188,13 +312,13 @@
                     {% if chosen %}
                     <code>{{ chosen.params }}</code> (run {{ chosen.run_id }})
                     {% else %}
-                    <em class="muted">chưa chốt</em>
+                    <em class="muted">chưa chọn cấu hình</em>
                     {% endif %}
                 </li>
                 {% endfor %}
             </ul>
 
-            {% if test_locked %}
+                        {% if snapshot_evaluated %}
             <p class="alert warn">
                 TEST của dataset hiện tại đã được dùng (đã khóa để tránh leakage).
                 Cập nhật dữ liệu để có fingerprint mới nếu cần đánh giá lại.
@@ -203,143 +327,476 @@
             <p class="alert warn">Pipeline đang chạy, vui lòng đợi hoàn tất.</p>
             {% elif fetch_running %}
             <p class="alert warn">Đang làm mới dữ liệu — không thể chạy pipeline trong lúc này.</p>
+            {% elif tuning_running %}
+            <p class="alert warn">CV tuning đang chạy — chờ job hoàn tất.</p>
             {% elif not config_complete %}
             <p class="model-chip muted">
-                Cần chốt đủ 3 model trên dataset hiện tại mới chạy được pipeline.
+                Hãy chạy CV và tự chọn một cấu hình hợp lệ cho từng model.
             </p>
             {% endif %}
 
             <form id="run-pipeline-form" method="post" action="{{ url_for('tuning_run_pipeline') }}">
                 <button type="submit" {% if not can_run %}disabled{% endif %}>
-                    Chạy pipeline chính thức (train + đánh giá TEST + chọn final)
+                    Chạy pipeline chính thức (VALIDATION chọn model + TEST một lần)
                 </button>
             </form>
         </section>
 
+        {# Biểu đồ CV F1_UP theo thứ tự các lần thử — trả lời "đã hội tụ chưa?".
+           history_trend do app.py dựng; luôn đi qua (history_trend or []) vì biến
+           có thể chưa tồn tại (template này cũng render trong test với context tối
+           giản) và |tojson trên Undefined sẽ nổ. #}
+        {% set trend = history_trend or [] %}
+        <section class="history-panel cv-trend-panel">
+            <div class="cv-trend-head">
+                <p class="section-label">Diễn biến CV F1_UP qua các lần thử</p>
+                <p class="cv-trend-note">
+                    Mỗi điểm là một lần chạy CV hợp lệ trên dataset hiện tại, theo thứ tự thời gian.
+                    Đường phẳng dần nghĩa là thêm lần thử không còn cải thiện — có thể chốt cấu hình.
+                </p>
+            </div>
+            {% if trend %}
+            {# Số liệu đầu / cuối / cao nhất lặp lại trong aria-label để người dùng
+               screen reader nắm được xu hướng mà không cần đọc pixel của canvas. #}
+            {% set trend_first = (trend | first).f1 | float %}
+            {% set trend_last = (trend | last).f1 | float %}
+            {% set trend_best = trend | map(attribute='f1') | map('float') | max %}
+            <div class="cv-trend-canvas-wrap">
+                {# data-trend PHẢI dùng nháy ĐƠN. |tojson của Flask escape < > &
+                   và ' (thành ') nhưng KHÔNG escape dấu nháy kép, nên nếu
+                   bọc attribute bằng " thì mọi khóa JSON đều cắt attribute ngay
+                   ký tự thứ 3: data-trend chỉ còn "[{" → JSON.parse ném lỗi và
+                   biểu đồ im lặng không vẽ. #}
+                <canvas id="cv-trend-chart"
+                        data-trend='{{ trend | tojson }}'
+                        role="img"
+                        aria-label="Biểu đồ đường CV F1_UP qua {{ trend | length }} lần thử:
+                            lần đầu {{ "%.4f"|format(trend_first) }},
+                            lần gần nhất {{ "%.4f"|format(trend_last) }},
+                            cao nhất {{ "%.4f"|format(trend_best) }}
+                            ({{ 'lần gần nhất đang là cao nhất' if trend_last >= trend_best - 1e-9
+                                else 'lần gần nhất thấp hơn mức cao nhất %.4f F1_UP'|format(trend_best - trend_last) }})."></canvas>
+            </div>
+            {% else %}
+            <p class="cv-trend-empty">
+                Biểu đồ xuất hiện sau lần chạy CV đầu tiên trên dataset hiện tại.
+                Hãy chạy thử CV cho một model ở phần trên.
+            </p>
+            {% endif %}
+        </section>
+
         <section class="history-panel">
             <p class="section-label">Lịch sử huấn luyện theo model</p>
-            <div class="history-tabs" role="tablist" aria-label="Lọc lịch sử huấn luyện theo model">
-                {% for model_id, model_key in model_key_map.items() %}
-                {% set model_rows = history_by_model.get(model_key, []) %}
-                <button
-                    type="button"
-                    id="history-tab-{{ model_key }}"
-                    class="history-tab {{ 'is-active' if model_key == active_history_model else '' }}"
-                    data-history-tab="{{ model_key }}"
-                    aria-controls="history-panel-{{ model_key }}"
-                    aria-selected="{{ 'true' if model_key == active_history_model else 'false' }}"
-                    role="tab"
+            <nav class="history-tabs" aria-label="Chọn model cho lịch sử huấn luyện">
+                {% for tab in history_tabs %}
+                <a
+                    id="history-tab-{{ tab.model_key }}"
+                    class="history-tab {{ 'is-active' if tab.is_active else '' }}"
+                    href="{{ tab.url }}"
+                    {% if tab.is_active %}aria-current="page"{% endif %}
                 >
-                    <span>{{ history_model_labels.get(model_key, model_key) }}</span>
-                    <span class="history-tab-count">({{ model_rows|length }} lần)</span>
-                </button>
+                    <span>{{ tab.label }}</span>
+                    <span class="history-tab-count">({{ tab.count }} lần)</span>
+                </a>
+                {% endfor %}
+            </nav>
+
+            {% if history_filter_warnings %}
+            <div class="alert warn history-filter-warning" role="status">
+                {% for warning in history_filter_warnings %}
+                <span>{{ warning }}</span>
                 {% endfor %}
             </div>
+            {% endif %}
 
-            {% for model_id, model_key in model_key_map.items() %}
-            {% set model_rows = history_by_model.get(model_key, []) %}
-            <div
-                id="history-panel-{{ model_key }}"
-                class="history-tab-panel {{ 'is-active' if model_key == active_history_model else '' }}"
-                data-history-panel="{{ model_key }}"
-                aria-labelledby="history-tab-{{ model_key }}"
-                role="tabpanel"
-                {% if model_key != active_history_model %}hidden{% endif %}
-            >
-                <div class="table-wrap">
-                    <table class="history-table">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Thời điểm</th>
-                                <th>Model</th>
-                                <th>Tham số</th>
-                                <th>CV F1_UP</th>
-                                <th>±std</th>
-                                <th>Giây</th>
-                                <th>Dataset</th>
-                                <th>Trạng thái</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in model_rows %}
-                            <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'stale-row' if row.dataset_fingerprint != current_fingerprint else '' }}">
-                                <td>{{ '★' if row.is_best else '' }}</td>
-                                <td>{{ row.timestamp }}</td>
-                                <td>{{ row.model_name }}</td>
-                                <td class="params-cell"><code>{{ row.params }}</code></td>
-                                <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
-                                <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
-                                <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
-                                <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
-                                <td>{{ row.status }}</td>
-                                <td>
-                                    {% if row.status == 'ok' and row.dataset_fingerprint == current_fingerprint %}
-                                    <form method="post" action="{{ url_for('tuning_use_config') }}">
-                                        <input type="hidden" name="run_id" value="{{ row.run_id }}">
-                                        <button type="submit" class="link-btn">Dùng</button>
-                                    </form>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not model_rows %}
-                            <tr><td colspan="10" class="empty">Chưa có lần train nào cho model này.</td></tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+            <form class="history-filter-form" method="get" action="{{ url_for('tuning') }}">
+                <input type="hidden" name="history_model" value="{{ active_history_model }}">
+
+                <div class="history-filter-actions">
+                    <label class="history-check">
+                        <input type="checkbox" name="best" value="1" {% if history_filters.get('best') %}checked{% endif %}>
+                        <span>Chỉ cấu hình tốt nhất</span>
+                    </label>
+                    <label class="history-check">
+                        <input type="checkbox" name="selected" value="1" {% if history_filters.get('selected') %}checked{% endif %}>
+                        <span>Cấu hình đang dùng</span>
+                    </label>
+                    <button type="submit">Lọc kết quả</button>
+                    <a class="history-reset" href="{{ history_reset_url }}">Xóa bộ lọc</a>
                 </div>
+            </form>
+
+            {# Header sắp xếp của bảng lịch sử là <a> chứ không phải nút JS: bảng
+               phân trang 50 dòng/trang ở server nên phải sắp cả tập rồi mới cắt
+               trang. Link mang ?sort= tới backend, xoay vòng tăng → giảm → mặc
+               định. Class sort-link để handler AJAX bắt và chỉ thay #main-content. #}
+            {% macro sort_th(column, label, extra_class='') %}
+            {% set state = history_sort.get(column) %}
+            {% if state %}
+            {# is-sorted đặt trên <th> (không phải <a>) vì CSS nhắm `thead th.is-sorted`;
+               giống chỗ table-sort.js gắn class, để hai đường sort trông y hệt nhau. #}
+            {% set name = label|striptags %}
+            {% set now_label = 'tăng dần' if state.current == 'ascending'
+               else ('giảm dần' if state.current == 'descending' else 'thứ tự mặc định') %}
+            {% set next_label = 'giảm dần' if state.current == 'ascending'
+               else ('thứ tự mặc định' if state.current == 'descending' else 'tăng dần') %}
+            <th scope="col" class="th-sortable {{ extra_class }} {{ 'is-sorted' if state.current else '' }}"
+                {% if state.current %}aria-sort="{{ state.current }}"{% endif %}>
+                <a class="sort-btn sort-link" href="{{ state.url }}"
+                   title="Sắp xếp theo {{ name }} ({{ next_label }})"
+                   aria-label="{{ name }} — đang {{ now_label }}, bấm để {{ next_label }}">
+                    <span class="sort-label">{{ label|safe }}</span>
+                    <span class="sort-icon" aria-hidden="true">{{
+                        '▲' if state.current == 'ascending'
+                        else ('▼' if state.current == 'descending' else '⇅')
+                    }}</span>
+                </a>
+            </th>
+            {% else %}
+            <th scope="col" class="{{ extra_class }}">{{ label|safe }}</th>
+            {% endif %}
+            {% endmacro %}
+
+            <div class="table-wrap history-table-wrap">
+                {# Cờ "đang tải" chỉ hiện khi JS đặt aria-busy="true" lên wrap
+                   (CSS ẩn mặc định), nên bản không-JS không thấy gì lạ. #}
+                <p class="history-loading-flag" aria-hidden="true">
+                    <span class="spinner"></span> Đang tải lịch sử...
+                </p>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Dấu hiệu</th>
+                            {{ sort_th('time', 'Thời điểm') }}
+                            {% for field in history_param_schema %}
+                            {# <wbr> sau mỗi dấu _ để tên tham số dài xuống dòng đúng chỗ
+                               (min_samples_/leaf) thay vì bị chẻ giữa từ khi cột hẹp.
+                               Không dùng |e trước replace: Markup.replace sẽ escape luôn
+                               thẻ <wbr> thành chữ. field là khóa schema do code sinh. #}
+                            {{ sort_th('param_' ~ field, field|replace('_', '_<wbr>')) }}
+                            {% endfor %}
+                            {{ sort_th('f1', 'CV F1_UP') }}
+                            {{ sort_th('std', '±std') }}
+                            {{ sort_th('threshold', 'Threshold') }}
+                            {{ sort_th('seconds', 'Giây') }}
+                            <th scope="col">Dataset</th>
+                            <th scope="col">Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in history_rows %}
+                        {% set is_stale = row.dataset_fingerprint != current_fingerprint %}
+                        <tr class="{{ 'best-row' if row.is_best else '' }} {{ 'selected-run' if row.is_selected else '' }} {{ 'stale-row' if is_stale else '' }}">
+                            <td>
+                                <div class="history-run-markers">
+                                    {% if row.is_best %}<span class="history-state-badge badge-best">Tốt nhất</span>{% endif %}
+                                    {% if row.is_selected %}<span class="history-state-badge badge-selected">Đang dùng</span>{% endif %}
+                                    {% if is_stale %}<span class="history-state-badge badge-stale">Dataset cũ</span>{% endif %}
+                                </div>
+                                    {% if not row.is_selected and not is_stale and row.policy_id == experiment_policy_id %}
+                                <form method="post" action="{{ url_for('tuning_use_config') }}">
+                                    <input type="hidden" name="run_id" value="{{ row.run_id }}">
+                                    {% if history_filters.get('best') %}<input type="hidden" name="best" value="1">{% endif %}
+                                    {% if history_filters.get('selected') %}<input type="hidden" name="selected" value="1">{% endif %}
+                                    <input type="hidden" name="page" value="{{ history_pagination.page }}">
+                                    <button type="submit" class="link-btn">Dùng cấu hình này</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.timestamp }}</td>
+                            {% for field in history_param_schema %}
+                            {% set param_value = row.params.get(field) %}
+                            <td class="history-param-value">
+                                {% if field not in row.params %}—
+                                {% elif param_value is none %}None (không giới hạn)
+                                {% else %}{{ param_value }}{% endif %}
+                            </td>
+                            {% endfor %}
+                            <td>{% if row.cv_f1_up_mean is not none %}{{ "%.4f"|format(row.cv_f1_up_mean) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.cv_f1_up_std is not none %}{{ "%.4f"|format(row.cv_f1_up_std) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.decision_threshold is not none %}{{ "%.2f"|format(row.decision_threshold) }}{% else %}—{% endif %}</td>
+                            <td>{% if row.train_seconds is not none %}{{ "%.1f"|format(row.train_seconds) }}{% else %}—{% endif %}</td>
+                            <td class="fp-cell">{{ row.dataset_fingerprint }}</td>
+                            <td>{{ row.status }}</td>
+                        </tr>
+                        {# Dòng chi tiết: fold + OOF vốn đã có trong history CSV nhưng
+                           chưa hiện ở đâu. Bỏ hẳn dòng khi run không có gì để mở —
+                           một <details> rỗng tệ hơn là không có nút mở. #}
+                        {# Dùng .get() chứ không phải row.oof_f1_up: dict thiếu khóa trả về
+                           Undefined, và `Undefined is not none` là True — sẽ dựng ra một
+                           dòng chi tiết toàn dấu gạch. .get() trả None nên so sánh đúng. #}
+                        {% set oof_f1 = row.get('oof_f1_up') %}
+                        {% set oof_precision = row.get('oof_precision_up') %}
+                        {% set oof_recall = row.get('oof_recall_up') %}
+                        {% set oof_up_rate = row.get('oof_up_rate') %}
+                        {% set oof_pred_ratio = row.get('oof_predicted_up_ratio') %}
+                        {% set has_oof = oof_f1 is not none or oof_precision is not none
+                           or oof_recall is not none or oof_up_rate is not none
+                           or oof_pred_ratio is not none %}
+                        {% if row.folds or row.fold_ranges or has_oof %}
+                        <tr class="history-detail-row">
+                            {# Cùng biểu thức colspan với dòng rỗng bên dưới: 2 cột đầu
+                               + N cột tham số + 4 cột số + 2 cột cuối = N + 8. #}
+                            <td colspan="{{ history_param_schema|length + 8 }}">
+                                <details class="history-detail">
+                                    <summary class="history-detail-summary">Chi tiết fold &amp; OOF</summary>
+                                    <div class="history-detail-body">
+                                        {% if row.folds %}
+                                        <div>
+                                            <p class="history-detail-block-label">CV F1_UP từng fold</p>
+                                            {# Thang tuyệt đối 0–1 như khối .fold-bars ở trên, không
+                                               chuẩn hóa theo max nhóm. Bề rộng là dữ liệu nên buộc
+                                               phải inline style. #}
+                                            <ul class="fold-bars fold-bars-compact">
+                                                {% for f in row.folds %}
+                                                {% set raw_pct = (f | float) * 100 %}
+                                                {% set pct = 0 if raw_pct < 0 else (100 if raw_pct > 100 else raw_pct) %}
+                                                {% set p_fold = (row.precision_folds or [])[loop.index0] if (row.precision_folds or [])|length > loop.index0 else none %}
+                                                {% set r_fold = (row.recall_folds or [])[loop.index0] if (row.recall_folds or [])|length > loop.index0 else none %}
+                                                <li class="fold-bar-item" role="img"
+                                                    aria-label="Fold {{ loop.index }} trên {{ loop.length }}: CV F1_UP {{ "%.4f"|format(f) }}{% if p_fold is not none %}, Precision_UP {{ "%.4f"|format(p_fold) }}{% endif %}{% if r_fold is not none %}, Recall_UP {{ "%.4f"|format(r_fold) }}{% endif %}">
+                                                    <span class="fold-bar-head">
+                                                        <span class="fold-bar-label">Fold {{ loop.index }}</span>
+                                                        <span class="fold-bar-value">{{ "%.4f"|format(f) }}</span>
+                                                    </span>
+                                                    <span class="fold-bar-track">
+                                                        <span class="fold-bar-fill" style="width: {{ "%.2f"|format(pct) }}%;"></span>
+                                                    </span>
+                                                    {% if p_fold is not none or r_fold is not none %}
+                                                    <span class="fold-bar-label" aria-hidden="true">
+                                                        P {% if p_fold is not none %}{{ "%.4f"|format(p_fold) }}{% else %}—{% endif %}
+                                                        · R {% if r_fold is not none %}{{ "%.4f"|format(r_fold) }}{% else %}—{% endif %}
+                                                    </span>
+                                                    {% endif %}
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if row.fold_ranges %}
+                                        <div>
+                                            <p class="history-detail-block-label">Khoảng ngày từng fold</p>
+                                            <div class="fold-range-wrap">
+                                                <table class="fold-range-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Fold</th>
+                                                            <th scope="col">Train</th>
+                                                            <th scope="col">Nhãn train đóng muộn nhất</th>
+                                                            <th scope="col">Validation</th>
+                                                            <th scope="col">Dòng train</th>
+                                                            <th scope="col">Dòng validation</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for fold_range in row.fold_ranges %}
+                                                        <tr>
+                                                            <th scope="row">{{ fold_range.get('fold', loop.index) }}</th>
+                                                            <td>{{ fold_range.get('train_start') or "—" }} → {{ fold_range.get('train_end') or "—" }}</td>
+                                                            <td>{{ fold_range.get('train_label_end_max') or "—" }}</td>
+                                                            <td>{{ fold_range.get('validation_start') or "—" }} → {{ fold_range.get('validation_end') or "—" }}</td>
+                                                            <td>{{ fold_range.get('train_rows') if fold_range.get('train_rows') is not none else "—" }}</td>
+                                                            <td>{{ fold_range.get('validation_rows') if fold_range.get('validation_rows') is not none else "—" }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if has_oof or row.decision_threshold is not none %}
+                                        <div>
+                                            <p class="history-detail-block-label">Chỉ số OOF (gộp validation của mọi fold)</p>
+                                            <ul class="param-kv">
+                                                <li><span>F1_UP</span><b>{% if oof_f1 is not none %}{{ "%.4f"|format(oof_f1) }}{% else %}—{% endif %}</b></li>
+                                                <li><span>Precision_UP</span><b>{% if oof_precision is not none %}{{ "%.4f"|format(oof_precision) }}{% else %}—{% endif %}</b></li>
+                                                <li><span>Recall_UP</span><b>{% if oof_recall is not none %}{{ "%.4f"|format(oof_recall) }}{% else %}—{% endif %}</b></li>
+                                                <li><span>Tỷ lệ UP thật</span><b>{% if oof_up_rate is not none %}{{ "%.4f"|format(oof_up_rate) }}{% else %}—{% endif %}</b></li>
+                                                <li><span>Tỷ lệ dự đoán UP</span><b>{% if oof_pred_ratio is not none %}{{ "%.4f"|format(oof_pred_ratio) }}{% else %}—{% endif %}</b></li>
+                                                <li><span>Threshold</span><b>{% if row.decision_threshold is not none %}{{ "%.2f"|format(row.decision_threshold) }}{% else %}—{% endif %}</b></li>
+                                            </ul>
+                                            {% if row.threshold_constraint_passed %}
+                                            <span class="threshold-flag threshold-flag-pass">Đạt ràng buộc threshold</span>
+                                            {% else %}
+                                            <span class="threshold-flag threshold-flag-fail">Chưa đạt ràng buộc threshold</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+
+                                        <p class="history-detail-note">
+                                            Toàn bộ số ở đây là CV trên tập TRAIN (out-of-fold), không phải TEST —
+                                            TEST chỉ được chấm một lần cho Final Model.
+                                        </p>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% if not history_rows %}
+                                <tr><td colspan="{{ history_param_schema|length + 8 }}" class="empty">Không có kết quả phù hợp.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
-            {% endfor %}
+
+            <nav class="history-pagination" aria-label="Phân trang lịch sử huấn luyện">
+                <p class="history-page-summary">
+                    {{ history_pagination.start }}–{{ history_pagination.end }} trên tổng {{ history_pagination.total }} kết quả
+                </p>
+                <div class="history-page-links">
+                    {% if history_pagination.prev_url %}
+                    <a class="history-page-link" href="{{ history_pagination.prev_url }}" rel="prev">Trang trước</a>
+                    {% else %}
+                    <span class="history-page-link is-disabled" aria-disabled="true">Trang trước</span>
+                    {% endif %}
+                    <span class="history-page-current">Trang {{ history_pagination.page }}/{{ history_pagination.total_pages }}</span>
+                    {% if history_pagination.next_url %}
+                    <a class="history-page-link" href="{{ history_pagination.next_url }}" rel="next">Trang sau</a>
+                    {% else %}
+                    <span class="history-page-link is-disabled" aria-disabled="true">Trang sau</span>
+                    {% endif %}
+                </div>
+            </nav>
 
             <p class="eval-note">
-                ★ = cấu hình tốt nhất (CV F1_UP cao nhất, tie-break std nhỏ hơn) theo từng model
-                trong cùng dataset fingerprint. Chỉ cấu hình thuộc dataset hiện tại mới chốt được.
+                Nhãn Tốt nhất chỉ là gợi ý theo CV F1_UP mean cao nhất, rồi std thấp nhất.
+                Bạn quyết định cấu hình dùng cho pipeline.
             </p>
         </section>
 
         <p class="disclaimer">
             Điểm trong Tuning Lab là CV trên tập TRAIN, chỉ dùng để chọn cấu hình.
-            Độ chính xác thật được đánh giá trên tập TEST ở pipeline chính thức.
+            VALIDATION chọn loại model. TEST chỉ báo cáo Final Model một lần.
         </p>
-    </main>
+{% endblock %}
+
+{% block page_scripts %}
+    {# Chart.js phải nạp TRƯỚC tuning-lab.js: script đó vẽ biểu đồ CV ngay khi
+       chạy nên cần window.Chart đã tồn tại. Bản vendor offline, không CDN. #}
+    <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+    {# Đồng hồ job CV, poll trạng thái thay cho <meta refresh>, overlay pipeline.
+       Nạp sau ui-kit.js (base.html) vì cần window.UIKit cho toast/elapsed. #}
+    <script src="{{ url_for('static', filename='tuning-lab.js') }}?v={{ asset_ver }}"></script>
     <script>
-        document.querySelectorAll("form.train-form").forEach(function (form) {
-            form.addEventListener("submit", function () {
-                var btn = form.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang train..."; }
-            });
-        });
-        var runForm = document.getElementById("run-pipeline-form");
-        if (runForm) {
-            runForm.addEventListener("submit", function () {
-                var btn = runForm.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang chạy pipeline..."; }
-            });
-        }
-        var fetchForm = document.getElementById("fetch-data-form");
-        if (fetchForm) {
-            fetchForm.addEventListener("submit", function () {
-                var btn = fetchForm.querySelector("button[type=submit]");
-                if (btn) { btn.disabled = true; btn.textContent = "Đang khởi động fetch..."; }
-            });
-        }
-        document.querySelectorAll("[data-history-tab]").forEach(function (tab) {
-            tab.addEventListener("click", function () {
-                var target = tab.getAttribute("data-history-tab");
-                document.querySelectorAll("[data-history-tab]").forEach(function (item) {
-                    var isActive = item.getAttribute("data-history-tab") === target;
-                    item.classList.toggle("is-active", isActive);
-                    item.setAttribute("aria-selected", isActive ? "true" : "false");
+        // Điều hướng trong panel lịch sử (tabs, lọc, phân trang, "Dùng cấu hình này")
+        // dùng fetch để thay riêng phần #main-content, giữ nguyên vị trí cuộn — không reload cả trang.
+        // Các form train/pipeline/fetch vẫn điều hướng bình thường (chỉ khóa nút khi submit).
+        // Dùng event delegation để phần vừa thay vào vẫn hoạt động.
+        (function () {
+            var main = document.getElementById("main-content");
+            var canAjax = main && window.fetch && window.history && window.history.pushState;
+            var busy = false;
+
+            function lockButton(btn, text) {
+                if (btn) { btn.disabled = true; btn.textContent = text; }
+            }
+
+            function saveScroll() {
+                var wrap = document.querySelector(".history-table-wrap");
+                return {
+                    y: window.scrollY,
+                    top: wrap ? wrap.scrollTop : 0,
+                    left: wrap ? wrap.scrollLeft : 0
+                };
+            }
+
+            function restoreScroll(s) {
+                window.scrollTo(0, s.y);
+                var wrap = document.querySelector(".history-table-wrap");
+                if (wrap) { wrap.scrollTop = s.top; wrap.scrollLeft = s.left; }
+            }
+
+            function swap(html, url) {
+                var doc = new DOMParser().parseFromString(html, "text/html");
+                var next = doc.getElementById("main-content");
+                if (!next) { window.location.assign(url); return; }
+                var s = saveScroll();
+                main.replaceWith(next);
+                main = next;
+                if (doc.title) { document.title = doc.title; }
+                if (url) { window.history.pushState({}, "", url); }
+                restoreScroll(s);
+                // #main-content vừa bị thay: mọi handler gắn trực tiếp vào
+                // element bên trong (đồng hồ job, overlay pipeline) đã mất theo
+                // node cũ. Gắn lại; các hàm mount đều tự chống gắn trùng.
+                if (typeof window.mountTuningLab === "function") { window.mountTuningLab(); }
+                if (window.UIKit && typeof window.UIKit.autoWire === "function") {
+                    window.UIKit.autoWire();
+                }
+            }
+
+            function setBusy(on) {
+                var wrap = document.querySelector(".history-table-wrap");
+                if (!wrap) { return; }
+                if (on) { wrap.setAttribute("aria-busy", "true"); }
+                else { wrap.removeAttribute("aria-busy"); }
+            }
+
+            function load(url, opts) {
+                if (busy) { return; }
+                busy = true;
+                setBusy(true);
+                var isPost = opts && opts.method === "POST";
+                fetch(url, opts || {})
+                    .then(function (r) {
+                        return r.text().then(function (t) {
+                            // POST chỉ push URL khi server đã redirect sang GET sạch;
+                            // nếu vẫn ở endpoint POST (lỗi 400) thì không push để tránh POST lại khi reload.
+                            var pushUrl = isPost ? (r.redirected ? r.url : null) : (r.url || url);
+                            return { text: t, url: pushUrl };
+                        });
+                    })
+                    .then(function (res) { swap(res.text, res.url); })
+                    .catch(function () { window.location.assign(url); })
+                    .then(function () { busy = false; setBusy(false); });
+            }
+
+            if (canAjax) {
+                document.addEventListener("click", function (e) {
+                    var a = e.target.closest(
+                        "a.history-tab, a.history-reset, a.history-page-link, a.sort-btn"
+                    );
+                    if (!a) { return; }
+                    if (a.classList.contains("is-disabled")) { e.preventDefault(); return; }
+                    var href = a.getAttribute("href");
+                    if (!href) { return; }
+                    e.preventDefault();
+                    load(href);
                 });
-                document.querySelectorAll("[data-history-panel]").forEach(function (panel) {
-                    var isActive = panel.getAttribute("data-history-panel") === target;
-                    panel.classList.toggle("is-active", isActive);
-                    panel.hidden = !isActive;
+
+                window.addEventListener("popstate", function () {
+                    load(window.location.href);
                 });
+            }
+
+            document.addEventListener("submit", function (e) {
+                var form = e.target;
+                var action = form.getAttribute("action") || "";
+
+                if (canAjax && form.classList.contains("history-filter-form")) {
+                    e.preventDefault();
+                    var q = new URLSearchParams(new FormData(form)).toString();
+                    load(form.action + (q ? "?" + q : ""));
+                    return;
+                }
+                if (canAjax && action.indexOf("use-config") !== -1) {
+                    e.preventDefault();
+                    lockButton(form.querySelector("button[type=submit]"), "Đang lưu...");
+                    load(form.action, { method: "POST", body: new FormData(form) });
+                    return;
+                }
+                // Các form chạy job dài — điều hướng bình thường, chỉ khóa nút.
+                if (form.classList.contains("train-form")) {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang train...");
+                } else if (form.id === "run-pipeline-form") {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang chạy pipeline...");
+                } else if (form.id === "fetch-data-form") {
+                    lockButton(form.querySelector("button[type=submit]"), "Đang khởi động fetch...");
+                }
             });
-        });
+        })();
     </script>
-</body>
-</html>
+{% endblock %}

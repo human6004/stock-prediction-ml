@@ -1,10 +1,10 @@
 {
-  "fetched_at": "2026-07-11T11:50:06",
+  "fetched_at": "2026-08-21T11:14:46",
   "raw_path": "D:\\study\\niên luận\\shared_dataset\\hose_stock_raw.csv",
   "symbols_in_csv": 400,
-  "rows_before": 549084,
-  "fetch_start": "2026-06-27",
-  "fetch_end": "2026-07-11",
+  "rows_before": 561495,
+  "fetch_start": "2025-10-09",
+  "fetch_end": "2026-08-21",
   "fetch_source": "KBS",
   "should_fetch": true,
   "success_symbols": [
@@ -34,6 +34,7 @@
     "AST",
     "BAF",
     "BCE",
+    "BCG",
     "BCM",
     "BFC",
     "BHN",
@@ -197,6 +198,7 @@
     "LBM",
     "LCG",
     "LDG",
+    "LGC",
     "LGL",
     "LHG",
     "LIX",
@@ -315,6 +317,7 @@
     "TAL",
     "TBC",
     "TCB",
+    "TCD",
     "TCH",
     "TCI",
     "TCL",
@@ -380,6 +383,7 @@
     "VJC",
     "VMD",
     "VND",
+    "VNE",
     "VNG",
     "VNL",
     "VNM",
@@ -405,26 +409,9 @@
     "YBM",
     "YEG"
   ],
-  "failed_symbols": [
-    {
-      "symbol": "BCG",
-      "error": "RetryError[<Future at 0x1f600f753d0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "LGC",
-      "error": "RetryError[<Future at 0x1f62335c8c0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "TCD",
-      "error": "RetryError[<Future at 0x1f62e46b5c0 state=finished raised ValueError>]"
-    },
-    {
-      "symbol": "VNE",
-      "error": "RetryError[<Future at 0x1f626f9b7d0 state=finished raised ValueError>]"
-    }
-  ],
-  "new_rows": 3657,
-  "rows_after": 552738,
+  "failed_symbols": [],
+  "new_rows": 2157,
+  "rows_after": 563652,
   "date_min_after": "2019-08-14",
-  "date_max_after": "2026-07-10"
+  "date_max_after": "2026-08-21"
 }

@@ -1,0 +1,4 @@
+split,rows,symbols,date_min,date_max,label_end_max,up_count,not_up_count,label_end_min
+train,416811,395,2019-10-23,2025-06-23,2025-06-30,161794,255017,
+validation,67208,395,2025-07-01,2026-03-24,2026-03-31,22924,44284,
+test,21151,392,2026-04-01,2026-07-03,,5767,15384,2026-04-08

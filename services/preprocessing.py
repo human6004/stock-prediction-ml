@@ -19,6 +19,7 @@ from config.settings import (
     RAW_DATA_PATH,
     REQUIRED_COLUMNS,
 )
+from services.pipeline_utils import atomic_dataframe_to_csv
 
 
 def dataset_check(raw_path: str | Path | None = None) -> tuple[pd.DataFrame, dict]:
@@ -143,11 +144,25 @@ def write_clean_outputs(
     cleaned_all: pd.DataFrame,
     symbol_stats: pd.DataFrame,
 ) -> None:
+    """Ghi 4 output của bước làm sạch, mỗi file một mục đích riêng.
+
+    - ``hose_stock_clean.csv``: TOÀN BỘ dòng đã sạch (không lọc mã). Đây là
+      nguồn duy nhất cho các bước sau; ``cleaned_for_training`` được tính LẠI từ
+      file này ở ``scripts/build_features.py`` nên không ghi ra đĩa.
+    - ``data_quality_report.csv``: thống kê từng mã, gồm cờ ``eligible_for_training``.
+    - ``eligible_symbols.csv`` / ``excluded_symbols.csv``: tách đôi theo cờ đó.
+      ``eligible_symbols.csv`` không chỉ để đọc cho vui — nó là bộ lọc mã ở bước
+      build features, và là scope dự phòng của chatbot với artifact cũ chưa có
+      ``training_symbols`` trong metadata.
+
+    Toàn bộ ghi qua ``atomic_dataframe_to_csv`` (tmp rồi ``os.replace``) để web UI
+    đang đọc song song không bao giờ thấy file ghi dở.
+    """
     CLEANED_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    cleaned_all.to_csv(CLEANED_DATA_PATH, index=False)
-    symbol_stats.to_csv(DATA_QUALITY_REPORT_PATH, index=False)
+    atomic_dataframe_to_csv(cleaned_all, CLEANED_DATA_PATH, index=False)
+    atomic_dataframe_to_csv(symbol_stats, DATA_QUALITY_REPORT_PATH, index=False)
 
     eligible = symbol_stats[symbol_stats["eligible_for_training"]].copy()
     excluded = symbol_stats[~symbol_stats["eligible_for_training"]].copy()
-    eligible.to_csv(ELIGIBLE_SYMBOLS_PATH, index=False)
-    excluded.to_csv(EXCLUDED_SYMBOLS_PATH, index=False)
+    atomic_dataframe_to_csv(eligible, ELIGIBLE_SYMBOLS_PATH, index=False)
+    atomic_dataframe_to_csv(excluded, EXCLUDED_SYMBOLS_PATH, index=False)

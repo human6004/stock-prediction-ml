@@ -4,19 +4,45 @@ Các module khác import giá trị từ đây thay vì tự ghi cứng đườn
 ranh giới TRAIN/TEST hoặc vị trí output. Đổi bài toán dự báo cần bắt đầu từ file này.
 """
 
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(BASE_DIR / ".env")
+
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").strip()
+LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip()
+LLM_MODEL = os.getenv("LLM_MODEL", "").strip()
+# Kill-switch cho LLM call thứ hai (compose): CHATBOT_COMPOSE=0 → chỉ formatter cố định.
+CHATBOT_COMPOSE_ENABLED = (
+    os.getenv("CHATBOT_COMPOSE", "1").strip().lower() not in {"0", "false", "off"}
+)
 
 # Input nằm ngoài repo; mọi output còn lại được tạo tương đối từ BASE_DIR.
-ROADMAP_PATH = r"D:\study\niên luận\shared_dataset\roadmap_nien_luan_HOSE_5_phien.md"
 RAW_DATA_PATH = r"D:\study\niên luận\shared_dataset\hose_stock_raw.csv"
 
-# Định nghĩa bài toán: dòng thứ 5 kế tiếp tăng hơn 1% được gán nhãn UP.
+# Định nghĩa bài toán: phiên thị trường chung thứ 5 tăng hơn 1% được gán nhãn UP.
 RANDOM_STATE = 42
-SPLIT_DATE = "2025-06-30"
+# Stable identities; schema revisions remain separate numeric fields.
+DATA_PROTOCOL_ID = "exact_market_t5"
+# Mốc TRAIN/VALIDATION/TEST giờ dịch động theo phiên mới nhất của dataset
+# (rolling walk-forward). 3 hằng số dưới đây là FALLBACK khi dataset chưa đủ
+# dài để lấp đầy một cửa sổ đầy đủ; services/protocol_dates.py suy ra mốc thực.
+TRAIN_END_DATE = "2025-06-30"
+VALIDATION_END_DATE = "2026-03-31"
+# Snapshot TEST fallback; khi có đủ data, mốc này = phiên nhãn hợp lệ mới nhất.
+TEST_END_DATE = "2026-07-03"
+# Độ dài cố định của mỗi cửa sổ (số ngày lịch), giữ nguyên như thiết kế gốc:
+# TEST = TEST_END - VALIDATION_END, VALIDATION = VALIDATION_END - TRAIN_END.
+TEST_WINDOW_DAYS = 94
+VALIDATION_WINDOW_DAYS = 274
 PREDICTION_HORIZON = 5
 UP_THRESHOLD = 0.01
+# Default used while constructing a new artifact.
+DECISION_THRESHOLD = 0.5
+EXPERIMENT_POLICY_ID = "rolling_recent_cv_oof_threshold"
 MIN_TRADING_DAYS = 250
 MIN_AVERAGE_VOLUME = 0
 
@@ -25,11 +51,23 @@ FETCH_SLEEP_SECONDS = 3.5
 FETCH_MAX_RETRIES = 3
 FETCH_END_DATE = None
 
-# TimeSeriesSplit hiện đếm row trên bảng nhiều mã; gap=5 không phải 5 ngày.
-CV_N_SPLITS = 5
-CV_GAP = 5
-TUNING_N_ITER = 12
+# CV chỉ chấm regime có panel đủ dày; final fit vẫn dùng toàn bộ TRAIN.
+CV_START_DATE = "2021-01-01"
+CV_N_SPLITS = 4
+# Số phiên bị "đục lỗ" giữa train fold và validation fold. Nhãn cần
+# PREDICTION_HORIZON=5 phiên tương lai mới biết được, nên nếu train sát validation
+# thì mẫu cuối train đã "nhìn thấy" giá trong vùng validation → rò rỉ nhãn.
+CV_GAP_SESSIONS = 5
 TUNING_SCORING = "f1"
+# Lưới quét ngưỡng quyết định (decision threshold) trên OOF prediction:
+# 0.05 → 0.95 bước 0.01. Không quét tới 0/1 vì hai đầu mút sinh model
+# "luôn UP"/"luôn NOT_UP" vô nghĩa.
+THRESHOLD_MIN = 0.05
+THRESHOLD_MAX = 0.95
+THRESHOLD_STEP = 0.01
+# Chặn ngưỡng khiến model dự báo UP cho quá nửa số mẫu: F1_UP có thể rất cao khi
+# "đoán UP hết", nhưng đó là suy sụp về baseline chứ không phải model tốt.
+THRESHOLD_MAX_PREDICTED_UP_RATIO = 0.50
 
 REQUIRED_COLUMNS = [
     "symbol",
@@ -65,16 +103,7 @@ FEATURE_COLUMNS = [
     "month",
 ]
 
-LABEL_COLUMNS = [
-    "future_close_5d",
-    "future_return_5d",
-    "label_end_date",
-    "target",
-    "target_label",
-]
-
 MODEL_DEFINITIONS = {
-    1: "Dummy Classifier",
     2: "Logistic Regression",
     3: "Random Forest",
     4: "Gradient Boosting",
@@ -83,7 +112,10 @@ MODEL_DEFINITIONS = {
 # Tie-break cuối: số nhỏ hơn được xem là model đơn giản hơn.
 SIMPLICITY_RANK = {2: 1, 3: 2, 4: 3}
 
-MANUAL_CONFIG_SCHEMA_VERSION = 1
+# Tăng số này khi TUNABLE_PARAM_SCHEMA đổi cấu trúc. manual_config.json ghi lại
+# version lúc lưu; đọc thấy version cũ → config bị coi là stale và bắt chọn lại,
+# tránh nạp param không còn hợp lệ vào model.
+MANUAL_CONFIG_SCHEMA_VERSION = 4
 
 MODEL_KEY = {
     2: "logistic_regression",
@@ -92,6 +124,20 @@ MODEL_KEY = {
 }
 MODEL_KEY_TO_ID = {key: model_id for model_id, key in MODEL_KEY.items()}
 
+# Schema khai báo cho form Tuning Lab VÀ cho bộ parser/validator ở
+# services/tuning_lab.py. Một chỗ khai báo duy nhất sinh ra: input trên UI, hàm
+# parse chuỗi từ form, và cả tên cột động ``param_<field>`` của bảng history.
+#
+# Ý nghĩa các khóa:
+# - ``type``: kiểu dữ liệu quyết định hàm parse nào được dùng.
+#   * ``int`` / ``float``: số thường.
+#   * ``int_or_none``: bỏ trống = None (ví dụ max_depth = không giới hạn).
+#   * ``choice``: chỉ nhận đúng một giá trị trong ``choices``.
+#   * ``str_or_float``: nhận HOẶC một từ khóa trong ``choices`` ("sqrt"/"log2")
+#     HOẶC một số thực trong khoảng — sklearn cho phép cả hai cho max_features.
+# - ``min``/``max``: biên hợp lệ. ``inclusive_min: False`` nghĩa là mở ở đầu dưới
+#   (ví dụ C > 0, learning_rate > 0): giá trị 0 làm model vô nghĩa/chia 0.
+# - ``label``: nhãn hiển thị trên form.
 TUNABLE_PARAM_SCHEMA = {
     "logistic_regression": {
         "C": {"type": "float", "min": 0.0, "inclusive_min": False, "label": "C (nghịch đảo cường độ regularization)"},
@@ -120,18 +166,18 @@ TUNABLE_PARAM_SCHEMA = {
 
 # Giá trị hiển thị ban đầu trên form Tuning Lab, chưa phải config đã chốt.
 MANUAL_BASELINE_PARAMS = {
-    "logistic_regression": {"C": 1.0, "solver": "lbfgs"},
+    "logistic_regression": {"C": 4.12316e-7, "solver": "liblinear"},
     "random_forest": {
-        "n_estimators": 120,
-        "max_depth": 10,
-        "min_samples_leaf": 20,
-        "max_features": "sqrt",
+        "n_estimators": 130,
+        "max_depth": 6,
+        "min_samples_leaf": 40,
+        "max_features": 0.25,
     },
     "gradient_boosting": {
-        "n_estimators": 100,
-        "learning_rate": 0.05,
-        "max_depth": 3,
-        "subsample": 0.85,
+        "n_estimators": 120,
+        "learning_rate": 0.2,
+        "max_depth": 2,
+        "subsample": 0.9,
     },
 }
 
@@ -139,14 +185,11 @@ DATA_DIR = BASE_DIR / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 MODELS_DIR = BASE_DIR / "models"
 REPORTS_DIR = BASE_DIR / "reports"
-DATABASE_DIR = BASE_DIR / "database"
-DATABASE_PATH = DATABASE_DIR / "stock_prediction.db"
-
-# Tuning Lab experiment state (kept outside cleanup_outputs() targets).
+# Tuning Lab experiment state, separate from published model/report outputs.
 EXPERIMENTS_DIR = BASE_DIR / "experiments"
 TUNING_HISTORY_PATH = EXPERIMENTS_DIR / "tuning_history.csv"
 MANUAL_CONFIG_PATH = EXPERIMENTS_DIR / "manual_config.json"
-TEST_EVAL_LOCK_PATH = EXPERIMENTS_DIR / "test_evaluation_lock.json"
+EVALUATION_REGISTRY_PATH = EXPERIMENTS_DIR / "evaluation_registry.json"
 PIPELINE_LOCK_PATH = EXPERIMENTS_DIR / "pipeline.lock"
 LAST_PIPELINE_RUN_LOG = EXPERIMENTS_DIR / "last_pipeline_run.log"
 FETCH_LOCK_PATH = EXPERIMENTS_DIR / "fetch.lock"
@@ -156,19 +199,13 @@ CLEANED_DATA_PATH = PROCESSED_DIR / "hose_stock_clean.csv"
 FEATURE_DATA_PATH = PROCESSED_DIR / "hose_stock_features.csv"
 ML_DATA_PATH = PROCESSED_DIR / "ml_dataset.csv"
 
-MODEL_PATHS = {
-    1: MODELS_DIR / "dummy.pkl",
-    2: MODELS_DIR / "logistic_regression_tuned.pkl",
-    3: MODELS_DIR / "random_forest_tuned.pkl",
-    4: MODELS_DIR / "gradient_boosting_tuned.pkl",
-}
 FINAL_MODEL_PATH = MODELS_DIR / "final_model.pkl"
 MODEL_METADATA_PATH = MODELS_DIR / "model_metadata.json"
 
 DATA_QUALITY_REPORT_PATH = REPORTS_DIR / "data_quality_report.csv"
 ELIGIBLE_SYMBOLS_PATH = REPORTS_DIR / "eligible_symbols.csv"
 EXCLUDED_SYMBOLS_PATH = REPORTS_DIR / "excluded_symbols.csv"
-TRAIN_TEST_SUMMARY_PATH = REPORTS_DIR / "train_test_summary.csv"
+SPLIT_SUMMARY_PATH = REPORTS_DIR / "split_summary.csv"
 TUNING_RESULTS_PATH = REPORTS_DIR / "tuning_results.csv"
 BEST_PARAMS_PATH = REPORTS_DIR / "best_params.json"
 CV_FOLD_RESULTS_PATH = REPORTS_DIR / "cv_fold_results.csv"
@@ -183,16 +220,11 @@ FEATURE_IMPORTANCE_PATH = REPORTS_DIR / "feature_importance.csv"
 FETCH_REPORT_PATH = REPORTS_DIR / "fetch_report.json"
 HYPERPARAMETER_EXPLANATION_PATH = REPORTS_DIR / "hyperparameter_explanation.md"
 
-PRESERVED_REPORT_JSON = {
-    FETCH_REPORT_PATH.name,
-    BEST_PARAMS_PATH.name,
-    "model_metadata.json",
-}
-
 COMPARISON_COLUMNS = [
     "model_id",
     "model_name",
     "cv_f1_up",
+    "decision_threshold",
     "accuracy",
     "precision_up",
     "recall_up",

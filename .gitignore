@@ -10,21 +10,68 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+.env
+.trace-coverage/
+.trace-chatbot/
 
 # Local editor/tooling state
-.claude/
-.cursor/
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
+# Scratch dir cho các lần build/QA báo cáo tạm, không phải nguồn
+.tmpwork/
+.tmp_review/
+.translation_work/
+
+# Skill/plugin cache của AI tooling, không phải code hệ thống
+.agents/
+
+# Script + output dùng một lần khi soạn/soi file .docx
+.docx_structure.txt
+.page_map*.ps1
+.inspect_report.py
+.rebuild_report_chapters.py
+.sync_report_page_numbers.py
+.validate_report_update.py
+_inspect*.py
+_inspect_out*.txt
+_update_v*_*.py
+
+# Ảnh giải nén từ ruột file Word khi đối chiếu hình
+docs/**/_ref/
+
+# Ảnh chụp màn hình rời khi kiểm tra UI
+/scr_*.png
+
+# Bản sao thủ công do Explorer sinh ra
+* - Copy.*
+
+# File khóa tạm của Microsoft Word khi đang mở .docx
+~$*
+
 # Generated pipeline outputs kept out unless intentionally committed
 data/processed/ml_dataset.csv
 data/processed/hose_stock_features.csv
+data/processed/hose_stock_clean.csv
+experiments/random_forest_2h_refine_stderr.log
 database/stock_prediction.db
+experiments/archive/releases/*/stock_prediction.db
 
 # Tuning Lab runtime-only state (history/config kept as evidence)
 experiments/pipeline.lock
+experiments/fetch.lock
 experiments/last_pipeline_run.log
+experiments/last_fetch_run.log
 experiments/*_auto_*.log
+
+# Flask dev server logs (runtime noise)
+flask-run.log
+flask-run.err.log
+
+# One-off manual backups
+*.bak_*
+
+# Test-run redirect output (runtime noise)
+pytest_*.txt

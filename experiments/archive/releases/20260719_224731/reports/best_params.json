@@ -1,0 +1,25 @@
+{
+  "cv_n_splits": 5,
+  "cv_gap": 5,
+  "scoring": "f1",
+  "source": "manual_config",
+  "dataset_fingerprint": "66bdb23e8b5a",
+  "best_params": {
+    "Logistic Regression": {
+      "C": 1e-05,
+      "solver": "liblinear"
+    },
+    "Random Forest": {
+      "n_estimators": 120,
+      "max_depth": 10,
+      "min_samples_leaf": 20,
+      "max_features": "sqrt"
+    },
+    "Gradient Boosting": {
+      "n_estimators": 100,
+      "learning_rate": 0.05,
+      "max_depth": 3,
+      "subsample": 0.85
+    }
+  }
+}

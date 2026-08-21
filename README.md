@@ -9,6 +9,8 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 - [Giải thích project](docs/GIAI_THICH_PROJECT.md)
 - [Sơ đồ kiến trúc hệ thống](docs/SO_DO_KIEN_TRUC_HE_THONG.md)
 - [Các sơ đồ HTML export](docs/diagrams/)
+- [Kiến trúc chatbot Action Decision](docs/CHATBOT_ARCHITECTURE.md)
+- [Báo cáo hoàn thiện](docs/bao_cao_project_hose_stock_prediction_hoan_thien.docx)
 
 ## Luồng chính
 
@@ -16,15 +18,19 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 shared raw CSV
 -> clean data
 -> build technical features
--> create UP/NOT_UP labels
--> split train/test by label_end_date
--> tune and evaluate models
--> select final model
--> sync SQLite
+-> create exact common-market t+5 UP/NOT_UP labels
+-> TRAIN / VALIDATION / TEST by rolling dates
+-> manually try and select one config/model with purged date CV on TRAIN
+-> select model family on VALIDATION
+-> refit winner on TRAIN+VALIDATION
+-> evaluate TEST once and publish the same artifact
+-> write CSV/JSON reports
 -> Flask/CLI prediction
 ```
 
-Model cuối hiện tại là `Random Forest`, được chọn theo `F1_UP` trên tập test. Các artefact demo trong `models/`, `reports/` và `data/processed/` được giữ lại để chạy web và phục vụ bảo vệ.
+Policy hiện hành là `rolling_recent_cv_oof_threshold`: `UP` nghĩa là giá đúng phiên thị trường `t+5` tăng hơn `1%`. Tuning dùng time-series CV 4 fold từ `2021-01-01`, purge 5 phiên và threshold OOF riêng cho từng model. Ba mốc TRAIN/VALIDATION/TEST không cố định trong tài liệu mà được suy ra theo cửa sổ rolling từ phiên mới nhất của dataset (`services/protocol_dates.py`); giá trị hằng trong `config/settings.py` chỉ là fallback. Mốc thực tế của snapshot đã publish luôn nằm trong `models/model_metadata.json` (`split_date`, `validation_end_date`, `test_end_date`). Dữ liệu mới hơn `test_end_date` chỉ phục vụ inference. Model family được chọn trên VALIDATION; TEST chỉ đánh giá một lần model đã chọn và refit.
+
+Tuning history dùng fingerprint riêng của TRAIN. TEST lock dùng fingerprint của snapshot TRAIN+VALIDATION+TEST đóng băng. Vì vậy refresh dữ liệu inference không mở lại TEST.
 
 ## Cài đặt
 
@@ -34,6 +40,29 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+`requirements.txt` liệt kê 9 dependency trực tiếp (`pandas`, `numpy`, `scikit-learn`, `joblib`,
+`Flask`, `matplotlib`, `vnstock`, `openai`, `python-dotenv`), không pin version.
+`requirements.lock.txt` là bản `pip freeze` của môi trường đã kiểm chứng lúc freeze project;
+muốn tái tạo đúng môi trường đó thì cài bằng file lock:
+
+```powershell
+pip install -r requirements.lock.txt
+```
+
+Chatbot cần cấu hình LLM qua `.env` ở gốc repo (`config/settings.py` đọc bằng python-dotenv).
+Copy từ `.env.example` rồi điền 3 biến:
+
+```text
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=
+```
+
+Thiếu `.env` thì pipeline và các trang dự báo vẫn chạy, chỉ riêng chatbot không gọi được LLM.
+Thêm `CHATBOT_COMPOSE=0` nếu muốn tắt LLM call thứ hai và chỉ dùng câu trả lời deterministic.
+
+Chatbot gọi LLM hai lần cố định, không tool loop. Call 1 chọn một trong 5 action bằng JSON; backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi dựng câu trả lời deterministic bằng code. Call 2 (compose) diễn đạt lại câu trả lời đó, chỉ được dùng đúng số liệu backend đã tính; mọi lỗi, timeout hoặc vi phạm giới hạn đều rơi về bản deterministic. Provider không nhận raw CSV, report, source code hoặc model artifact. Có hai UI dùng chung `/api/chat`: trang `/chat` đầy đủ và khung chat nổi trên các trang còn lại; transcript chia sẻ qua `sessionStorage` và request gửi tối đa 6 message gần nhất.
+
 ## Chạy pipeline
 
 ```powershell
@@ -42,16 +71,22 @@ python scripts/fetch_hose_data.py
 python scripts/run_pipeline.py
 ```
 
-Hoặc chạy từng bước:
+Chuẩn bị dataset riêng:
 
 ```powershell
 python scripts/preprocess_data.py
 python scripts/build_features.py
-python scripts/train_tune_models.py
-python scripts/evaluate_models.py
-python scripts/select_final_model.py
-python database/init_db.py
 ```
+
+Hoặc gộp cả ba bước fetch + preprocess + build features bằng một lệnh:
+
+```powershell
+python scripts/refresh_data.py
+```
+
+Sau đó thử hyperparameter và tự chọn một run hợp lệ cho từng model tại `/tuning`. Final Model chỉ
+được chọn và publish bằng `python scripts/run_pipeline.py`; không chạy riêng
+từng bước VALIDATION/TEST vì sẽ phá TEST lock và tính nhất quán artifact.
 
 ## Dự báo
 
@@ -59,8 +94,10 @@ CLI:
 
 ```powershell
 python scripts/predict_stock.py --symbol FPT
-python scripts/predict_stock.py --symbol SSI --log-db
+python scripts/predict_stock.py --symbol SSI
 ```
+
+`predict_stock.py` là script duy nhất có argparse và chỉ nhận một tham số `--symbol` (bắt buộc).
 
 Web:
 
@@ -70,22 +107,56 @@ python app.py
 
 - Trang dự báo: http://127.0.0.1:5000
 - Trang đánh giá: http://127.0.0.1:5000/evaluation
+- Trang chatbot: http://127.0.0.1:5000/chat
+
+`app.py` khai báo tổng cộng 14 route, không chỉ 6 trang HTML. Ngoài các trang trên còn có
+`POST /predict` (`app.py:476`, nhận form từ trang chủ hoặc link `?symbol=`), `/compare`,
+`/screener`, `/tuning` cùng nhóm action `/tuning/*`, ảnh `/reports/confusion_matrix.png`,
+và endpoint JSON `POST /api/chat` phục vụ chatbot.
 
 ## Cấu trúc thư mục
 
 ```text
 config/           cấu hình đường dẫn, feature, split, model
 data/processed/   dữ liệu đã xử lý phục vụ demo/pipeline
-database/         SQLite schema, connection, sync script
 docs/             tài liệu giải thích và sơ đồ kiến trúc
+experiments/      state của Tuning Lab (history, config, registry, archive)
 models/           model đã train và metadata
 reports/          báo cáo đánh giá model/pipeline
 scripts/          các lệnh chạy từng bước và full pipeline
 services/         logic xử lý dữ liệu, feature, tuning, evaluation, prediction
-static/           CSS cho Flask web
+static/           CSS/JS cho Flask web
 templates/        HTML cho Flask web
+tests/            pytest cho pipeline, prediction, tuning, chatbot, UI
 app.py            Flask backend
+.env.example      mẫu 3 biến LLM (không chứa giá trị thật)
+.env              cấu hình LLM thật của máy local, không commit
 ```
+
+`experiments/archive/` là snapshot đóng băng của các release trước (config, tuning history,
+model và report đã publish). Không nằm trong luồng chạy: không code path nào đọc thư mục này,
+nó chỉ giữ bằng chứng để đối chiếu giữa các lần thay đổi protocol.
+
+## Chạy test
+
+Repo không có `conftest.py` cũng không có `pytest.ini` / `pyproject.toml` / `setup.cfg`, và
+không test module nào tự thêm project root vào `sys.path`. Vì vậy phải truyền `PYTHONPATH`
+trỏ về root; nếu thiếu, collection có thể lỗi `ModuleNotFoundError` khi import `app`,
+`config`, `services`, `scripts`.
+
+PowerShell:
+
+```powershell
+$env:PYTHONPATH="."; python -m pytest tests -q
+```
+
+bash / CI:
+
+```bash
+PYTHONPATH=. python -m pytest tests -q
+```
+
+Lệnh trên chạy toàn bộ suite trong `tests/`; không khóa cứng số lượng test trong tài liệu.
 
 ## Output quan trọng
 
@@ -96,9 +167,10 @@ data/processed/ml_dataset.csv
 models/final_model.pkl
 models/model_metadata.json
 reports/model_comparison.csv
+reports/final_model_evaluation.csv
+reports/cv_fold_results.csv
 reports/confusion_matrix.csv
 reports/confusion_matrix.png
 reports/feature_importance.csv
 reports/pipeline_summary.json
-database/stock_prediction.db
 ```

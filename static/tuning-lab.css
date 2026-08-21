@@ -1,0 +1,620 @@
+/* tuning-lab.css — CSS riêng cho Tuning Lab (/tuning) và trang tiến độ fetch
+   (/tuning/fetch-status).
+
+   Nạp SAU app.css và ui-kit.css (qua block page_styles của base.html) nên có
+   quyền ghi đè cả hai. Mọi màu đi qua var() để hai theme sáng/tối tự đúng.
+
+   Giữ đúng ngôn ngữ thiết kế "editorial data-terminal": nền giấy ấm, chrome đơn
+   sắc, màu chỉ dành cho ngữ nghĩa tài chính (UP / NOT_UP / lỗi / cảnh báo).
+
+   Mục lục:
+     1. Vùng trạng thái job CV (elapsed + thanh tiến trình vô định)
+     2. Mini bar cho điểm từng fold
+     3. Biểu đồ CV F1_UP qua các lần thử
+     4. Delta "đang dùng" vs "cao nhất" trong model card
+     5. Bộ lọc nâng cao của bảng lịch sử
+     6. Dòng chi tiết fold / OOF trong bảng lịch sử
+     7. Trạng thái đang tải của bảng lịch sử (AJAX swap)
+     8. Overlay khi chạy pipeline chính thức (request đồng bộ)
+     9. Trang tiến độ fetch
+    10. prefers-reduced-motion
+   ============================================================ */
+
+/* ============================================================
+   1. Vùng trạng thái job CV — #tuning-job-status
+   Vùng này bị thay bằng JS mỗi 5s khi job đang chạy, nên phải tự chứa
+   toàn bộ style của nó (không dựa vào trạng thái DOM bên ngoài).
+   ============================================================ */
+.job-status-region {
+    display: block;
+}
+
+/* Panel "đang chạy CV": thay cho .alert.warn trần trước đây */
+.job-running-panel {
+    margin-top: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--warn-line);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--r-lg);
+    background: var(--warn-bg);
+    box-shadow: var(--shadow-sm);
+}
+
+.job-running-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+.job-running-title {
+    margin: 0;
+    flex: 1 1 320px;
+    min-width: 0;
+    color: var(--warn-ink);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+/* Đồng hồ m:ss do UIKit.elapsed() ghi vào — tabular-nums để số không nhảy ngang */
+.job-elapsed {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 3px var(--space-2);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    color: var(--warn-ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.job-elapsed-label {
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.job-running-panel .progress-indeterminate {
+    margin-top: var(--space-3);
+    background: var(--panel);
+    border: 1px solid var(--warn-line);
+}
+
+.job-running-panel .progress-indeterminate > span {
+    background: var(--warn);
+}
+
+.job-running-meta {
+    margin: var(--space-2) 0 0;
+    color: var(--warn-ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   2. Mini bar cho điểm từng fold — giữ nguyên số, thêm chiều dài
+   để mắt so 4 fold nhanh hơn đọc 4 con số.
+   ============================================================ */
+.fold-bars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: var(--space-2) var(--space-3);
+    margin: var(--space-3) 0 var(--space-4);
+    padding: 0;
+    list-style: none;
+}
+
+.fold-bar-item {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.fold-bar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.fold-bar-label {
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.fold-bar-value {
+    color: var(--up-ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fold-bar-track {
+    height: 6px;
+    border: 1px solid var(--up-line);
+    border-radius: var(--r-sm);
+    background: var(--panel);
+    overflow: hidden;
+}
+
+/* Chiều rộng là % tuyệt đối của thang 0–1 (F1 luôn nằm trong [0,1]) nên độ dài
+   đọc được như một giá trị, không phải chuẩn hóa theo max của nhóm. */
+.fold-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--up);
+}
+
+/* Bản trong dòng chi tiết bảng lịch sử: nhỏ hơn, dùng màu mực trung tính */
+.fold-bars-compact .fold-bar-track {
+    height: 5px;
+    border-color: var(--line);
+}
+
+.fold-bars-compact .fold-bar-fill {
+    background: var(--ink-soft);
+}
+
+.fold-bars-compact .fold-bar-value {
+    color: var(--ink);
+    font-size: 12px;
+}
+
+/* ============================================================
+   3. Biểu đồ CV F1_UP qua các lần thử — trả lời "đã hội tụ chưa?"
+   ============================================================ */
+.cv-trend-panel {
+    margin-top: var(--space-5);
+}
+
+.cv-trend-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+}
+
+.cv-trend-note {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+/* Chart.js cần khung có chiều cao xác định, nếu không canvas sẽ tự phình mỗi
+   lần resize (vòng lặp layout). position:relative cho maintainAspectRatio:false. */
+.cv-trend-canvas-wrap {
+    position: relative;
+    height: 240px;
+    margin-top: var(--space-3);
+}
+
+.cv-trend-empty {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-4);
+    border: 1px dashed var(--line);
+    border-radius: var(--r-md);
+    background: var(--paper);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* ============================================================
+   4. Delta "đang dùng" vs "CV cao nhất" trong model card
+   Dấu theo hướng "cấu hình đang dùng − cấu hình tốt nhất": âm = đang bỏ
+   lại hiệu năng trên bàn → màu down; bằng 0 → flat.
+   ============================================================ */
+.model-delta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+}
+
+.model-delta-label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.model-delta-note {
+    margin: 0;
+    flex: 1 1 100%;
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+/* .delta / .delta-up / .delta-down / .delta-flat là primitive của ui-kit.css */
+
+/* Mục 5 (bộ lọc nâng cao của bảng lịch sử) đã được bỏ khỏi file này.
+   Backend _parse_history_query vẫn nhận dataset/status/f1_min/f1_max/p_<field>
+   qua query string, nhưng tests/test_tuning_history.py::
+   test_history_form_only_exposes_best_and_selected chốt rằng form lọc chỉ được
+   phơi `best` và `selected`. Giữ CSS cho một UI không bao giờ được render chỉ
+   làm người đọc sau tưởng có phần markup bị thiếu. */
+
+/* ============================================================
+   6. Dòng chi tiết fold / OOF trong bảng lịch sử
+   Dữ liệu này đã có trong history CSV từ lâu nhưng chưa hiện ở đâu.
+   Đặt trong <details> nên mặc định bảng vẫn gọn, không cần JS.
+   ============================================================ */
+.history-detail-row td {
+    padding: 0;
+    border-bottom: 1px solid var(--line-soft);
+    white-space: normal;
+    font-family: var(--sans);
+}
+
+.history-detail {
+    margin: 0;
+}
+
+.history-detail-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 5px var(--space-4);
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.history-detail-summary::-webkit-details-marker {
+    display: none;
+}
+
+.history-detail-summary::marker {
+    content: "";
+}
+
+.history-detail-summary::before {
+    content: "\25B8"; /* tam giác phải */
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.history-detail[open] > .history-detail-summary::before {
+    content: "\25BE"; /* tam giác xuống */
+}
+
+.history-detail-summary:hover {
+    background: var(--paper-2);
+    color: var(--ink);
+}
+
+.history-detail-summary:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+
+.history-detail-body {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    background: var(--paper);
+}
+
+.history-detail-block-label {
+    margin: 0 0 var(--space-2);
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.history-detail-note {
+    margin: var(--space-2) 0 0;
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.6;
+}
+
+/* Bảng khoảng ngày từng fold: bảng lồng trong bảng nên phải huỷ min-width 980px
+   và padding lớn của <table> toàn cục. */
+.fold-range-table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    background: var(--panel);
+}
+
+.fold-range-table th,
+.fold-range-table td {
+    padding: 5px var(--space-2);
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 11.5px;
+    white-space: nowrap;
+}
+
+.fold-range-table thead th {
+    position: static;
+    background: var(--paper-2);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.fold-range-table td {
+    font-family: var(--mono);
+    font-size: 11.5px;
+}
+
+.fold-range-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.fold-range-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+}
+
+/* Chip ràng buộc threshold: đạt / chưa đạt là thông tin ngữ nghĩa nên có màu */
+.threshold-flag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.threshold-flag-pass {
+    border-color: var(--up-line);
+    background: var(--up-bg);
+    color: var(--up-ink);
+}
+
+.threshold-flag-fail {
+    border-color: var(--warn-line);
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+}
+
+/* ============================================================
+   7. Trạng thái đang tải của bảng lịch sử (AJAX swap)
+   ============================================================ */
+.history-table-wrap[aria-busy="true"] {
+    position: relative;
+}
+
+.history-table-wrap[aria-busy="true"] > table {
+    opacity: 0.45;
+    transition: opacity var(--dur-fast) var(--ease);
+}
+
+/* Nhãn "đang tải" nổi giữa bảng: đứng yên khi bảng cuộn (sticky) */
+.history-loading-flag {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.history-table-wrap[aria-busy="true"] > .history-loading-flag {
+    display: flex;
+}
+
+/* ============================================================
+   8. Overlay khi chạy pipeline chính thức
+   app.py chạy pipeline bằng subprocess.run đồng bộ trong request handler nên
+   tab bị treo vài phút. Overlay không sửa được điều đó, nhưng biến một cú treo
+   im lặng thành một khoảng chờ đọc được.
+   ============================================================ */
+.pipeline-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    /* Fallback nền đục cho trình duyệt không có color-mix; overlay phủ toàn
+       trang nên nền đục vẫn dùng được. */
+    background: var(--paper);
+    background: color-mix(in srgb, var(--ink) 58%, transparent);
+    animation: tuning-overlay-in var(--dur-base) var(--ease) both;
+}
+
+.pipeline-overlay[hidden] {
+    display: none;
+}
+
+@keyframes tuning-overlay-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.pipeline-overlay-panel {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 2 * var(--space-5));
+    overflow-y: auto;
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--panel);
+    box-shadow: var(--shadow-md);
+}
+
+.pipeline-overlay-panel:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+.pipeline-overlay-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.pipeline-overlay-title {
+    margin: 0;
+    color: var(--ink);
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+}
+
+.pipeline-overlay-desc {
+    margin: var(--space-3) 0 0;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.pipeline-overlay-warn {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3);
+    border: 1px solid var(--warn-line);
+    border-left: 3px solid var(--warn);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.pipeline-overlay-clock {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 0;
+}
+
+.pipeline-overlay-clock-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pipeline-overlay-clock-value {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.pipeline-overlay .progress-indeterminate {
+    margin-top: var(--space-3);
+}
+
+/* Timeline 3 bước trong overlay: dựng lại gọn, không dùng .timeline của app.css
+   (có border-top nét đứt + margin lớn dành cho panel rộng). */
+.pipeline-overlay-steps {
+    display: grid;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pipeline-overlay-step {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.pipeline-overlay-step-num {
+    flex: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 700;
+}
+
+.pipeline-overlay-step-text {
+    color: var(--ink-soft);
+}
+
+.pipeline-overlay-step-text b {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+/* ============================================================
+   9. Trang tiến độ fetch (/tuning/fetch-status)
+   ============================================================ */
+.fetch-log-panel pre {
+    scroll-behavior: auto;
+}
+
+/* Nhãn tự-poll: cho người dùng biết trang tự cập nhật mà không reload */
+.poll-note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: var(--space-2);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+/* ============================================================
+   10. prefers-reduced-motion — tắt phần trang trí, giữ thông tin
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    .pipeline-overlay {
+        animation: none;
+    }
+
+    .history-table-wrap[aria-busy="true"] > table {
+        transition: none;
+    }
+}

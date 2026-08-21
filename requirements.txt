@@ -3,5 +3,8 @@ numpy
 scikit-learn
 joblib
 Flask
+openpyxl
 matplotlib
 vnstock
+openai
+python-dotenv

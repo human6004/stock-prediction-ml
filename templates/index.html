@@ -1,171 +1,523 @@
-<!doctype html>
-<!-- Trang dự báo: Flask truyền metadata/result; form POST /predict mới gọi model. -->
-<html lang="vi">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Dự báo xu hướng cổ phiếu HOSE</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <main class="shell">
-        <nav class="topbar">
+{% extends "base.html" %}
+{# Trang dự báo: Flask truyền metadata/result; form POST /predict mới gọi model. #}
+
+{% block title %}Dự báo xu hướng cổ phiếu HOSE{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='page-signal.css') }}?v={{ asset_ver }}">
+{% endblock %}
+
+{% block page_header %}
+<h1>Dự báo xu hướng cổ phiếu</h1>
+<p class="subtitle">
+    Tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên kế tiếp, tính từ ngày tham chiếu.
+</p>
+{% endblock %}
+
+{% block content %}
+{#- Guide dùng ở 2 chỗ với 2 trạng thái mở/gập khác nhau (cột phải khi chưa dự
+    báo, cuối kết quả khi đã dự báo) nên gom thành macro, tránh lệch nội dung. -#}
+{% macro reading_guide(is_open) -%}
+<details class="reading-guide"{% if is_open %} open{% endif %}>
+    <summary class="section-label">Cách đọc kết quả</summary>
+    <ul class="reading-guide-list">
+        <li>
+            <span class="reading-guide-icon" aria-hidden="true">↑</span>
             <div>
-                <p class="eyebrow">HOSE ML</p>
-                <h1>Dự báo xu hướng cổ phiếu</h1>
-                <p class="subtitle">
-                    Dự báo mã có tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên giao dịch kế tiếp
-                    (tính từ ngày tham chiếu).
-                </p>
+                <strong>Kết luận UP / NOT_UP</strong>
+                <span>UP nghĩa là model dự đoán giá đóng cửa có khả năng tăng hơn {{ threshold_percent }}% trong {{ horizon }} phiên tới.</span>
             </div>
-            <div class="nav-links">
-                <a class="nav-link" href="{{ url_for('tuning') }}">Tuning Lab</a>
-                <a class="nav-link" href="{{ url_for('evaluation') }}">Bảng đánh giá model</a>
+        </li>
+        <li>
+            <span class="reading-guide-icon" aria-hidden="true">%</span>
+            <div>
+                <strong>Điểm UP</strong>
+                <span>Xác suất model gán cho khả năng tăng. Vượt ngưỡng quyết định thì kết luận là UP.</span>
             </div>
-        </nav>
+        </li>
+        <li>
+            <span class="reading-guide-icon" aria-hidden="true">◷</span>
+            <div>
+                <strong>Biểu đồ và ngưỡng</strong>
+                <span>Đường giá đóng cửa lịch sử cùng mốc ngưỡng UP; vùng phải là {{ horizon }} phiên dự kiến, không phải giá dự báo.</span>
+            </div>
+        </li>
+    </ul>
+</details>
+{%- endmacro %}
 
-        {% if dataset_max_date %}
-        <p class="dataset-banner">
-            Dữ liệu offline (đã xử lý) đến ngày: <strong>{{ dataset_max_date }}</strong>
-            — {{ symbol_count }} mã. Không cập nhật realtime.
-        </p>
+<nav class="signal-tabs" aria-label="Chế độ tín hiệu">
+    <a class="signal-tab is-active" href="{{ url_for('index') }}" aria-current="true">
+        <span class="signal-tab-title">Dự báo một mã</span>
+        <span class="signal-tab-sub">Kết luận UP/NOT_UP kèm biểu đồ</span>
+    </a>
+    <a class="signal-tab" href="{{ url_for('compare') }}">
+        <span class="signal-tab-title">So sánh hai mã</span>
+        <span class="signal-tab-sub">Đối chiếu tín hiệu song song</span>
+    </a>
+</nav>
+
+{#- Hai cột: trái là form + kết quả, phải là panel bổ trợ. Cột phải chỉ tồn tại ở
+    trạng thái CHƯA có kết quả — khi đã dự báo thì kết quả là nội dung chính, cột
+    phải biến mất để không chia sự chú ý. -#}
+{% set has_result = result is defined and result %}
+<div class="signal-layout{% if has_result %} is-focused{% endif %}">
+<section class="workspace signal-workspace">
+    {# data-ui-lock: UIKit.autoWire() khoá nút + hiện spinner khi submit (POST plain). #}
+    <form id="predict-form" class="predict-panel" method="post" action="{{ url_for('predict') }}"
+          data-ui-lock="Đang tính...">
+        <label for="symbol">Mã cổ phiếu</label>
+        <div class="input-row">
+            <input id="symbol" name="symbol" type="text" list="symbol-list"
+                   placeholder="VD: FPT" maxlength="12" required
+                   value="{{ submitted_symbol or (result.symbol if result else '') }}">
+            <datalist id="symbol-list">
+                {% for sym in symbols %}
+                <option value="{{ sym }}"></option>
+                {% endfor %}
+            </datalist>
+            <button type="submit">Dự báo</button>
+        </div>
+        {# Bỏ chip trùng lặp khi thanh trạng thái phía trên đã in tên model.
+           dataset_max_date rỗng thì base.html không render thanh đó, lúc ấy chip
+           là chỗ duy nhất còn nói được model nào đang chạy → giữ lại. #}
+        {% if not selected_model %}
+        <p class="model-chip muted">Chưa có báo cáo — chạy pipeline trước</p>
+        {% elif not dataset_max_date %}
+        <p class="model-chip">Model đang dùng: {{ selected_model }}</p>
         {% endif %}
+    </form>
 
-        <section class="workspace">
-            <form class="predict-panel" method="post" action="{{ url_for('predict') }}">
-                <label for="symbol">Mã cổ phiếu</label>
-                <div class="input-row">
-                    <input id="symbol" name="symbol" type="text" list="symbol-list"
-                           placeholder="VD: FPT" maxlength="12" required
-                           value="{{ result.symbol if result else '' }}">
-                    <datalist id="symbol-list">
-                        {% for sym in symbols %}
-                        <option value="{{ sym }}"></option>
-                        {% endfor %}
-                    </datalist>
-                    <button type="submit">Dự báo</button>
-                </div>
-                <p class="model-chip">
-                    Model đang dùng: {{ selected_model or "Chưa có báo cáo — chạy pipeline trước" }}
-                </p>
-            </form>
+    {% if error %}
+    <section class="alert" role="alert">{{ error }}</section>
+    {% endif %}
 
-            {% if error %}
-            <section class="alert" role="alert">{{ error }}</section>
+    {% if not result and not error %}
+    <div class="empty-state">
+        {# Bỏ câu hướng dẫn: nhãn nút + phần "Cách đọc kết quả" bên dưới đã nói đủ. #}
+        {% if symbols %}
+        <div class="quick-picks">
+            <span class="quick-picks-label">Thử nhanh</span>
+            {# data-stagger: UIKit cho các nút hiện lần lượt (tự tắt khi reduced motion). #}
+            <div class="quick-picks-row" data-ui="quick-picks" data-stagger>
+                {% for sym in symbols[:6] %}
+                <button type="button" class="quick-pick" data-symbol="{{ sym }}">{{ sym }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {#- Chưa có kết luận → 2 khối này nằm CỘT TRÁI. Lý do: cột phải (tín hiệu + sức
+        khỏe model) cao gấp đôi form, để hết bên phải thì trái trống một khoảng lớn.
+        Chúng cũng thuộc về cột trái về mặt nội dung: nói về cách đọc và nguồn số
+        của chính cái form ngay trên nó. -#}
+    {% if not has_result %}
+    <div class="signal-primer">
+        {% if dataset_max_date %}
+        <section class="primer-note">
+            <p class="section-label">Chế độ Offline</p>
+            <p class="aside-note">
+                Mọi dự báo tính từ dataset đã tải sẵn tới {{ dataset_max_date|date_vi }}
+                ({{ symbol_count }} mã), không gọi API giá realtime. Muốn mới hơn thì
+                chạy refresh dữ liệu ở Tuning Lab.
+            </p>
+        </section>
+        {% endif %}
+        {{ reading_guide(true) }}
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <section class="result-panel">
+        <h2 class="forecast-title">
+            {{ result.symbol }} — Dự báo từ {{ result.forecast_start_date|date_vi }}
+            đến {{ result.forecast_end_date|date_vi }} (dự kiến)
+        </h2>
+
+        {% if result.is_stale or result.forecast_window_elapsed %}
+        <section class="alert warn" role="status">
+            Dữ liệu đã cũ; hãy làm mới trước khi dùng kết quả.
+            {% if result.is_stale %}
+            <span class="alert-detail">Ngày tham chiếu của {{ result.symbol }} cũ hơn ngày dữ liệu lớn nhất toàn bộ dataset.</span>
             {% endif %}
-
-            {% if result %}
-            <section class="result-panel">
-                <p class="summary-line">{{ result.summary_sentence }}</p>
-
-                <div class="verdict-card verdict-{{ result.prediction|lower }}">
-                    <p class="section-label">Kết luận</p>
-                    <p class="verdict-title">{{ result.prediction_label_vi }}</p>
-                    <p class="verdict-hint">{{ result.prediction_short_vi }}</p>
-                    <div class="prob-row">
-                        <span>Xác suất lớp UP</span>
-                        {% if result.probability_up is not none %}
-                        <div class="prob-bar" role="meter"
-                             aria-valuenow="{{ (result.probability_up * 100)|round(1) }}"
-                             aria-valuemin="0" aria-valuemax="100"
-                             aria-label="Xác suất lớp UP">
-                            <div class="prob-fill" style="width: {{ (result.probability_up * 100)|round(1) }}%;"></div>
-                        </div>
-                        <strong class="prob-value">{{ "%.1f"|format(result.probability_up * 100) }}%</strong>
-                        {% else %}
-                        <strong class="prob-value">Không hỗ trợ</strong>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="context-card">
-                    <p class="section-label">Căn cứ dữ liệu</p>
-                    <dl class="context-list">
-                        <div>
-                            <dt>Ngày tham chiếu (t)</dt>
-                            <dd>{{ result.reference_date }}</dd>
-                        </div>
-                        <div>
-                            <dt>Giá đóng cửa tại (t)</dt>
-                            <dd>{{ "%.2f"|format(result.close_at_reference) }}</dd>
-                        </div>
-                        <div>
-                            <dt>Mã cổ phiếu</dt>
-                            <dd>{{ result.symbol }}</dd>
-                        </div>
-                    </dl>
-                    <div class="timeline" aria-label="Mốc thời gian dự báo">
-                        <div class="timeline-step timeline-step-active">
-                            <span class="timeline-dot"></span>
-                            <span class="timeline-title">Ngày t</span>
-                            <span class="timeline-desc">{{ result.reference_date }}</span>
-                        </div>
-                        <div class="timeline-connector">5 phiên giao dịch</div>
-                        <div class="timeline-step">
-                            <span class="timeline-dot"></span>
-                            <span class="timeline-title">Ngày t+5</span>
-                            <span class="timeline-desc">Chưa biết lúc dự báo (chỉ có sau khi đủ 5 phiên)</span>
-                        </div>
-                        <div class="timeline-step timeline-step-result">
-                            <span class="timeline-dot"></span>
-                            <span class="timeline-title">Kết quả dự báo</span>
-                            <span class="timeline-desc">{{ result.prediction_label_vi }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="info-box">
-                    <p class="section-label">Giải thích nhãn</p>
-                    <p>
-                        Với mỗi mã, hệ thống tính
-                        <code>future_return = close(t+5) / close(t) − 1</code>.
-                        Nhãn <strong>UP</strong> khi return &gt; {{ threshold_percent }}%
-                        (tức tăng hơn {{ threshold_percent }}% sau {{ horizon }} phiên giao dịch).
-                    </p>
-                    <p>
-                        Đây là <strong>dự báo xu hướng</strong> trong cửa sổ 5 phiên sau ngày tham chiếu,
-                        không phải dự báo giá đúng một ngày lịch cụ thể.
-                    </p>
-                </div>
-
-                <details class="technical-panel">
-                    <summary>Thông tin kỹ thuật</summary>
-                    <dl class="context-list">
-                        <div>
-                            <dt>Model trong artifact</dt>
-                            <dd>{{ result.model_name }}</dd>
-                        </div>
-                        <div>
-                            <dt>Model trong báo cáo (selected)</dt>
-                            <dd>{{ result.selected_report_model or "—" }}</dd>
-                        </div>
-                        <div>
-                            <dt>Kiểm tra khớp backend / báo cáo</dt>
-                            <dd class="{{ 'match-text' if result.model_match else 'mismatch-text' }}">
-                                {{ "Khớp" if result.model_match else "Không khớp" }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>Số phiên dự báo</dt>
-                            <dd>{{ result.horizon_sessions }}</dd>
-                        </div>
-                        <div>
-                            <dt>Ngưỡng UP</dt>
-                            <dd>{{ result.threshold_percent }}%</dd>
-                        </div>
-                    </dl>
-                    <p><a href="{{ url_for('evaluation') }}">Xem bảng so sánh 4 model</a></p>
-                </details>
-            </section>
+            {% if result.forecast_window_elapsed %}
+            <span class="alert-detail">Khoảng dự báo dự kiến đã trôi qua so với ngày hệ thống.</span>
             {% endif %}
         </section>
+        {% endif %}
 
-        <p class="disclaimer">
-            Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
-        </p>
-    </main>
-</body>
-</html>
+        <div class="verdict-card verdict-{{ result.prediction|lower }}">
+            <p class="section-label">Kết luận</p>
+            <p class="verdict-title">{{ result.prediction_label_vi }}</p>
+            <p class="verdict-hint">{{ result.prediction_short_vi }}</p>
+            <div class="prob-row">
+                <span>Điểm UP của model</span>
+                {% if result.probability_up is not none %}
+                {# Vạch ngưỡng đặt ở lớp bọc: .prob-bar có overflow:hidden nên marker
+                   nằm bên trong sẽ bị cắt mất phần nhô ra. #}
+                {% set thr_pct = result.decision_threshold * 100 %}
+                <div class="prob-meter">
+                    <div class="prob-bar" role="meter"
+                         aria-valuenow="{{ (result.probability_up * 100)|round(1) }}"
+                         aria-valuemin="0" aria-valuemax="100"
+                         aria-label="Điểm UP của model"
+                         aria-describedby="prob-threshold-desc">
+                        <div class="prob-fill" style="width: {{ (result.probability_up * 100)|round(1) }}%;"></div>
+                    </div>
+                    <div class="prob-threshold" style="--at: {{ thr_pct|round(1) }}%;"
+                         {% if thr_pct >= 88 %}data-edge="right"{% elif thr_pct <= 12 %}data-edge="left"{% endif %}
+                         aria-hidden="true">
+                        <span class="prob-threshold-label">Ngưỡng {{ "%.1f"|format(thr_pct) }}%</span>
+                    </div>
+                </div>
+                <strong class="prob-value">{{ "%.1f"|format(result.probability_up * 100) }}%</strong>
+                {% else %}
+                <strong class="prob-value">Không hỗ trợ</strong>
+                {% endif %}
+            </div>
+            {% if result.probability_up is not none %}
+            {% set gap_pp = (result.probability_up - result.decision_threshold) * 100 %}
+            <p class="threshold-legend" id="prob-threshold-desc">
+                Ngưỡng quyết định: <strong>{{ "%.1f"|format(result.decision_threshold * 100) }}%</strong>
+                {% if gap_pp >= 0 %}
+                <span class="threshold-gap threshold-gap-over">↑ vượt ngưỡng {{ "%.1f"|format(gap_pp) }} điểm %</span>
+                {% else %}
+                <span class="threshold-gap threshold-gap-under">↓ còn thiếu {{ "%.1f"|format(-gap_pp) }} điểm % mới tới ngưỡng</span>
+                {% endif %}
+                <button type="button" class="tip-mark" aria-label="Ngưỡng quyết định là gì"
+                        data-tip="Ngưỡng quyết định là mốc do quá trình tuning chọn. Điểm UP từ ngưỡng trở lên thì kết luận UP, thấp hơn thì NOT_UP.">?</button>
+            </p>
+            {% else %}
+            <p class="chart-note">
+                Ngưỡng quyết định: {{ "%.1f"|format(result.decision_threshold * 100) }}%
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="context-card">
+            <p class="section-label">Căn cứ dữ liệu</p>
+            <dl class="context-list">
+                <div>
+                    <dt>Ngày tham chiếu (t)</dt>
+                    <dd>{{ result.reference_date|date_vi }}</dd>
+                </div>
+                <div>
+                    <dt>Giá đóng cửa tại (t)</dt>
+                    <dd>{{ "%.2f"|format(result.close_at_reference) }}</dd>
+                </div>
+                <div>
+                    <dt>Mã cổ phiếu</dt>
+                    <dd>{{ result.symbol }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        {# Chỉ số bối cảnh 20 phiên: đã có trong result nhưng trước đây chỉ trang So
+           sánh dùng. Dấu đọc được bằng mũi tên + chữ, không chỉ bằng màu. #}
+        <div class="metric-chip-row signal-metrics" role="group" aria-label="Chỉ số bối cảnh 20 phiên gần nhất">
+            {% if result.return_20d is not none %}
+            {% set ret_pct = result.return_20d * 100 %}
+            <div class="metric-chip">
+                <span class="metric-chip-head">
+                    Return 20 phiên
+                    <button type="button" class="tip-mark" aria-label="Return 20 phiên là gì"
+                            data-tip="Mức thay đổi giá đóng cửa so với 20 phiên trước. Dương là giá đã tăng trong một tháng giao dịch.">?</button>
+                </span>
+                <span class="delta {% if ret_pct > 0 %}delta-up{% elif ret_pct < 0 %}delta-down{% else %}delta-flat{% endif %}">
+                    {{ "%.2f%%"|format(ret_pct|abs) }}
+                </span>
+                <span class="metric-chip-note">
+                    {% if ret_pct > 0 %}Tăng so với 20 phiên trước{% elif ret_pct < 0 %}Giảm so với 20 phiên trước{% else %}Đi ngang so với 20 phiên trước{% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            {% if result.volatility_20d is not none %}
+            <div class="metric-chip">
+                <span class="metric-chip-head">
+                    Volatility 20 phiên
+                    <button type="button" class="tip-mark" aria-label="Volatility 20 phiên là gì"
+                            data-tip="Độ dao động giá trong 20 phiên. Càng cao thì giá càng biến động mạnh, tín hiệu càng nhiều rủi ro.">?</button>
+                </span>
+                <span class="metric-chip-value">{{ "%.2f%%"|format(result.volatility_20d * 100) }}</span>
+                <span class="metric-chip-note">Mức dao động giá, không có dấu tốt hay xấu</span>
+            </div>
+            {% endif %}
+
+            {% if result.volume_ratio_20 is not none %}
+            <div class="metric-chip">
+                <span class="metric-chip-head">
+                    Volume / AVG20
+                    <button type="button" class="tip-mark" aria-label="Volume trên AVG20 là gì"
+                            data-tip="Khối lượng phiên tham chiếu chia cho khối lượng trung bình 20 phiên. Trên 1x là giao dịch sôi động hơn thường lệ.">?</button>
+                </span>
+                <span class="delta {% if result.volume_ratio_20 > 1 %}delta-up{% elif result.volume_ratio_20 < 1 %}delta-down{% else %}delta-flat{% endif %}">
+                    {{ "%.2f"|format(result.volume_ratio_20) }}x
+                </span>
+                <span class="metric-chip-note">
+                    {% if result.volume_ratio_20 > 1 %}Sôi động hơn trung bình 20 phiên{% elif result.volume_ratio_20 < 1 %}Trầm hơn trung bình 20 phiên{% else %}Bằng trung bình 20 phiên{% endif %}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-heading">
+                <div>
+                    <p class="section-label">Giá đóng cửa và ngưỡng UP</p>
+                    <p class="chart-note">Vùng bên phải là 5 phiên dự kiến, không phải giá dự báo.</p>
+                </div>
+                <strong class="target-value">Ngưỡng UP: {{ "%.2f"|format(result.target_close) }}</strong>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="prediction-chart" role="img"
+                        aria-label="Biểu đồ giá đóng cửa lịch sử của {{ result.symbol }}, ngưỡng UP và khoảng dự báo 5 phiên">
+                    Trình duyệt không hỗ trợ canvas. Giá tham chiếu {{ "%.2f"|format(result.close_at_reference) }},
+                    ngưỡng UP {{ "%.2f"|format(result.target_close) }}.
+                </canvas>
+            </div>
+            {# Canvas rỗng với trình đọc màn hình → mô tả bằng chữ ngay dưới. #}
+            {% if result.price_history %}
+            <p class="chart-fallback">
+                Đường liền là giá đóng cửa {{ result.price_history|length }} phiên gần nhất của {{ result.symbol }},
+                từ {{ "%.2f"|format(result.price_history[0].close) }} tới
+                {{ "%.2f"|format(result.close_at_reference) }} tại phiên {{ result.reference_date|date_vi }}.
+                Đường gạch ngang là ngưỡng UP {{ "%.2f"|format(result.target_close) }}.
+            </p>
+            {% endif %}
+        </div>
+
+        <p class="summary-line">{{ result.summary_sentence }}</p>
+
+        {# Đã có kết quả → guide gập lại và tụt xuống cuối: lúc này kết luận mới là
+           nội dung chính, phần giải thích chỉ để tra lại khi cần. #}
+        {{ reading_guide(false) }}
+    </section>
+    {% endif %}
+</section>
+
+{% if not has_result %}
+{#- Cột phải: những gì đọc được NGAY khi chưa nhập mã. Thứ tự theo mức hữu dụng:
+    tín hiệu nổi bật → sức khỏe model → cách đọc kết quả. -#}
+<aside class="signal-aside" aria-label="Thông tin bổ trợ">
+    {% if top_signals %}
+    <section class="aside-card">
+        <div class="aside-head">
+            <p class="section-label">Tín hiệu nổi bật</p>
+            <a class="aside-link" href="{{ url_for('screener') }}">Toàn bộ xếp hạng →</a>
+        </div>
+        <p class="aside-note">Điểm UP cao nhất toàn sàn tại ngày dữ liệu gần nhất.</p>
+        <ul class="top-signal-list">
+            {% for row in top_signals %}
+            <li class="top-signal">
+                {# Bấm vào mã đi thẳng /predict?symbol= — không phải gõ lại. #}
+                <a class="top-signal-symbol"
+                   href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                <span class="top-signal-score">
+                    {% if row.probability_up is not none %}
+                    {{ "%.1f"|format(row.probability_up * 100) }}%
+                    {% else %}—{% endif %}
+                </span>
+                <span class="top-signal-price">{{ "%.2f"|format(row.close_at_reference) }}</span>
+                {# Thanh nền chỉ là hình ảnh của con số đã in ngay bên trên. #}
+                <span class="top-signal-bar" aria-hidden="true">
+                    <span class="top-signal-bar-fill"
+                          style="width: {{ (row.probability_up * 100)|round(1) if row.probability_up is not none else 0 }}%;"></span>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {# Offline + "Cách đọc kết quả" đã chuyển sang cột trái để 2 cột cân chiều cao. #}
+</aside>
+{% endif %}
+</div>
+
+<p class="disclaimer">
+    Kết quả chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
+</p>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='page-signal.js') }}?v={{ asset_ver }}"></script>
+<script>
+    (() => {
+        const form = document.getElementById("predict-form");
+        const input = document.getElementById("symbol");
+        if (!form || !input) return;
+
+        // Form POST thường: khoá nút + spinner để người dùng biết đang tính.
+        // Áp trước phần chọn nhanh vì nút đó cũng đi qua requestSubmit().
+        if (window.UIKit) {
+            window.UIKit.lockForm(form, {label: "Đang tính..."});
+        }
+
+        const row = document.querySelector('[data-ui="quick-picks"]');
+        if (!row) return;
+        const submitPick = (pick) => {
+            input.value = pick.dataset.symbol;
+            form.requestSubmit();
+        };
+        if (window.PageSignal) {
+            window.PageSignal.wireQuickPicks(row, submitPick);
+        } else {
+            row.addEventListener("click", (event) => {
+                const pick = event.target.closest(".quick-pick");
+                if (pick) submitPick(pick);
+            });
+        }
+    })();
+</script>
+{% if result and result.price_history %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script>
+    (() => {
+        const result = {{ result|tojson }};
+        const signal = window.PageSignal;
+        const formatDate = (iso) => signal.formatDateVi(iso);
+        const labels = result.price_history.map((point) => formatDate(point.date))
+            .concat(result.forecast_sessions.map((session) => formatDate(session.date)));
+        // Số phiên quá khứ / dự báo suy ra từ dữ liệu, không cố định 6+5, để mốc
+        // ranh giới vẫn đúng nếu horizon đổi.
+        const histCount = result.price_history.length;
+        const aheadCount = result.forecast_sessions.length;
+        const priceData = result.price_history.map((point) => Number(point.close))
+            .concat(Array(aheadCount).fill(null));
+        // Đường ngưỡng bắt đầu từ phiên tham chiếu (phiên quá khứ cuối) để nối liền
+        // sang vùng dự báo.
+        const thresholdData = Array(histCount - 1).fill(null)
+            .concat(Array(aheadCount + 1).fill(Number(result.target_close)));
+        const boundaryLeft = histCount - 1;
+        const lastIndex = histCount + aheadCount - 1;
+        const firstClose = Number(result.price_history[0].close);
+
+        // Chart.js vẽ trên canvas nên không thấy CSS var → resolve token ra màu
+        // thật. Palette đọc lại mỗi lần đổi theme.
+        let colors = signal.palette();
+
+        const forecastOverlay = {
+            id: "forecastOverlay",
+            beforeDatasetsDraw(chart) {
+                const {ctx, chartArea, scales: {x}} = chart;
+                const start = (x.getPixelForValue(boundaryLeft) + x.getPixelForValue(boundaryLeft + 1)) / 2;
+                ctx.save();
+                ctx.fillStyle = colors.inkFaint;
+                ctx.fillRect(start, chartArea.top, chartArea.right - start, chartArea.bottom - chartArea.top);
+                ctx.restore();
+            },
+            afterDraw(chart) {
+                const {ctx, chartArea, scales: {x}} = chart;
+                const start = (x.getPixelForValue(boundaryLeft) + x.getPixelForValue(boundaryLeft + 1)) / 2;
+                const end = x.getPixelForValue(lastIndex);
+                ctx.save();
+                ctx.fillStyle = colors.inkSoft;
+                ctx.font = "600 11px Nunito, sans-serif";
+                ctx.fillText("Khoảng dự báo", start + 8, chartArea.top + 16);
+                ctx.strokeStyle = colors.faint;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(end, chartArea.top);
+                ctx.lineTo(end, chartArea.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.textAlign = "right";
+                ctx.fillStyle = colors.muted;
+                ctx.fillText("Mốc đánh giá", end - 6, chartArea.bottom - 8);
+                ctx.restore();
+            }
+        };
+
+        const chart = new Chart(document.getElementById("prediction-chart"), {
+            type: "line",
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: "Giá đóng cửa",
+                        data: priceData,
+                        borderColor: colors.up,
+                        // Vùng tô dưới đường giá: gradient tan dần xuống đáy.
+                        // backgroundColor dạng hàm là API scriptable của Chart.js,
+                        // được gọi lại sau khi chartArea đã đo xong.
+                        backgroundColor: (ctx) => signal.areaGradient(ctx.chart, "--up-rgb"),
+                        fill: "start",
+                        borderWidth: 2.5,
+                        pointRadius: 3,
+                        pointBackgroundColor: colors.up,
+                        pointBorderColor: colors.up,
+                        pointHoverRadius: 7,
+                        pointHoverBorderWidth: 2,
+                        pointHoverBackgroundColor: colors.up,
+                        pointHoverBorderColor: colors.paper2,
+                        tension: 0.2,
+                        spanGaps: false
+                    },
+                    {
+                        label: "Ngưỡng UP, không phải giá dự báo",
+                        data: thresholdData,
+                        borderColor: colors.warn,
+                        backgroundColor: colors.warn,
+                        borderWidth: 2,
+                        borderDash: [7, 5],
+                        pointRadius: 0,
+                        spanGaps: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {mode: "index", intersect: false},
+                scales: {
+                    x: {grid: {display: false}, ticks: {maxRotation: 45, minRotation: 0}},
+                    y: {title: {display: true, text: "Giá đóng cửa"}}
+                },
+                plugins: {
+                    legend: {position: "bottom", labels: {usePointStyle: true, boxWidth: 9}},
+                    tooltip: {
+                        filter: (item) => item.raw !== null,
+                        callbacks: {
+                            // Kèm % thay đổi so với phiên đầu của biểu đồ để đọc
+                            // được biên độ mà không phải tự trừ nhẩm.
+                            label: (item) => {
+                                const value = Number(item.raw);
+                                const text = `${item.dataset.label}: ${value.toFixed(2)}`;
+                                if (item.datasetIndex !== 0) return text;
+                                const pct = signal.pctChange(firstClose, value);
+                                if (pct === null) return text;
+                                return `${text} (${signal.signed(pct)}% so với ${labels[0]})`;
+                            }
+                        }
+                    }
+                }
+            },
+            plugins: [forecastOverlay]
+        });
+        // Tick/grid/tiêu đề trục/legend/tooltip theo token; nếu bỏ bước này
+        // Chart.js dùng mặc định #666 + rgba(0,0,0,.1), gần như vô hình ở dark.
+        signal.applyChartTheme(chart, colors);
+        chart.update("none");
+        window.predictionChart = chart;
+
+        // Đổi sáng/tối: nạp lại token màu rồi vẽ lại, nếu không chart giữ màu cũ.
+        signal.onThemeChange((next) => {
+            colors = next;
+            const price = chart.data.datasets[0];
+            price.borderColor = next.up;
+            price.backgroundColor = next.up;
+            price.pointHoverBackgroundColor = next.up;
+            price.pointHoverBorderColor = next.paper2;
+            const threshold = chart.data.datasets[1];
+            threshold.borderColor = next.warn;
+            threshold.backgroundColor = next.warn;
+            signal.applyChartTheme(chart, next);
+            chart.update("none");
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

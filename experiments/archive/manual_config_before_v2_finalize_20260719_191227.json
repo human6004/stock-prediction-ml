@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "policy_version": "v2_date_purged_fixed_050",
+  "dataset_fingerprint": "66bdb23e8b5a",
+  "dataset_fingerprint_parts": {
+    "fingerprint_scope": "train",
+    "data_protocol_version": 2,
+    "dataset_rows": 416811,
+    "max_trading_date": "2025-06-23",
+    "split_date": "2025-06-30",
+    "validation_end_date": "2026-03-31",
+    "test_end_date": "2026-07-03",
+    "prediction_horizon": 5,
+    "up_threshold": 0.01,
+    "decision_threshold": 0.5,
+    "feature_columns": [
+      "return_1d",
+      "return_3d",
+      "return_5d",
+      "close_open_return",
+      "sma5",
+      "sma20",
+      "sma50",
+      "close_vs_sma20",
+      "sma20_vs_sma50",
+      "rsi14",
+      "volatility_5d",
+      "volatility_20d",
+      "price_range",
+      "volume_change_1d",
+      "volume_ratio_20",
+      "return_10d",
+      "return_20d",
+      "dist_high20",
+      "dist_low20",
+      "month"
+    ],
+    "content_sha256": "9cf8f4c431a9e89fea5b7379f196f9505b74cc80396a163d96d8d5191f2204d1"
+  },
+  "cv_settings": {
+    "n_splits": 5,
+    "gap_sessions": 5,
+    "metric": "f1_up",
+    "decision_threshold": 0.5
+  },
+  "selected_models": {
+    "random_forest": {
+      "run_id": "RF_20260719_141622_786766",
+      "params": {
+        "n_estimators": 120,
+        "max_depth": 10,
+        "min_samples_leaf": 20,
+        "max_features": "sqrt"
+      },
+      "cv_f1_up_mean": 0.4586371152880752,
+      "cv_f1_up_std": 0.03618276127431954,
+      "selected_at": "2026-07-19T14:25:02",
+      "selection_method": "manual"
+    },
+    "gradient_boosting": {
+      "run_id": "GB_20260719_141753_272051",
+      "params": {
+        "n_estimators": 100,
+        "learning_rate": 0.05,
+        "max_depth": 3,
+        "subsample": 0.85
+      },
+      "cv_f1_up_mean": 0.4634201173328779,
+      "cv_f1_up_std": 0.03762588277460012,
+      "selected_at": "2026-07-19T15:08:04",
+      "selection_method": "manual"
+    },
+    "logistic_regression": {
+      "run_id": "LR_20260719_111953_040172",
+      "params": {
+        "C": 1e-05,
+        "solver": "liblinear"
+      },
+      "cv_f1_up_mean": 0.4268076097366443,
+      "cv_f1_up_std": 0.04824563021513813,
+      "selected_at": "2026-07-19T14:29:55",
+      "selection_method": "manual"
+    }
+  },
+  "content_fingerprint": "9cf8f4c431a9e89fea5b7379f196f9505b74cc80396a163d96d8d5191f2204d1"
+}

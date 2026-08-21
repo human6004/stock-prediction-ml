@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Trợ lý dữ liệu và mô hình HOSE — HOSE ML{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='chat-ui.css') }}?v={{ asset_ver }}">
+{% endblock %}
+
+{% block page_header %}
+<h1>Trợ lý dữ liệu và mô hình HOSE</h1>
+<p class="subtitle">Hỏi bằng tiếng Việt; hệ thống dùng dữ liệu và model offline đã publish.</p>
+{% endblock %}
+
+{% block dataset_status %}
+<div id="dataset-status" class="dataset-status">
+    <span class="status-chip">Offline</span>
+    <span class="status-item">
+        Dữ liệu{% if dataset_max_date %} đến <strong>{{ dataset_max_date|date_vi }}</strong>{% endif %}
+    </span>
+    <span class="status-item">{{ symbol_count }} mã</span>
+    <span class="status-item status-model">Model: {{ selected_model or "chưa có" }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="workspace chat-workspace">
+    <div class="chat-suggestions" aria-label="Câu hỏi gợi ý">
+        <button type="button" class="nav-link" data-prompt="FPT đang thế nào?">FPT đang thế nào?</button>
+        <button type="button" class="nav-link" data-prompt="So sánh FPT với VNM">So sánh FPT với VNM</button>
+        <button type="button" class="nav-link" data-prompt="Top 5 cổ phiếu">Top 5 cổ phiếu</button>
+        <button type="button" class="nav-link" data-prompt="Model học từ dữ liệu gì?">Model học từ dữ liệu gì?</button>
+    </div>
+
+    <ol id="chat-transcript" class="chat-transcript is-empty"
+        aria-label="Nội dung hội thoại" aria-live="polite" role="log" tabindex="0">
+        <li id="chat-empty" class="chat-empty" role="presentation">
+            <p class="chat-empty-title">Chưa có câu hỏi nào</p>
+            <p>Hỏi về tín hiệu một mã, so sánh, xếp hạng, model hoặc dataset.</p>
+        </li>
+    </ol>
+
+    <form id="chat-form" class="chat-compose" aria-busy="false">
+        <label for="chat-message">Câu hỏi</label>
+        <textarea id="chat-message" rows="3" maxlength="1000" required
+                  placeholder="VD: Còn VNM thì sao?"></textarea>
+        <button id="send-chat" type="submit">Gửi</button>
+        <button id="clear-chat" type="button" class="btn-secondary">Xóa hội thoại</button>
+        <p id="chat-counter" class="chat-counter" aria-live="off">0/1000 ký tự</p>
+    </form>
+</section>
+
+<p class="disclaimer">
+    Kết quả là tín hiệu kỹ thuật từ dữ liệu offline, không phải khuyến nghị đầu tư.
+</p>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='chat-client.js') }}?v={{ asset_ver }}"></script>
+<script>
+    (() => {
+        const form = document.getElementById("chat-form");
+        const input = document.getElementById("chat-message");
+        const send = document.getElementById("send-chat");
+        const clear = document.getElementById("clear-chat");
+        const transcript = document.getElementById("chat-transcript");
+        const emptyState = document.getElementById("chat-empty");
+        const promptButtons = [...document.querySelectorAll("[data-prompt]")];
+        const kit = window.ChatClientKit;
+        let busy = false;
+        let pendingItem = null;
+
+        const syncEmpty = kit.createEmptyStateToggle(transcript, emptyState);
+        const composer = kit.enhanceComposer({
+            form,
+            input,
+            counter: document.getElementById("chat-counter"),
+            max: 1000
+        });
+
+        function appendMessage(role, content) {
+            if (role === "assistant" && pendingItem) {
+                const item = pendingItem;
+                pendingItem = null;
+                item.classList.remove("is-pending");
+                item.querySelector(".chat-text").textContent = content;
+                return item;
+            }
+            const item = document.createElement("li");
+            item.className = `chat-entry chat-entry-${role}`;
+            item.tabIndex = -1;
+            const label = document.createElement("strong");
+            label.className = "chat-role";
+            label.textContent = role === "user" ? "Bạn" : "Trợ lý";
+            const text = document.createElement("p");
+            text.className = "chat-text";
+            text.textContent = content;
+            item.append(label, text);
+            transcript.append(item);
+            syncEmpty();
+            item.scrollIntoView({block: "nearest"});
+            return item;
+        }
+
+        function appendPending() {
+            pendingItem = appendMessage("assistant", "Đang trả lời…");
+            pendingItem.classList.add("is-pending");
+        }
+
+        function setBusy(value) {
+            busy = value;
+            input.disabled = value;
+            send.disabled = value;
+            clear.disabled = value;
+            promptButtons.forEach((button) => { button.disabled = value; });
+            form.setAttribute("aria-busy", String(value));
+            send.textContent = value ? "Đang xử lý…" : "Gửi";
+        }
+
+        kit.restoreSession((entry) => {
+            const item = appendMessage(entry.role, entry.content);
+            item.scrollIntoView({block: "nearest"});
+        });
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            const message = input.value.trim();
+            if (!message) return;
+            appendMessage("user", message);
+            input.value = "";
+            composer.updateCounter();
+            setBusy(true);
+            appendPending();
+            try {
+                const data = await kit.sendMessage(message);
+                const result = appendMessage("assistant", data.answer);
+                result.focus();
+            } catch (error) {
+                const messageText = error.name === "AbortError"
+                    ? "Trợ lý đã quá thời gian chờ. Vui lòng thử lại."
+                    : typeof error.publicMessage === "string"
+                        ? error.publicMessage
+                        : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
+                const result = appendMessage("assistant", messageText);
+                result.focus();
+            } finally {
+                setBusy(false);
+                input.focus();
+            }
+        });
+
+        clear.addEventListener("click", () => {
+            kit.clearSession();
+            pendingItem = null;
+            transcript.replaceChildren(emptyState);
+            input.value = "";
+            composer.updateCounter();
+            syncEmpty();
+            input.focus();
+        });
+
+        promptButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                if (busy) return;
+                input.value = button.dataset.prompt;
+                composer.updateCounter();
+                form.requestSubmit();
+            });
+        });
+
+        syncEmpty();
+    })();
+</script>
+{% endblock %}
