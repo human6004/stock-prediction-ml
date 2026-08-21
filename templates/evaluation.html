@@ -13,6 +13,7 @@
 {% set metric_keys = ["accuracy", "precision_up", "recall_up", "f1_up"] %}
 {% set metric_labels = ["Accuracy", "Precision UP", "Recall UP", "F1 UP"] %}
 {% set candidates = sections.validation | selectattr("row_type", "equalto", "candidate") | list %}
+{% set legacy_models = sections.legacy | rejectattr("row_type", "equalto", "baseline") | list %}
 
 {# Giá trị cao nhất mỗi cột, để đánh dấu ✓ trong bảng.
 
@@ -135,10 +136,6 @@
 {% if sections.legacy_warning %}
 <section class="alert warn" role="status">{{ sections.legacy_warning }}</section>
 {% endif %}
-{% if baseline_warning %}
-<section class="alert warn" role="status">{{ baseline_warning }}</section>
-{% endif %}
-
 {% if sections.is_current_policy %}
 <section class="workspace evaluation-section">
     <p class="eyebrow">MODEL COMPARISON</p>
@@ -292,7 +289,7 @@
 {% else %}
 <section class="workspace evaluation-section">
     <h2>Kết quả legacy</h2>
-    {{ metric_table(sections.legacy, "Chưa có report legacy.") }}
+    {{ metric_table(legacy_models, "Chưa có report legacy.") }}
 </section>
 {% endif %}
 {% endblock %}

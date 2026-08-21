@@ -1,3 +1,10 @@
+"""Ghi output pipeline an toàn, không để web đọc trúng file đang ghi dở.
+
+Quy tắc chung: ghi bản mới vào file tạm cùng thư mục, ghi xong mới ``os.replace``
+file đích. Người đọc vì vậy chỉ thấy bản cũ hoàn chỉnh hoặc bản mới hoàn chỉnh.
+Riêng model + metadata có thêm backup/rollback để hai file thuộc cùng release.
+"""
+
 import json
 import math
 import os

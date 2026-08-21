@@ -237,6 +237,44 @@ SCENARIOS = (
         "STOCK_SIGNAL",
         {"symbols": ["FPT", "HPG", "VNM", "MWG", "VCB"]},
     ),
+    (
+        "34 suggest ranking",
+        "Gợi ý mã đáng quan tâm",
+        [],
+        "STOCK_RANKING",
+        {"order": "highest", "top_n": 5},
+    ),
+    (
+        "35 delegate pick",
+        "Bạn tự chọn giúp tôi",
+        _history(
+            "tín hiệu",
+            "Bạn muốn xem tín hiệu cho mã cổ phiếu HOSE nào? Chưa có mã trong "
+            "đầu thì hỏi 'Top 5 cổ phiếu' để mình xếp hạng Điểm UP.",
+        ),
+        "STOCK_RANKING",
+        {"order": "highest", "top_n": 5},
+    ),
+    (
+        "36 why these symbols",
+        "Tại sao bạn lại chọn mã này?",
+        _history(
+            "Top 5 cổ phiếu",
+            "Top 5 mã có Điểm UP cao nhất: TCD, ACC, HII, PGD, TAL.",
+        ),
+        "PROJECT_INFO",
+        {"topic": "inference"},
+    ),
+    (
+        "37 bare why follow-up",
+        "tại sao vậy",
+        _history(
+            "Top 5 cổ phiếu",
+            "Top 5 mã có Điểm UP cao nhất: TCD, ACC, HII, PGD, TAL.",
+        ),
+        "PROJECT_INFO",
+        {"topic": "inference"},
+    ),
 )
 
 

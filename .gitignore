@@ -15,8 +15,6 @@ htmlcov/
 .trace-chatbot/
 
 # Local editor/tooling state
-.claude/
-.cursor/
 .vscode/
 .idea/
 .DS_Store
@@ -24,6 +22,25 @@ Thumbs.db
 
 # Scratch dir cho các lần build/QA báo cáo tạm, không phải nguồn
 .tmpwork/
+.tmp_review/
+.translation_work/
+
+# Skill/plugin cache của AI tooling, không phải code hệ thống
+.agents/
+
+# Script + output dùng một lần khi soạn/soi file .docx
+.docx_structure.txt
+.page_map*.ps1
+.inspect_report.py
+.rebuild_report_chapters.py
+.sync_report_page_numbers.py
+.validate_report_update.py
+_inspect*.py
+_inspect_out*.txt
+_update_v*_*.py
+
+# Ảnh giải nén từ ruột file Word khi đối chiếu hình
+docs/**/_ref/
 
 # Ảnh chụp màn hình rời khi kiểm tra UI
 /scr_*.png

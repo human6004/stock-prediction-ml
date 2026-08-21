@@ -15,6 +15,10 @@ load_dotenv(BASE_DIR / ".env")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").strip()
 LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip()
 LLM_MODEL = os.getenv("LLM_MODEL", "").strip()
+# Kill-switch cho LLM call thứ hai (compose): CHATBOT_COMPOSE=0 → chỉ formatter cố định.
+CHATBOT_COMPOSE_ENABLED = (
+    os.getenv("CHATBOT_COMPOSE", "1").strip().lower() not in {"0", "false", "off"}
+)
 
 # Input nằm ngoài repo; mọi output còn lại được tạo tương đối từ BASE_DIR.
 RAW_DATA_PATH = r"D:\study\niên luận\shared_dataset\hose_stock_raw.csv"

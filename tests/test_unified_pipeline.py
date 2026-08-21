@@ -53,8 +53,8 @@ class RollingEvaluationRegistryTests(unittest.TestCase):
                 self.assertFalse(path.exists())
 
 
-class ValidationGateTests(unittest.TestCase):
-    def test_candidate_below_baseline_stops_before_test(self):
+class ValidationBaselineTests(unittest.TestCase):
+    def test_candidate_below_baseline_is_selected_with_warning(self):
         comparison = pd.DataFrame(
             [
                 {"model_id": 2, "model_name": "Logistic Regression", "row_type": "candidate", "f1_up": 0.40, "recall_up": 0.50},
@@ -68,9 +68,15 @@ class ValidationGateTests(unittest.TestCase):
             for model_id, name in settings.MODEL_DEFINITIONS.items()
             if model_id in (2, 3, 4)
         }
+        for metric in model_evaluation.METRIC_COLUMNS:
+            if metric not in comparison:
+                comparison[metric] = 0.0
 
-        with self.assertRaisesRegex(RuntimeError, "baseline"):
-            model_evaluation.select_final_model(comparison, artifacts)
+        _, selected, report = model_evaluation.select_final_model(comparison, artifacts)
+
+        self.assertEqual(selected["model_id"], 2)
+        self.assertFalse(report["validation_baseline_passed"])
+        self.assertIn("Always UP", report["validation_baseline_warning"])
 
 
 class FetchWindowTests(unittest.TestCase):

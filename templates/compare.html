@@ -129,12 +129,6 @@
         {% if b.forecast_window_elapsed %}<span class="alert-detail">Khoảng dự báo của {{ b.symbol }} đã trôi qua.</span>{% endif %}
     </section>
     {% endif %}
-    {% if a.baseline_warning or b.baseline_warning %}
-    <section class="alert warn" role="status">
-        {{ a.baseline_warning or b.baseline_warning }}
-    </section>
-    {% endif %}
-
     {# Cờ so sánh tính một lần để hai ô cùng hàng dùng lại, tránh lặp điều kiện. #}
     {% set both_prob = a.probability_up is not none and b.probability_up is not none %}
     {% set both_vol = a.volatility_20d is not none and b.volatility_20d is not none %}

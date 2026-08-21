@@ -1,4 +1,9 @@
-"""Dự báo offline bằng final model đã train, cho một hoặc hai mã."""
+"""Dự báo offline bằng final model đã publish; không huấn luyện lại model.
+
+Luồng chính: đọc lịch sử giá sạch → build đủ 20 feature rolling → lấy dòng mới
+nhất của mỗi mã → ``predict_proba`` lấy Điểm UP → so với decision threshold để
+trả ``UP/NOT_UP``. Hàm toàn-sàn dùng cùng luồng nhưng cache theo chữ ký data/model.
+"""
 
 import json
 from datetime import date, timedelta

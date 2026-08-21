@@ -1226,26 +1226,6 @@ textarea:focus {
     outline-offset: 2px;
 }
 
-.chat-meta {
-    margin-top: 8px;
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-    color: var(--muted);
-    font-size: 12.5px;
-}
-
-.chat-meta-warn {
-    border-color: var(--warn-line);
-    background: var(--warn-bg);
-    color: var(--warn-ink);
-}
-
-.chat-meta ul {
-    margin: 6px 0 0;
-    padding-left: 20px;
-}
-
 .chat-compose {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -3070,6 +3050,33 @@ thead th[aria-sort] .sort-icon {
     color: var(--faint);
 }
 
+/* Nút tải CSV các mã đã chọn: dùng màu UP làm điểm nhấn hành động chính. */
+.btn-export {
+    min-height: 46px;
+    padding: 0 20px;
+    border: 1px solid var(--up-line);
+    border-radius: 10px;
+    background: var(--up-bg);
+    color: var(--up-ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease),
+        opacity 0.2s var(--ease);
+}
+
+.btn-export:hover:not(:disabled) {
+    background: var(--up);
+    color: #fff;
+    border-color: var(--up);
+}
+
+.btn-export:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
 /* Bảng có vùng cuộn riêng: thanh cuộn dọc nằm trong khung bảng, header dính
    đỉnh khung nên tên cột luôn thấy khi lướt hàng trăm mã.
    Chiều cao dòng và header CHỐT thành số nguyên px (--row-h/--head-h) rồi
@@ -3128,6 +3135,7 @@ thead th[aria-sort] .sort-icon {
 /* Cột số chốt px theo đúng bề rộng nội dung tối đa ("100.0%", "999.999,99",
    "31/12/2025") nên không cột nào còn khoảng trắng chết; phần dư dồn hết cho
    cột Mã — cột duy nhất đáng rộng vì là thứ mắt quét và là link bấm. */
+.screener-table col.col-check { width: 40px; }
 .screener-table col.col-rank { width: 56px; }
 .screener-table col.col-symbol { width: auto; }
 .screener-table col.col-status { width: 132px; }
@@ -3190,6 +3198,19 @@ thead th[aria-sort] .sort-icon {
 .screener-table td.cell-rank {
     color: var(--faint);
     font-size: 13px;
+}
+
+/* Ô chọn (checkbox): căn giữa, checkbox đủ vùng bấm. */
+.screener-table .cell-check {
+    text-align: center;
+    padding: 0;
+}
+
+.screener-table .cell-check input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: var(--up);
 }
 
 .screener-table th.cell-symbol {
@@ -3340,9 +3361,10 @@ thead th[aria-sort] .sort-icon {
        để không còn phần dư: 40+104+104+100+110+122 = 580. Nhờ vậy 348px khả dụng
        của .screener-wrap hiện đủ Mã / Trạng thái / Điểm UP, Giá và Ngày cuộn ngang. */
     .screener-table {
-        min-width: 580px;
+        min-width: 620px;
     }
 
+    .screener-table col.col-check { width: 40px; }
     .screener-table col.col-rank { width: 40px; }
     .screener-table col.col-symbol { width: 104px; }
     .screener-table col.col-status { width: 104px; }

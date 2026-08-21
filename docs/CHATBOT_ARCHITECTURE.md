@@ -1,6 +1,6 @@
 # Kiến trúc chatbot LLM Action-Decision
 
-> **CANONICAL:** Tài liệu này và sơ đồ [06-sequence-chatbot-action-decision.html](diagrams/luuDo/06-sequence-chatbot-action-decision.html) mô tả runtime chatbot hiện hành. Nguồn sơ đồ là `diagrams/luuDo/06-sequence-chatbot-action-decision.sequence.json`.
+> **CANONICAL:** Tài liệu này và sơ đồ [chatbot_flow.png](diagrams/chatbot_flow.png) mô tả runtime chatbot hiện hành.
 >
 > Phạm vi: đồ án Niên luận cơ sở, dữ liệu cổ phiếu HOSE offline. LLM hiểu ngôn ngữ tự nhiên; backend sở hữu dữ liệu, ML và mọi câu trả lời có số liệu.
 
@@ -12,15 +12,16 @@ Hai giao diện dùng chung một API và một contract:
 User tại /chat hoặc floating dock
   → POST /api/chat
   → validate message + tối đa 3 cặp history gần nhất
-  → đúng 1 LLM call trả {action, arguments}
+  → LLM call 1 (decision) trả {action, arguments}
   → validate exact schema + chuẩn hóa arguments
   → fixed dispatcher
   → scope check + data handler / prediction_service
-  → deterministic formatter
+  → deterministic formatter (nguồn số liệu + fallback)
+  → LLM call 2 (compose) diễn đạt lại answer từ JSON backend; lỗi thì giữ answer formatter
   → JSON response 5 field
 ```
 
-Không có keyword/regex router, retry decision, LLM call thứ hai hoặc conversation state riêng.
+Không có keyword/regex router, retry decision, tool loop hoặc conversation state riêng. Compose là LLM call thứ hai cố định (không loop) và phủ cả năm action: ba action dữ liệu chỉ compose khi có kết quả thật; `GENERAL_CHAT`/`OUT_OF_SCOPE` compose từ `kind`/`reason` kèm danh sách năng lực, không có số liệu nào. Luôn có fallback deterministic, tắt được bằng `CHATBOT_COMPOSE=0`.
 
 ## 2. Vai trò của LLM
 
@@ -28,9 +29,10 @@ LLM chỉ:
 
 1. hiểu câu hiện tại trong ngữ cảnh history gần nhất;
 2. chọn đúng một action trong whitelist;
-3. trích xuất arguments theo schema cố định.
+3. trích xuất arguments theo schema cố định;
+4. (compose) diễn đạt câu trả lời: action dữ liệu từ JSON số liệu backend đã tính; `GENERAL_CHAT`/`OUT_OF_SCOPE` từ `kind`/`reason` và danh sách năng lực, không có số liệu.
 
-LLM không đọc file, gọi ML, chọn model/threshold, xác nhận symbol scope hoặc tạo câu trả lời cuối. Probability, prediction, ranking, metric và số liệu dataset luôn đến từ backend.
+LLM không đọc file, gọi ML, chọn model/threshold, xác nhận symbol scope hoặc tự tạo số liệu. Probability, prediction, ranking, metric và số liệu dataset luôn đến từ backend; compose chỉ được dùng lại đúng các con số đó và disclaimer do backend gắn.
 
 ## 3. Decision contract
 
@@ -49,7 +51,7 @@ Năm action cố định:
 
 | Action | Arguments exact | Ý nghĩa |
 |---|---|---|
-| `GENERAL_CHAT` | `kind: greeting \| thanks \| capabilities \| clarify_symbol \| clarify_request` | Hội thoại ngắn hoặc hỏi lại bằng câu cố định |
+| `GENERAL_CHAT` | `kind: greeting \| thanks \| capabilities \| clarify_symbol \| clarify_request` | Hội thoại ngắn hoặc hỏi lại; compose diễn đạt, câu cố định làm fallback |
 | `STOCK_SIGNAL` | `symbols: list[str]` | Tín hiệu cho 1–5 mã; một action cho xem, phân tích và so sánh |
 | `STOCK_RANKING` | `order: highest \| lowest`, `top_n: 1–10` | Xếp hạng Điểm UP |
 | `PROJECT_INFO` | `topic: overview \| dataset \| features \| model \| evaluation \| inference \| limitations` | Giải thích đồ án từ nguồn thật hoặc contract cố định |
@@ -67,7 +69,7 @@ Không có `direct_answer`, `focus`, `unsupported_symbol`, topic `method` hoặc
 
 ## 4. Input và timeout
 
-Provider nhận `DECISION_PROMPT`, tối đa 6 history entry đã validate và message hiện tại. Provider không nhận CSV, report, artifact, source code, domain-result JSON hoặc OpenAI tool schema.
+Call decision nhận `DECISION_PROMPT`, tối đa 6 history entry đã validate và message hiện tại — không nhận CSV, report, artifact, source code hoặc OpenAI tool schema. Call compose nhận `COMPOSE_PROMPT` và JSON `{question, action, data}` do backend tính — không nhận history; với `GENERAL_CHAT`/`OUT_OF_SCOPE`, `data` chỉ gồm `kind`/`reason` và `capabilities`, không có mã hay con số nào.
 
 Protection tại HTTP boundary:
 
@@ -76,7 +78,7 @@ Protection tại HTTP boundary:
 - mỗi history content: 1–1000 ký tự; tổng tối đa 6000;
 - mỗi entry có đúng `role`, `content`; role `user`/`assistant` xen kẽ.
 
-`TOTAL_DEADLINE_SECONDS` bao trùm provider call. `time.monotonic()` tính remaining time trước call và kiểm lại sau call; hết hạn trả `504`. SDK không retry.
+`TOTAL_DEADLINE_SECONDS` bao trùm cả hai provider call. `time.monotonic()` tính remaining time trước mỗi call; decision hết hạn trả `504`, compose hết hạn thì bỏ qua và giữ answer formatter. SDK không retry.
 
 ## 5. Dispatcher, scope và ML
 
@@ -88,7 +90,7 @@ STOCK_RANKING → predict_all_symbols() → filter/sort/limit
 PROJECT_INFO  → static contract hoặc metadata/report/config
 ```
 
-`GENERAL_CHAT` và `OUT_OF_SCOPE` dùng formatter cố định, không vào ML.
+`GENERAL_CHAT` và `OUT_OF_SCOPE` không qua dispatcher và không vào ML: câu cố định trong `GENERAL_CHAT_MESSAGES`/`OUT_OF_SCOPE_MESSAGES` giờ là fallback, còn compose diễn đạt lời chào/từ chối từ `kind`/`reason` và capabilities.
 
 Symbol scope thuộc backend, không thuộc LLM. Với `STOCK_SIGNAL`, backend kiểm toàn bộ danh sách trước inference. Nếu có bất kỳ mã ngoài scope:
 
@@ -112,7 +114,7 @@ ML vẫn chỉ nằm trong `services/prediction_service.py`. Chatbot không thay
 
 Static topic vẫn trả lời khi model chưa sẵn sàng. Data action khác chỉ chạy khi nguồn nó cần đã sẵn sàng.
 
-## 7. Deterministic formatter
+## 7. Deterministic formatter và grounded compose
 
 - Một symbol: hiển thị đầy đủ ngày tham chiếu, signal, Điểm UP, threshold và indicator có sẵn.
 - Nhiều symbol cùng ngày: hiển thị gọn, sắp Điểm UP giảm dần; bằng điểm thì sort theo symbol.
@@ -121,7 +123,7 @@ Static topic vẫn trả lời khi model chưa sẵn sàng. Data action khác ch
 - Project info: chỉ hiển thị field thật đang tồn tại.
 - Stock/ranking hợp lệ luôn có disclaimer dữ liệu offline, không phải khuyến nghị đầu tư.
 
-Formatter không gọi provider. `GENERAL_CHAT` không chứa prose do LLM tạo nên không cần regex hậu kiểm lời khuyên mua/bán.
+Formatter không gọi provider và là fallback khi compose thất bại. Sau formatter, cả năm action có thể đi qua compose: LLM nhận `{question, action, data}`, viết plain text tối đa 900 ký tự; backend gắn disclaimer (không gắn trùng). Action dữ liệu chỉ compose khi có kết quả thật; mã ngoài scope (`unsupported_symbols`) giữ câu deterministic, không compose. Compose lỗi, timeout, sai protocol hoặc quá dài → giữ nguyên answer formatter. Với `GENERAL_CHAT`/`OUT_OF_SCOPE`, an toàn dựa trên ba lớp thay vì regex hậu kiểm: (i) compose không nhận history và `data` không chứa mã hay con số nào, nên về cấu trúc không có gì để khuyến nghị; (ii) `COMPOSE_PROMPT` cấm khuyến nghị mua/bán và cấm nhận xét mã nào đáng mua; (iii) mọi lỗi đều rơi về câu từ chối cố định deterministic. Kiểm chứng bằng provider thật trên 10 câu thử tay (trong đó 4 câu dụ xin lời khuyên mua/bán, kể cả jailbreak “bỏ qua mọi quy tắc”): không câu nào đưa khuyến nghị, không câu nào nêu mã hay con số.
 
 ## 8. API và frontend
 
@@ -157,15 +159,15 @@ Response công khai giữ nguyên năm field:
 | `504` | Provider vượt deadline |
 | `200` | Thành công, out-of-scope hoặc symbol ngoài scope |
 
-Trang `/chat` và floating dock dùng chung `/api/chat`, transcript `sessionStorage` và history gần nhất. Cả hai render answer bằng `textContent`, không render HTML từ provider. Dock không xuất hiện tại `/chat` để tránh hai UI trùng nhau.
+Trang `/chat` và floating dock dùng chung `/api/chat`, transcript `sessionStorage` và history gần nhất. Cả hai render answer bằng `textContent`, không render HTML từ provider, và chỉ hiển thị nội dung `answer`: `sources`, `warnings`, `data_as_of`, `model_trained_through` vẫn nằm trong JSON response nhưng không còn được render dưới câu trả lời. Dock không xuất hiện tại `/chat` để tránh hai UI trùng nhau.
 
 ## 9. Scenario matrix
 
 | # | User input | Decision mong đợi | Backend/response mong đợi |
 |---:|---|---|---|
-| 01 | “Xin chào” | `GENERAL_CHAT {kind:greeting}` | Câu chào cố định |
-| 02 | “Cảm ơn nhé” | `GENERAL_CHAT {kind:thanks}` | Câu đáp cố định |
-| 03 | “Bạn làm được gì?” | `GENERAL_CHAT {kind:capabilities}` | Liệt kê phạm vi cố định |
+| 01 | “Xin chào” | `GENERAL_CHAT {kind:greeting}` | Câu chào (compose, fallback cố định) |
+| 02 | “Cảm ơn nhé” | `GENERAL_CHAT {kind:thanks}` | Câu đáp (compose, fallback cố định) |
+| 03 | “Bạn làm được gì?” | `GENERAL_CHAT {kind:capabilities}` | Liệt kê năng lực (compose, fallback cố định) |
 | 04 | “Dự đoán giúp tôi” | `GENERAL_CHAT {kind:clarify_symbol}` | Hỏi mã cần xem |
 | 05 | “Phân tích đi” | `GENERAL_CHAT {kind:clarify_request}` | Hỏi lại yêu cầu ngắn |
 | 06 | “FPT thế nào?” | `STOCK_SIGNAL {symbols:[FPT]}` | Một signal đầy đủ |
@@ -187,14 +189,17 @@ Trang `/chat` và floating dock dùng chung `/api/chat`, transcript `sessionStor
 | 22 | “Score và threshold dùng sao?” | `PROJECT_INFO {topic:inference}` | Giải thích luồng suy luận thật |
 | 23 | “Hạn chế là gì?” | `PROJECT_INFO {topic:limitations}` | Contract tĩnh |
 | 24 | “Vậy train thế nào?” sau model | `PROJECT_INFO {topic:model}` | History giữ topic |
-| 25 | “Tin FPT hôm nay?” | `OUT_OF_SCOPE {reason:news}` | Từ chối cố định, không data handler |
-| 26 | “Có nên mua FPT?” | `OUT_OF_SCOPE {reason:trading_advice}` | Không đưa lời khuyên |
+| 25 | “Tin FPT hôm nay?” | `OUT_OF_SCOPE {reason:news}` | Từ chối (compose, fallback cố định), không data handler |
+| 26 | “Có nên mua FPT?” | `OUT_OF_SCOPE {reason:trading_advice}` | Từ chối, mời sang việc trong capabilities (compose, fallback cố định) |
+| 27 | “Gợi ý mã đáng quan tâm” | `STOCK_RANKING {order:highest,top_n:5}` | Xếp hạng Điểm UP kèm disclaimer |
+| 28 | “Bạn tự chọn giúp tôi” sau khi bot hỏi mã | `STOCK_RANKING {order:highest,top_n:5}` | Ranking thay vì lặp clarify |
+| 29 | “Tại sao bạn chọn các mã này?” sau ranking | `PROJECT_INFO {topic:inference}` | Giải thích luồng suy luận, không clarify |
 
-Bảng trên là bản đại diện; bộ evaluator đầy đủ trong `scripts/evaluate_chatbot_decisions.py` có 33 scenario, dùng provider thật và chạy ngoài CI. `33/33` là target chất lượng prompt, không phải hard gate và không được ép bằng keyword router/hard-code.
+Bảng trên là bản đại diện; bộ evaluator đầy đủ trong `scripts/evaluate_chatbot_decisions.py` có 37 scenario (gồm hai case hỏi “tại sao chọn mã này” → `PROJECT_INFO {topic:inference}`), dùng provider thật và chạy ngoài CI. `37/37` là target chất lượng prompt, không phải hard gate và không được ép bằng keyword router/hard-code.
 
 ## 10. Phạm vi cố ý không làm
 
-Không RAG, embedding, Vector DB, LangChain/LangGraph, multi-agent, planner/executor, tool loop, chat database hoặc clarification state machine. History ngắn và fixed dispatcher đủ cho phạm vi niên luận.
+Không RAG, embedding, Vector DB, LangChain/LangGraph, multi-agent, planner/executor, tool loop, chat database hoặc clarification state machine. Compose là một call thẳng có fallback, không phải tool loop. History ngắn và fixed dispatcher đủ cho phạm vi niên luận.
 
 ## 11. File responsibility
 
@@ -215,20 +220,9 @@ static/chat-client.js + templates/chat.html + static/chat-dock.js (floating dock
   transcript, last-6 history, transport, safe DOM
 ```
 
-## 12. Tài liệu LEGACY/STALE
+## 12. Tài liệu hiện hành
 
-Nội dung chatbot trong các đường dẫn sau là **LEGACY/STALE**, chỉ dùng tham khảo lịch sử; không dùng làm source of truth:
-
-- `docs/slides/` (slide, outline và script thuyết trình còn mô tả SCI cũ);
-- `docs/diagrams/soDoKienTruc/huong2-chatbot-rag.*` (sơ đồ SCI/RAG cũ).
-
-`docs/GIAI_THICH_PROJECT.md`, `docs/SO_DO_KIEN_TRUC_HE_THONG.md`, bộ generator `docs/report_render/` cùng DOCX build từ nó đã được đồng bộ theo kiến trúc action-decision hiện hành, không còn LEGACY.
-
-Canonical hiện hành: `docs/CHATBOT_ARCHITECTURE.md`, `docs/diagrams/luuDo/06-sequence-chatbot-action-decision.sequence.json`, HTML render cùng tên và index `docs/diagrams/luuDo/README.md`.
-
-`docs/diagrams/pipeline-worklow/chatbot.workflow.json` và `chatbot-workflow.html` đã được render lại theo kiến trúc action-decision hiện hành, nên không còn LEGACY: workflow diagram này bổ sung góc nhìn swimlane cho sequence diagram canonical.
-
-Notice tại nguồn cũ: `docs/slides/LEGACY_STALE_CHATBOT.md` và `docs/diagrams/soDoKienTruc/LEGACY_STALE_CHATBOT.md`. Nội dung legacy bên dưới hai nguồn đó không bị viết lại.
+Ba tài liệu dùng để đối chiếu kiến trúc hiện tại là `docs/CHATBOT_ARCHITECTURE.md`, `docs/GIAI_THICH_PROJECT.md` và `docs/SO_DO_KIEN_TRUC_HE_THONG.md`. Hai ảnh tổng quan tại `docs/diagrams/pipeline_flow.png` và `docs/diagrams/chatbot_flow.png` minh họa luồng pipeline và chatbot.
 
 ## 13. Test và nghiệm thu
 
@@ -238,7 +232,7 @@ python -m pytest tests/test_prediction_flow.py
 python -m pytest tests/
 ```
 
-Hard gate: decision exact schema, one-call/no-tools, deadline, input/history bounds, centralized scope validation, stock 1–5 mã, ranking, 7 project topic, follow-up, API errors và safe DOM. Live-provider evaluator không nằm trong CI.
+Hard gate: decision exact schema, decision+compose cố định (không tool loop, compose luôn có fallback deterministic), deadline chung hai call, input/history bounds, centralized scope validation, stock 1–5 mã, ranking, 7 project topic, follow-up, API errors và safe DOM. Live-provider evaluator không nằm trong CI.
 
 # GIẢI THÍCH ĐỂ BẢO VỆ NIÊN LUẬN
 
@@ -252,11 +246,11 @@ Cùng một ý có nhiều cách hỏi. LLM hiểu cách diễn đạt và follo
 
 ### 3. LLM được phép làm gì?
 
-LLM chỉ chọn một trong năm action và trích xuất arguments đúng schema.
+LLM chọn một trong năm action, trích xuất arguments đúng schema, và diễn đạt câu trả lời (compose): với action dữ liệu là từ JSON số liệu backend đưa, với lời chào/từ chối là từ `kind`/`reason` và danh sách năng lực.
 
 ### 4. LLM không được phép làm gì?
 
-LLM không tạo prediction, score, ranking, metric, số liệu dataset hoặc lời khuyên đầu tư.
+LLM không tạo prediction, score, ranking, metric, số liệu dataset hoặc lời khuyên đầu tư. Compose chỉ được diễn đạt lại các số backend đã tính; ở nhánh chào/từ chối, compose không nhận history và `data` không chứa mã hay con số nào nên không có gì để khuyến nghị, prompt cũng cấm khuyến nghị mua/bán; lỗi thì hệ thống trả bản formatter cố định.
 
 ### 5. Vì sao năm action hỗ trợ nhiều câu hỏi?
 
@@ -292,7 +286,7 @@ Phạm vi dữ liệu và action nhỏ, nguồn backend đã xác định. RAG t
 
 ### 13. Vì sao không cho LLM viết số dự đoán?
 
-LLM có thể bịa hoặc làm tròn sai. Backend lấy trực tiếp probability và threshold từ model nên kết quả kiểm thử và truy vết được.
+LLM có thể bịa hoặc làm tròn sai nếu tự tính. Mọi con số do backend lấy trực tiếp từ model; compose bị ràng buộc chỉ dùng số trong JSON, giới hạn độ dài, và mọi lỗi đều rơi về formatter cố định nên kết quả vẫn kiểm thử, truy vết được. Nhánh chào/từ chối cũng qua compose nhưng bị bỏ đói dữ liệu: không history, không mã, không số. Văn phong mỗi lần có thể khác nhau nhưng số liệu và disclaimer luôn giống nhau.
 
 ### 14. Hạn chế hiện tại là gì?
 

@@ -9,10 +9,8 @@ Bài toán hiện tại: dự báo một mã cổ phiếu có tăng hơn `1%` tr
 - [Giải thích project](docs/GIAI_THICH_PROJECT.md)
 - [Sơ đồ kiến trúc hệ thống](docs/SO_DO_KIEN_TRUC_HE_THONG.md)
 - [Các sơ đồ HTML export](docs/diagrams/)
-- [Tuning ba model và chọn Final Model](docs/diagrams/model-workflows/README.md)
 - [Kiến trúc chatbot Action Decision](docs/CHATBOT_ARCHITECTURE.md)
-- `docs/slides/` - slide bảo vệ (`thuyet_trinh_nien_luan.pptx`), outline và script dựng slide
-- `docs/report_render/` - script sinh bản báo cáo `.docx` từ nội dung theo chương
+- [Báo cáo hoàn thiện](docs/bao_cao_project_hose_stock_prediction_hoan_thien.docx)
 
 ## Luồng chính
 
@@ -61,8 +59,9 @@ LLM_MODEL=
 ```
 
 Thiếu `.env` thì pipeline và các trang dự báo vẫn chạy, chỉ riêng chatbot không gọi được LLM.
+Thêm `CHATBOT_COMPOSE=0` nếu muốn tắt LLM call thứ hai và chỉ dùng câu trả lời deterministic.
 
-Chatbot gọi LLM đúng một lần để chọn một trong 5 action cố định bằng JSON. Backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi format câu trả lời dữ liệu bằng code. Provider không nhận raw CSV, report, source code hoặc model artifact; không có tool loop hay LLM call thứ hai. Có hai UI dùng chung `/api/chat`: trang `/chat` đầy đủ và khung chat nổi trên các trang còn lại; transcript chia sẻ qua `sessionStorage` và request gửi tối đa 6 message gần nhất.
+Chatbot gọi LLM hai lần cố định, không tool loop. Call 1 chọn một trong 5 action bằng JSON; backend validate decision, gọi dispatcher/read-only handler, dùng `prediction_service` khi cần ML, rồi dựng câu trả lời deterministic bằng code. Call 2 (compose) diễn đạt lại câu trả lời đó, chỉ được dùng đúng số liệu backend đã tính; mọi lỗi, timeout hoặc vi phạm giới hạn đều rơi về bản deterministic. Provider không nhận raw CSV, report, source code hoặc model artifact. Có hai UI dùng chung `/api/chat`: trang `/chat` đầy đủ và khung chat nổi trên các trang còn lại; transcript chia sẻ qua `sessionStorage` và request gửi tối đa 6 message gần nhất.
 
 ## Chạy pipeline
 

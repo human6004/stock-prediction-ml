@@ -1,4 +1,13 @@
-"""Fixed, read-only action handlers for the local stock chatbot."""
+"""Các handler chỉ-đọc cung cấp dữ liệu thật cho chatbot.
+
+File này không gọi LLM và không dùng API token. ``execute_action`` chỉ cho phép:
+- ``STOCK_SIGNAL``: tín hiệu cho các mã người dùng hỏi.
+- ``STOCK_RANKING``: xếp hạng Điểm UP toàn bộ mã hợp lệ.
+- ``PROJECT_INFO``: thông tin dataset, feature, model, đánh giá và giới hạn.
+
+Mọi handler trả cùng một phong bì ``data/sources/warnings/error`` để
+``chatbot_service.py`` có thể trình bày kết quả theo một cách thống nhất.
+"""
 
 from __future__ import annotations
 
@@ -86,6 +95,7 @@ def _load_scope(metadata: dict) -> tuple[set[str], bool]:
 
 
 def _load_runtime_state(*, include_scope: bool = True) -> dict:
+    """Nạp model, metadata và scope mã; trả lỗi an toàn nếu release chưa sẵn sàng."""
     def unavailable(message: str) -> dict:
         return {"error": {"code": "model_unavailable", "message": message}}
 
@@ -164,6 +174,7 @@ def _signal_payload(row: dict, metadata: dict) -> dict:
 
 
 def _stock_signal(arguments: dict, state: dict) -> dict:
+    """Dự báo các mã được hỏi, nhưng chỉ khi chúng thuộc phạm vi model phục vụ."""
     symbols = arguments["symbols"]
     outside = [symbol for symbol in symbols if symbol not in state["scope"]]
     if outside:
@@ -234,6 +245,7 @@ def _stock_signal(arguments: dict, state: dict) -> dict:
 
 
 def _stock_ranking(arguments: dict, state: dict) -> dict:
+    """Xếp hạng Điểm UP, đồng thời loại mã ngoài scope hoặc có dữ liệu cũ."""
     try:
         raw_rows = prediction_service.predict_all_symbols()
     except Exception:
@@ -313,6 +325,7 @@ def _stock_ranking(arguments: dict, state: dict) -> dict:
 
 
 def _project_info(topic: str, state: dict) -> dict:
+    """Đọc đúng nguồn dữ liệu cần thiết cho từng chủ đề giải thích project."""
     metadata = state.get("metadata") or {}
     summary = state.get("summary") or {}
     warnings = list(state.get("warnings") or [])
@@ -495,6 +508,7 @@ def _project_info(topic: str, state: dict) -> dict:
 
 
 def execute_action(action: str, arguments: dict) -> dict:
+    """Cổng duy nhất ánh xạ action đã kiểm tra sang handler chỉ-đọc tương ứng."""
     if action not in {"STOCK_SIGNAL", "STOCK_RANKING", "PROJECT_INFO"}:
         raise ValueError(f"Unsupported data action: {action}")
     if action == "PROJECT_INFO" and arguments.get("topic") not in PROJECT_TOPICS:

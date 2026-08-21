@@ -566,7 +566,7 @@ class PredictionRouteTests(unittest.TestCase):
         self.assertIn('"estimated": true', html)
         self.assertIn('"close": 70.6', html)
 
-    def test_prediction_page_shows_baseline_warning(self):
+    def test_prediction_page_hides_baseline_warning(self):
         result = make_result()
         result.update(
             policy_id=EXPERIMENT_POLICY_ID,
@@ -579,7 +579,16 @@ class PredictionRouteTests(unittest.TestCase):
             response = self.client.post("/predict", data={"symbol": "FPT"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("chưa vượt baseline always-UP", response.get_data(as_text=True))
+        self.assertNotIn("chưa vượt baseline always-UP", response.get_data(as_text=True))
+
+    def test_screener_hides_baseline_warning(self):
+        result = make_result()
+        result["baseline_warning"] = "Không hiển thị cảnh báo baseline."
+        with patch.object(web_app, "predict_all_symbols", return_value=[result]):
+            response = self.client.get("/screener")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Không hiển thị cảnh báo baseline", response.get_data(as_text=True))
 
     def test_chart_template_leaves_future_prices_null_and_does_not_span_gaps(self):
         source = (ROOT_DIR / "templates" / "index.html").read_text(encoding="utf-8")
@@ -608,7 +617,7 @@ class PredictionRouteTests(unittest.TestCase):
         sections = {
             "is_current_policy": True,
             "legacy_warning": None,
-            "baseline_warning": None,
+            "baseline_warning": "Không hiển thị cảnh báo baseline.",
             "validation": [
                 row("Logistic Regression"),
                 row("Random Forest"),
@@ -635,10 +644,48 @@ class PredictionRouteTests(unittest.TestCase):
         for model_name in ("Logistic Regression", "Random Forest", "Gradient Boosting"):
             self.assertIn(model_name, html)
         self.assertNotIn("Always UP", html)
+        self.assertNotIn("Không hiển thị cảnh báo baseline", html)
+
+    def test_evaluation_legacy_table_hides_baselines(self):
+        def row(model_name, row_type):
+            return {
+                "model_name": model_name,
+                "row_type": row_type,
+                "accuracy": 0.5,
+                "precision_up": 0.4,
+                "recall_up": 0.4,
+                "f1_up": 0.4,
+                "precision_not_up": 0.6,
+                "recall_not_up": 0.6,
+                "f1_not_up": 0.6,
+                "status": "",
+            }
+
+        sections = {
+            "is_current_policy": False,
+            "legacy_warning": None,
+            "baseline_warning": None,
+            "validation": [],
+            "test": [],
+            "legacy": [
+                row("Random Forest", "candidate"),
+                row("Always UP", "baseline"),
+                row("Always NOT_UP", "baseline"),
+            ],
+        }
+        with patch.object(web_app, "load_evaluation_sections", return_value=sections):
+            response = self.client.get("/evaluation")
+
+        html = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Random Forest", html)
+        self.assertNotIn("Always UP", html)
+        self.assertNotIn("Always NOT_UP", html)
 
     def test_compare_renders_exact_metrics_highlight_and_warnings(self):
         first = make_result("FPT", 0.8, stale=True)
         second = make_result("VNM", 0.4, reference_date="2026-07-09")
+        first["baseline_warning"] = "Không hiển thị cảnh báo baseline."
         second["forecast_start_date"] = "2026-07-10"
         second["forecast_end_date"] = "2026-07-16"
         with (
@@ -667,6 +714,7 @@ class PredictionRouteTests(unittest.TestCase):
         self.assertEqual(html.count("Tín hiệu UP cao hơn theo mô hình"), 1)
         self.assertIn("chưa thể so sánh trực tiếp", html)
         self.assertIn("Dữ liệu đã cũ; hãy làm mới trước khi dùng kết quả.", html)
+        self.assertNotIn("Không hiển thị cảnh báo baseline", html)
         for forbidden in ("Nên mua", "Mã tốt nhất", "điểm tổng hợp"):
             self.assertNotIn(forbidden, html)
 

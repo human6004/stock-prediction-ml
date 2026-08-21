@@ -1,6 +1,6 @@
 /* chat-dock.js — khung chat nổi dùng trên mọi trang trừ /chat.
    Dùng lại ChatClientKit (transport + sessionStorage) của trang /chat, chỉ khác
-   phần render: bong bóng gọn, không hiện danh sách nguồn (bấm ⤢ để xem đầy đủ).
+   phần render: bong bóng gọn, chỉ hiện câu trả lời (không kèm metadata hệ thống).
    Mọi nội dung từ server chỉ ghi vào DOM qua textContent, không dựng HTML thô. */
 (function () {
     "use strict";
@@ -32,38 +32,13 @@
         }
     }
 
-    /* Mốc dữ liệu + cảnh báo gộp thành một dòng chú thích dưới câu trả lời. */
-    function buildNote(data) {
-        var meta = [];
-        if (data.data_as_of) {
-            meta.push("Dữ liệu " + data.data_as_of);
-        }
-        if (data.model_trained_through) {
-            meta.push("Model " + data.model_trained_through);
-        }
-        var lines = meta.length ? [meta.join(" · ")] : [];
-        (Array.isArray(data.warnings) ? data.warnings : []).forEach(function (warning) {
-            var message = warning && warning.message ? String(warning.message).trim() : "";
-            if (message) {
-                lines.push("⚠ " + message);
-            }
-        });
-        return lines.join("\n");
-    }
-
-    function appendEntry(role, content, note) {
+    function appendEntry(role, content) {
         var item = document.createElement("li");
         item.className = "chat-dock-entry chat-dock-entry-" + role;
         var text = document.createElement("p");
         text.className = "chat-dock-text";
         text.textContent = content;
         item.appendChild(text);
-        if (note) {
-            var meta = document.createElement("p");
-            meta.className = "chat-dock-note";
-            meta.textContent = note;
-            item.appendChild(meta);
-        }
         transcript.appendChild(item);
         transcript.scrollTop = transcript.scrollHeight;
         syncEmpty();
@@ -71,7 +46,7 @@
     }
 
     function appendPending() {
-        var item = appendEntry("assistant", "Đang trả lời…", "");
+        var item = appendEntry("assistant", "Đang trả lời…");
         item.classList.add("is-pending");
         return item;
     }
@@ -99,7 +74,7 @@
     }
 
     kit.restoreSession(function (entry) {
-        appendEntry(entry.role, entry.content, entry.role === "assistant" ? buildNote(entry) : "");
+        appendEntry(entry.role, entry.content);
     });
     syncEmpty();
     kit.enhanceComposer({form: form, input: input});
@@ -138,19 +113,19 @@
         if (!message) {
             return;
         }
-        appendEntry("user", message, "");
+        appendEntry("user", message);
         input.value = "";
         setBusy(true);
         var pending = appendPending();
         kit.sendMessage(message).then(function (data) {
             transcript.removeChild(pending);
-            appendEntry("assistant", data.answer, buildNote(data));
+            appendEntry("assistant", data.answer);
         }).catch(function (error) {
             transcript.removeChild(pending);
             var reason = error && error.publicMessage
                 ? error.publicMessage
                 : "Không thể gọi trợ lý lúc này. Thử lại sau.";
-            appendEntry("assistant", reason, "");
+            appendEntry("assistant", reason);
         }).finally(function () {
             setBusy(false);
             syncEmpty();

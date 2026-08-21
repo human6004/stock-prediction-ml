@@ -1,0 +1,1032 @@
+<mxfile host="Electron" pages="5">
+  <diagram id="overview" name="1. Tổng quan hệ thống">
+    <mxGraphModel dx="1046" dy="972" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1250" pageHeight="1900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ov_ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#666666;" value="vnstock API&#xa;quote history (nguồn KBS)" vertex="1">
+          <mxGeometry height="70" width="200" x="40" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_A" parent="1" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;swimlaneFillColor=#ffffff;fontStyle=1;" value="GIAI ĐOẠN DỮ LIỆU — scripts/refresh_data.py (chạy nền từ /tuning hoặc chạy tay từng bước)" vertex="1">
+          <mxGeometry height="580" width="560" x="280" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_a1" parent="ov_A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="[1/3] fetch_hose_data.py — fetch tăng dần theo từng mã (cửa sổ riêng), retry 3 lần, rate-limit chờ 65s, dedupe (symbol, ngày) keep=last, ghi atomic; mã lỗi → RuntimeError cuối run" vertex="1">
+          <mxGeometry height="110" width="300" x="110" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_a2" parent="ov_A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="[2/3] preprocess_data.py — chuẩn hóa, bỏ trùng, lọc nến hợp lệ / giá &gt; 0; eligibility: ≥ 250 phiên giao dịch" vertex="1">
+          <mxGeometry height="90" width="300" x="110" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_a3" parent="ov_A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="[3/3] build_features.py — 20 chỉ báo kỹ thuật (SMA, RSI14, volatility, volume…) + nhãn t+5 theo lịch thị trường chung: tăng &gt; 1% → UP, ngược lại NOT_UP" vertex="1">
+          <mxGeometry height="110" width="300" x="110" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_ga1" edge="1" parent="ov_A" source="ov_a1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_ga2" edge="1" parent="ov_A" source="ov_a2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_raw" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="hose_stock_raw.csv&#xa;(shared_dataset, NGOÀI repo)" vertex="1">
+          <mxGeometry height="80" width="240" x="880" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_clean" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="hose_stock_clean.csv&#xa;+ data_quality / eligible / excluded_symbols.csv" vertex="1">
+          <mxGeometry height="90" width="240" x="880" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_ml" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="ml_dataset.csv&#xa;+ hose_stock_features.csv" vertex="1">
+          <mxGeometry height="80" width="240" x="880" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_B" parent="1" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;swimlaneFillColor=#ffffff;fontStyle=1;" value="THỬ NGHIỆM — Tuning Lab (/tuning), chỉ chạy trên TRAIN" vertex="1">
+          <mxGeometry height="360" width="540" x="290" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_b1" parent="ov_B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="Purged CV 4 fold (gap 5 phiên, từ 2021-01-01) — người dùng thử từng config LR / RF / GB, chọn decision threshold trên OOF" vertex="1">
+          <mxGeometry height="100" width="300" x="110" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_b2" parent="ov_B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="Người dùng CHỌN TAY 1 run hợp lệ cho mỗi model → chốt vào manual_config.json" vertex="1">
+          <mxGeometry height="90" width="300" x="110" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_gb1" edge="1" parent="ov_B" source="ov_b1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_b2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_th" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="experiments/&#xa;tuning_history.csv" vertex="1">
+          <mxGeometry height="70" width="240" x="880" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_mc" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="experiments/&#xa;manual_config.json" vertex="1">
+          <mxGeometry height="70" width="240" x="880" y="1010" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_note" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" value="Refresh dữ liệu → mốc rolling + fingerprint đổi → manual_config cũ thành stale → phải CV lại và chốt lại 3 model trước khi chạy official pipeline." vertex="1">
+          <mxGeometry height="170" width="210" x="40" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_C" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="OFFICIAL PIPELINE — scripts/run_pipeline.py: replay 3 config → chấm VALIDATION chọn model (phải thắng baseline) → refit TRAIN+VALIDATION → TEST đúng MỘT lần (evaluation_registry) → atomic release. Chi tiết: trang 2" vertex="1">
+          <mxGeometry height="120" width="540" x="290" y="1230" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_model" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="models/final_model.pkl&#xa;+ model_metadata.json" vertex="1">
+          <mxGeometry height="80" width="240" x="880" y="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_rep" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" value="reports/* — model_comparison, final_model_evaluation, confusion_matrix, pipeline_summary.json…" vertex="1">
+          <mxGeometry height="90" width="240" x="880" y="1330" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_D" parent="1" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontStyle=1;" value="SERVING — chỉ suy luận, không train lại" vertex="1">
+          <mxGeometry height="240" width="520" x="300" y="1440" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_d1" parent="ov_D" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Flask app.py — trang: /, /compare, /screener, /evaluation, /tuning, /chat; API: POST /predict, POST /api/chat (chatbot 2 LLM call); đọc model + reports trực tiếp từ đĩa mỗi request" vertex="1">
+          <mxGeometry height="150" width="290" x="40" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_d2" parent="ov_D" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="CLI&#xa;predict_stock.py --symbol" vertex="1">
+          <mxGeometry height="150" width="130" x="360" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_user" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="Người dùng cuối (trình duyệt / terminal)" vertex="1">
+          <mxGeometry height="70" width="320" x="400" y="1760" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e1" edge="1" parent="1" source="ov_ext" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_a1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e2" edge="1" parent="1" source="ov_a1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_raw" value="đọc universe + ghi atomic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e4" edge="1" parent="1" source="ov_a2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_clean" value="ghi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e6" edge="1" parent="1" source="ov_a3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_ml" value="ghi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e7" edge="1" parent="1" source="ov_A" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_B" value="ml_dataset.csv → TRAIN (rolling split theo protocol_dates)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e8" edge="1" parent="1" source="ov_b1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_th" value="append mỗi run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e9" edge="1" parent="1" source="ov_b2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="ov_mc" value="ghi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e11" edge="1" parent="1" source="ov_B" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_C" value="đủ config 3 model, fingerprint khớp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e13a" edge="1" parent="1" source="ov_C" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.25;entryX=0;entryY=0.5;" target="ov_model" value="atomic release">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e13b" edge="1" parent="1" source="ov_C" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.75;entryX=0;entryY=0.5;" target="ov_rep" value="ghi reports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e14" edge="1" parent="1" source="ov_C" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_D" value="artifact mới phục vụ ngay (đọc từ đĩa mỗi request)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ov_e16" edge="1" parent="1" source="ov_D" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="ov_user" value="dự báo / trang web / chatbot">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="pipeline" name="2. Chi tiết run_pipeline.py (official)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1250" pageHeight="3450" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pl_start" value="python scripts/run_pipeline.py (CLI hoặc POST /tuning/run-pipeline)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="40" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_d0" value="Có tham số CLI?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="140" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_err0" value="ValueError — official pipeline không nhận tham số" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="155" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_lock" value="acquire_pipeline_lock() — experiments/pipeline.lock (O_EXCL, reclaim nếu PID cũ đã chết)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="270" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_d1" value="Lock đang bận?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="380" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_errL" value="In thông báo + sys.exit(1)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="395" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s1" value="1) dataset_check() — đọc RAW_DATA_PATH, validate cột bắt buộc (thiếu file/cột → abort)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="510" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s2" value="2) clean_data() → cleaned_all + cleaned_for_training (in-memory, chưa ghi đĩa)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="620" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s3" value="3) build_features() — 20 feature kỹ thuật" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="730" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s4" value="4) create_labels() — nhãn t+5 lịch thị trường chung (tăng &gt; 1% → UP)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="830" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s5" value="5) protocol_time_split() — rolling: test_end = phiên mới nhất; validation_end = test_end − 94 ngày; train_end = validation_end − 274 ngày (fallback mốc tĩnh nếu span ≤ 368 ngày); purge hàng vắt ranh giới theo label_end_date" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="940" width="340" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s6" value="6) verify_protocol_splits() — 7 kiểm tra chống leakage giữa TRAIN / VALIDATION / TEST (fail → ValueError abort)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="1100" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s7" value="7) Fingerprint in-memory: dataset (scope TRAIN) + experiment (scope TRAIN+VAL+TEST) — SHA-256 không phụ thuộc thứ tự dòng" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="1220" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_dsnap" value="8) Snapshot đã có trong evaluation_registry.json? (started / evaluated / published / release_failed đều tính)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1340" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_errsnap" value="RuntimeError — TEST chỉ mở MỘT LẦN cho mỗi snapshot dữ liệu" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1365" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_dconf" value="9) manual_config.json đủ LR + RF + GB, schema v4, đúng policy + fingerprint TRAIN?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1490" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_errconf" value="RuntimeError — phải chốt config từ Tuning Lab trước" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1515" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s10" value="10) Ghi outputs atomic: hose_stock_clean.csv, hose_stock_features.csv, ml_dataset.csv, split_summary.csv" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="1640" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_dfp" value="11) Fingerprint file vừa ghi khớp bản in-memory? (+ recheck registry)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1760" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_errfp" value="RuntimeError — fingerprint thay đổi sau khi ghi ml_dataset.csv" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1785" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s12" value="12) tune_models(TRAIN) — REPLAY 3 config đã chốt (không CV lại): fit LR / RF / GB; ghi tuning_results.csv, cv_fold_results.csv, best_params.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="1910" width="340" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s13" value="13) Chấm VALIDATION: 3 model + 2 baseline (Always-UP, Always-NOT_UP)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2050" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s14" value="14) select_final_model — tie-break: F1_UP giảm dần → Recall_UP → độ đơn giản (LR &lt; RF &lt; GB)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2160" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_dbase" value="15) F1_UP (winner, VALIDATION) &gt; baseline tốt nhất?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="2280" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_errbase" value="RuntimeError — dừng TRƯỚC khi mở TEST (được phép chạy lại sau khi tune tốt hơn)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="820" y="2305" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s16" value="16) Ghi registry status=started — ĐIỂM KHÔNG QUAY LUI của snapshot" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2430" width="340" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s17" value="17) Refit winner trên TRAIN+VALIDATION → chấm TEST MỘT lần với decision_threshold OOF của chính model (không phải 0.5)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2550" width="340" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_dsoft" value="18) F1_UP TEST &gt; Always-UP TEST?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="2680" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_warn" value="baseline_warning — chỉ cảnh báo, KHÔNG abort (TEST đã mở)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="820" y="2700" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s19" value="19) Registry status=evaluated + test metrics" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2820" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s20" value="20) write_reports — model_comparison, final_model_evaluation, classification_report, confusion_matrix (csv+png), feature_importance, model_selection_report" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2920" width="340" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s21" value="21) atomic_model_release — stage tmp → backup bản cũ → os.replace final_model.pkl + model_metadata.json (lỗi → rollback từ backup)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="3050" width="340" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_s22" value="22) Ghi pipeline_summary.json + registry status=published" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="3180" width="340" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_end" value="Nhả pipeline.lock — hoàn tất, model mới phục vụ ngay" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="3290" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_exc" value="Exception BẤT KỲ sau khi TEST mở → registry: release_failed (đốt snapshot vĩnh viễn — model cũ tiếp tục phục vụ) → re-raise, exit ≠ 0; lock luôn được nhả (finally)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="3050" width="300" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_start" target="pl_d0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g2" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_d0" target="pl_err0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g3" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_d0" target="pl_lock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_lock" target="pl_d1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g5" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_d1" target="pl_errL">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g6" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_d1" target="pl_s1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s1" target="pl_s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s2" target="pl_s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s3" target="pl_s4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s4" target="pl_s5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s5" target="pl_s6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s6" target="pl_s7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s7" target="pl_dsnap">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g14" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_dsnap" target="pl_errsnap">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g15" value="Chưa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_dsnap" target="pl_dconf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g16" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_dconf" target="pl_errconf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g17" value="Đủ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_dconf" target="pl_s10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s10" target="pl_dfp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g19" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_dfp" target="pl_errfp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g20" value="Khớp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_dfp" target="pl_s12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s12" target="pl_s13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s13" target="pl_s14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s14" target="pl_dbase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g24" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_dbase" target="pl_errbase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g25" value="Có — thắng baseline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_dbase" target="pl_s16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g26" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s16" target="pl_s17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g27" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s17" target="pl_dsoft">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g28" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pl_dsoft" target="pl_warn">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g29" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_dsoft" target="pl_s19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g30" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="pl_warn" target="pl_s19">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="2850" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pl_g31" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s19" target="pl_s20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s20" target="pl_s21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g33" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s21" target="pl_s22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g34" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pl_s22" target="pl_end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pl_g35" value="exception" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=1;entryY=0;" edge="1" parent="1" source="pl_s17" target="pl_exc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1150" y="2595" />
+              <mxPoint x="1150" y="3020" />
+              <mxPoint x="1120" y="3020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="pred" name="3. Luồng dự báo (Web + CLI)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="2400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pr_start" value="Bắt đầu: người dùng cần dự báo mã cổ phiếu" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="380" y="40" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_io1" value="Nhập mã — Web: form POST /predict hoặc GET ?symbol=&#xa;CLI: python scripts/predict_stock.py --symbol" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="350" y="150" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_note" value="Ghi chú: /screener và xếp hạng chatbot dùng predict_all_symbols() có lru_cache(1) theo (size+mtime dataset, size+mtime model) — tự vô hiệu khi refresh data hoặc re-run pipeline" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="760" y="140" width="280" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p1" value="Chuẩn hóa symbols: trim, UPPER, khử trùng lặp" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="270" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d1" value="Số mã ≤ 5?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="390" y="380" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_err1" value="ValueError — tối đa 5 mã (HTTP 400)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="760" y="395" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p2" value="Đọc data/processed/hose_stock_clean.csv&#xa;(thiếu thì làm sạch raw CSV tại chỗ)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="520" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_cyl1" value="hose_stock_clean.csv" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="515" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d2" value="Mã tồn tại trong dữ liệu?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="390" y="640" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_err2" value="ValueError — mã không hợp lệ" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="760" y="655" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p3" value="build_features() trên toàn bộ lịch sử các mã yêu cầu (cần lookback cho chỉ báo cửa sổ)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="780" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d3" value="Đủ lịch sử tính chỉ báo?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="390" y="900" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_err3" value="ValueError — không đủ dữ liệu" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="760" y="915" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p4" value="Lấy dòng mới nhất (max trading_date) của từng mã" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1040" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p5" value="Sắp cột đúng feature_order (sklearn khớp theo VỊ TRÍ cột)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1150" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p6" value="joblib.load models/final_model.pkl&#xa;(đọc lại mỗi request — không cache)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1260" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_cyl2" value="final_model.pkl&#xa;model_metadata.json" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="1250" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d4" value="model_metadata.json khớp identity artifact? (model_name, policy_id, fingerprint)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="370" y="1380" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p7" value="Bỏ JSON — dựng metadata từ artifact (fail-safe chống file lệch)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="760" y="1395" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d5" value="Model có predict_proba và biết class 1?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="370" y="1530" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p9" value="model.predict() nhãn cứng&#xa;(không có xác suất)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="760" y="1545" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p8" value="probability_up = predict_proba[:, class 1]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1690" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_d6" value="probability_up ≥ decision_threshold?&#xa;(ngưỡng OOF riêng của từng model)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="360" y="1800" width="280" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_up" value="label = UP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1970" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_nup" value="label = NOT_UP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1970" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_p10" value="Dựng forecast_sessions (~5 phiên tới, ước lượng), price_history, is_stale, baseline_warning" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="350" y="2090" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_end" value="Trả kết quả: nhãn + xác suất + cảnh báo" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="360" y="2230" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_start" target="pr_io1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_io1" target="pr_p1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p1" target="pr_d1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g4" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_d1" target="pr_err1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g5" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d1" target="pr_p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_cyl1" target="pr_p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p2" target="pr_d2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g8" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_d2" target="pr_err2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g9" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d2" target="pr_p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p3" target="pr_d3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g11" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_d3" target="pr_err3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g12" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d3" target="pr_p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p4" target="pr_p5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p5" target="pr_p6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_cyl2" target="pr_p6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p6" target="pr_d4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g17" value="Lệch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_d4" target="pr_p7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0.25;" edge="1" parent="1" source="pr_p7" target="pr_d5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870" y="1505" />
+              <mxPoint x="565" y="1505" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g19" value="Khớp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d4" target="pr_d5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g20" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_d5" target="pr_p9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g21" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d5" target="pr_p8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p8" target="pr_d6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pr_g23" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d6" target="pr_up">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="1855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g24" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_d6" target="pr_nup">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="1855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="pr_up" target="pr_p10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="2130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g26" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="pr_nup" target="pr_p10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="2060" />
+              <mxPoint x="575" y="2060" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g27" value="nhãn cứng" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="pr_p9" target="pr_p10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870" y="2130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pr_g28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pr_p10" target="pr_end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="chatbot" name="4. Luồng chatbot (/api/chat)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1750" pageHeight="2150" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cb_start" value="Người dùng gửi tin nhắn (/chat hoặc khung chat nổi)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="700" y="40" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_p1" value="POST /api/chat — kèm tối đa 6 tin gần nhất (transcript chia sẻ qua sessionStorage)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="700" y="150" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_p2" value="Validate payload: chỉ {message, history}; 1–1000 ký tự/tin; history xen kẽ user/assistant, tổng ≤ 6000 ký tự" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="700" y="270" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d1" value="Hợp lệ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="730" y="400" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_e1" value="HTTP 400 — payload bị từ chối" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="415" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_p3" value="LLM CALL 1 — DECISION&#xa;DECISION_PROMPT + history → JSON {action, arguments} (1 trong 5 action)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="700" y="540" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_note1" value="Deadline chung 60s cho cả 2 LLM call (quá hạn → 504). History là untrusted: prompt buộc LLM bỏ qua chỉ thị nhúng trong history." style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="530" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d2" value="JSON đúng schema?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="730" y="670" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_e2" value="502 provider_protocol_error" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="685" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d3" value="Action?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="740" y="810" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b1" value="GENERAL_CHAT — đáp xã giao; cấm nêu mã CK / số liệu; bỏ qua dispatcher và ML" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="950" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b2" value="OUT_OF_SCOPE — từ chối theo 5 lý do: realtime, news, fundamentals, trading_advice (gợi ý dùng xếp hạng), other" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="330" y="950" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d4" value="STOCK_SIGNAL: mọi symbol ∈ scope (metadata.training_symbols)?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="710" y="950" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b3n" value="Từ chối TOÀN BỘ request — unsupported_symbols + warning symbol_out_of_scope (không suy luận một phần)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1100" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b3y" value="prediction_service.predict_symbols() + cảnh báo stale / lệch ngày tham chiếu" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1220" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b4" value="STOCK_RANKING — predict_all_symbols() → lọc scope, bỏ mã stale → sort probability_up → top_n (1–10)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="950" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_b5" value="PROJECT_INFO (7 topic) — overview/limitations: nội dung tĩnh; dataset/features: đọc CSV/report (503 nếu đang ghi); model/evaluation/inference: cần artifact + metadata (503 nếu thiếu)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="950" width="260" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_fmt" value="FORMATTER DETERMINISTIC — dựng answer tiếng Việt từ số liệu backend; câu tín hiệu / xếp hạng luôn kèm DISCLAIMER (không phải khuyến nghị đầu tư)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1400" width="280" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d5" value="_should_compose()? (compose bật VÀ action dữ liệu có kết quả thật)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1560" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_p11" value="LLM CALL 2 — COMPOSE: viết lại tự nhiên ≤ 900 ký tự, chỉ dùng số backend, không Markdown/emoji, không khuyến nghị mua bán" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1720" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_d6" value="Compose hợp lệ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="730" y="1860" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_keep" value="Lỗi / timeout / vi phạm → GIỮ bản deterministic" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="1875" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_end" value="JSON: answer, sources, warnings, data_as_of, model_trained_through" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="680" y="2010" width="320" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_note2" value="Provider chỉ nhận {question, action, data} — không raw CSV / report / source / model artifact. Không tool loop, không RAG (non-goal)." style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="1600" width="260" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_start" target="cb_p1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_p1" target="cb_p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_p2" target="cb_d1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g4" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cb_d1" target="cb_e1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g5" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d1" target="cb_p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_p3" target="cb_d2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g7" value="Không / tool-call lạ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cb_d2" target="cb_e2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g8" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d2" target="cb_d3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g9" value="GENERAL_CHAT" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d3" target="cb_b1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g10" value="OUT_OF_SCOPE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=0.75;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d3" target="cb_b2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g11" value="STOCK_SIGNAL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d3" target="cb_d4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g12" value="STOCK_RANKING" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0.75;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d3" target="cb_b4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1250" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g13" value="PROJECT_INFO" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d3" target="cb_b5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1540" y="855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g14" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d4" target="cb_b3n">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g15" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="cb_d4" target="cb_b3y">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="1000" />
+              <mxPoint x="1040" y="1255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.75;" edge="1" parent="1" source="cb_b1" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="1475" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="cb_b2" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="1450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;entryX=0;entryY=0.25;" edge="1" parent="1" source="cb_b3n" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="660" y="1135" />
+              <mxPoint x="660" y="1425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_b3y" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g20" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="cb_b4" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1250" y="1330" />
+              <mxPoint x="910" y="1330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="cb_b5" target="cb_fmt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1540" y="1450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_fmt" target="cb_d5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g23" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d5" target="cb_p11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g24" value="Không — dùng bản deterministic" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cb_d5" target="cb_end">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="1610" />
+              <mxPoint x="560" y="2045" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cb_g25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_p11" target="cb_d6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g26" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cb_d6" target="cb_keep">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g27" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="cb_d6" target="cb_end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cb_g28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="cb_keep" target="cb_end">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1240" y="2045" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="tuninglab" name="5. Tuning Lab (/tuning)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="tl_start" value="Người dùng mở Tuning Lab (/tuning)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="800" y="40" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_p0" value="Trang hiển thị: fingerprint dataset, trạng thái job (AJAX poll), 3 form model, bảng history + biểu đồ F1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="800" y="150" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_c1" value="1) Chạy CV cho một model" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;swimlaneFillColor=#ffffff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="420" height="1200" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a1" value="Nhập hyperparameter theo form (TUNABLE_PARAM_SCHEMA)" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="60" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a2" value="POST /tuning/evaluate → validate_params: kiểm tra kiểu + biên trị" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="170" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a3" value="Hợp lệ VÀ không có pipeline / fetch / job khác đang chạy?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="270" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a3e" value="HTTP 400 / 409" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="tl_c1">
+          <mxGeometry x="240" y="410" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a4" value="Spawn THREAD nền — chỉ 1 job một lúc (lock RAM, mất khi restart Flask)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="500" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a5" value="Purged CV 4 fold trên TRAIN (từ 2021-01-01), purge gap 5 phiên" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="610" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a6" value="Chọn decision threshold trên OOF prediction" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="720" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a7" value="Provenance guard: đủ 4 fold, threshold ∈ (0,1), tỷ lệ dự đoán UP ≤ 50%, precision OOF ≥ up-rate?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="820" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a8" value="Ghi 1 dòng vào tuning_history.csv — status = ok / error (job không bao giờ crash)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="990" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_a9" value="UI poll trạng thái job — bảng history cập nhật" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tl_c1">
+          <mxGeometry x="80" y="1100" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a1" target="tl_a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a2" target="tl_a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga3" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a3" target="tl_a3e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="320" />
+              <mxPoint x="380" y="380" />
+              <mxPoint x="320" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_ga4" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a3" target="tl_a4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a4" target="tl_a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a5" target="tl_a6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a6" target="tl_a7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga8" value="Đạt → ok / Trượt → error" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a7" target="tl_a8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ga9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c1" source="tl_a8" target="tl_a9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_c2" value="2) Dùng cấu hình này (promote)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;swimlaneFillColor=#ffffff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="300" width="420" height="650" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_b1" value="Bấm &#39;Dùng cấu hình này&#39; trên một run trong bảng history" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="tl_c2">
+          <mxGeometry x="80" y="60" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_b2" value="POST /tuning/use-config → find_run: run thuộc fingerprint dataset hiện tại VÀ status = ok?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c2">
+          <mxGeometry x="80" y="170" width="260" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_b2e" value="HTTP 400" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="tl_c2">
+          <mxGeometry x="240" y="320" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_b3" value="Ghi experiments/manual_config.json — selected_models[model_key] (selection_method = manual)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c2">
+          <mxGeometry x="80" y="410" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_b4" value="Chỉ ghi config — chưa sinh artifact nào" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c2">
+          <mxGeometry x="80" y="530" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gb1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c2" source="tl_b1" target="tl_b2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gb2" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="tl_c2" source="tl_b2" target="tl_b2e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="225" />
+              <mxPoint x="380" y="290" />
+              <mxPoint x="320" y="290" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_gb3" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c2" source="tl_b2" target="tl_b3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gb4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c2" source="tl_b3" target="tl_b4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_c3" value="3) Lấy dữ liệu mới (refresh)" style="swimlane;startSize=30;fillColor=#ffe6cc;strokeColor=#d79b00;swimlaneFillColor=#ffffff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="960" y="300" width="420" height="1000" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc1" value="Bấm &#39;Lấy dữ liệu mới&#39;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="60" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc2" value="POST /tuning/fetch-data — pipeline / fetch khác đang chạy?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="160" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc2e" value="HTTP 409" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="tl_c3">
+          <mxGeometry x="240" y="300" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc3" value="Popen scripts/refresh_data.py — ghi fetch.lock (PID), log last_fetch_run.log" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="390" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc4" value="Redirect /tuning/fetch-status — poll marker: [1/3] Fetch → [2/3] Preprocess → [3/3] Build features" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="510" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc5" value="Thấy dòng &#39;Refresh data completed.&#39;?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="640" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc5e" value="Process chết giữa chừng → step báo lỗi" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="tl_c3">
+          <mxGeometry x="240" y="780" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_cc6" value="Dataset mới sẵn sàng — fingerprint đổi, history cũ thành lệch fingerprint" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tl_c3">
+          <mxGeometry x="80" y="880" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gc1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc1" target="tl_cc2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gc2" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc2" target="tl_cc2e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="210" />
+              <mxPoint x="380" y="270" />
+              <mxPoint x="320" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_gc3" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc2" target="tl_cc3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gc4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc3" target="tl_cc4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gc5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc4" target="tl_cc5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_gc6" value="chưa xong → poll tiếp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=1;entryY=0.5;dashed=1;" edge="1" parent="tl_c3" source="tl_cc5" target="tl_cc4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="690" />
+              <mxPoint x="380" y="555" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_gc7" value="process chết" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc5" target="tl_cc5e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="275" y="760" />
+              <mxPoint x="320" y="760" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_gc8" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c3" source="tl_cc5" target="tl_cc6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_c4" value="4) Chạy official pipeline" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="300" width="420" height="900" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e1" value="Bấm &#39;Chạy official pipeline&#39;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="tl_c4">
+          <mxGeometry x="80" y="60" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e2" value="can_run? Đủ manual config 3 model (đúng fingerprint) VÀ snapshot CHƯA evaluated (TEST một lần) VÀ không job đang chạy" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c4">
+          <mxGeometry x="80" y="160" width="260" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e2e" value="Nút bị khóa / HTTP 409" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="tl_c4">
+          <mxGeometry x="240" y="330" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e3" value="subprocess.run scripts/run_pipeline.py — SYNC (HTTP request block tới khi xong)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="tl_c4">
+          <mxGeometry x="80" y="420" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e4" value="Exit code = 0?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="tl_c4">
+          <mxGeometry x="80" y="540" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e4e" value="HTTP 500 + log inline" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="tl_c4">
+          <mxGeometry x="240" y="670" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_e5" value="Redirect /evaluation — xem kết quả VALIDATION + TEST" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tl_c4">
+          <mxGeometry x="80" y="770" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ge1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e1" target="tl_e2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ge2" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e2" target="tl_e2e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="225" />
+              <mxPoint x="380" y="300" />
+              <mxPoint x="320" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_ge3" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e2" target="tl_e3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ge4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e3" target="tl_e4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_ge5" value="Không" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e4" target="tl_e4e">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="585" />
+              <mxPoint x="380" y="640" />
+              <mxPoint x="320" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_ge6" value="Có" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="tl_c4" source="tl_e4" target="tl_e5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_f1" value="Chạy CV" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="tl_p0" target="tl_c1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="250" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_f2" value="Promote" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tl_p0" target="tl_c2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="710" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_f3" value="Refresh data" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tl_p0" target="tl_c3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1170" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_f4" value="Official pipeline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="tl_p0" target="tl_c4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1630" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="tl_f0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tl_start" target="tl_p0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tl_note" value="Fingerprint dataset = SHA-256 (schema + row-hash) phạm vi TRAIN, không phụ thuộc thứ tự dòng. Experiment fingerprint = phạm vi TRAIN+VALIDATION+TEST, khóa evaluation_registry.json (TEST chỉ mở một lần). Guard đồng thời: pipeline.lock và fetch.lock = file + PID (sống sót restart); tuning job = thread RAM (mất khi restart)." style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1560" width="880" height="120" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

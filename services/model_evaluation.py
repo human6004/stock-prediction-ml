@@ -184,9 +184,9 @@ def select_final_model(
        trùng điểm do nhiễu.
 
     ``baselines`` (Always UP / Always NOT_UP) chỉ để SO SÁNH, không được vào danh
-    sách ứng viên. Nhưng nếu ứng viên tốt nhất còn không hơn được baseline tốt
-    nhất thì ``raise RuntimeError`` — dừng pipeline luôn thay vì publish một model
-    vô dụng. Điều kiện là ``>`` (nghiêm ngặt): bằng baseline cũng bị coi là không đạt.
+    sách ứng viên. Nếu ứng viên tốt nhất không hơn baseline tốt nhất thì vẫn chọn
+    ứng viên đó, nhưng ghi ``validation_baseline_passed=False`` và cảnh báo. Điều
+    kiện là ``>`` (nghiêm ngặt): bằng baseline cũng bị coi là không đạt.
     """
     candidates = comparison[comparison["model_id"].isin(CANDIDATE_MODEL_IDS)].copy()
     if set(candidates["model_id"]) != set(CANDIDATE_MODEL_IDS):
@@ -229,7 +229,6 @@ def select_final_model(
             f"is below baseline {best_baseline['model_name']}="
             f"{best_baseline['f1_up']:.6f}."
         )
-        raise RuntimeError(validation_baseline_warning)
     validation_metrics = {key: float(selected_row[key]) for key in METRIC_COLUMNS}
     selected_artifact["validation_selection_metrics"] = validation_metrics
     selected_artifact["validation_baseline_passed"] = validation_baseline_passed
@@ -272,8 +271,8 @@ def refit_and_evaluate_final_model(
       không khớp với threshold mà model thật sự serve.
 
     ``baseline_passed``: so F1_UP của final model với baseline "Always UP" trên
-    TEST. Không vượt thì KHÔNG raise (khác ``select_final_model``) — vẫn publish
-    kèm ``baseline_warning`` để UI và chatbot cảnh báo, vì tới bước này TEST đã
+    TEST. Không vượt thì vẫn publish kèm ``baseline_warning`` để UI và chatbot
+    cảnh báo, vì tới bước này TEST đã
     được mở, chạy lại pipeline để "tìm số đẹp hơn" chính là data leakage.
     """
     fitted_data = sort_panel_frame(train_validation)

@@ -1,4 +1,9 @@
-"""Date-based, purged cross-validation splits for panel market data."""
+"""Chia TRAIN thành các fold CV theo thời gian, có gap và purge chống rò rỉ.
+
+Project chia trên danh sách ngày giao dịch chung, không chia theo dòng vì mỗi ngày
+có hàng trăm mã. Mỗi fold dùng quá khứ để train, chừa 5 phiên, rồi validation ở
+tương lai; train row có nhãn t+5 chạm validation cũng bị loại.
+"""
 
 import numpy as np
 import pandas as pd

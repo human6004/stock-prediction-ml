@@ -87,7 +87,7 @@ class ProtocolSelectionTests(unittest.TestCase):
         self.assertEqual(set(comparison["split"]), {"validation"})
         self.assertEqual(set(comparison["row_type"]), {"candidate"})
 
-    def test_baselines_are_explicit_and_block_weaker_candidate(self):
+    def test_baselines_are_explicit_and_warn_for_weaker_candidate(self):
         baselines = evaluate_baselines(pd.Series([0, 1, 1]), split="validation")
         candidates = pd.DataFrame(
             [
@@ -97,12 +97,17 @@ class ProtocolSelectionTests(unittest.TestCase):
             ]
         )
         comparison = pd.concat([candidates, baselines], ignore_index=True, sort=False)
+        for metric in model_evaluation.METRIC_COLUMNS:
+            if metric not in comparison:
+                comparison[metric] = 0.0
         artifacts = {model_id: {"model_id": model_id} for model_id in (2, 3, 4)}
 
-        with self.assertRaisesRegex(RuntimeError, "baseline"):
-            select_final_model(comparison, artifacts)
+        _, selected, report = select_final_model(comparison, artifacts)
 
         self.assertEqual(set(baselines["model_name"]), {"Always UP", "Always NOT_UP"})
+        self.assertFalse(selected["validation_baseline_passed"])
+        self.assertIn("Always UP", selected["validation_baseline_warning"])
+        self.assertFalse(report["validation_baseline_passed"])
 
     def test_recall_breaks_equal_f1_before_simplicity(self):
         comparison = pd.DataFrame(

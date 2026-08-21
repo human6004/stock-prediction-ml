@@ -1,8 +1,8 @@
-"""Tuning Lab logic: parameter schema, server-side validation, and CV evaluation.
+"""Xử lý Tuning Lab: kiểm tham số, chạy CV và ghi lại từng thí nghiệm.
 
-Powers the manual tuning workflow at /tuning. It evaluates one user-entered
-config with purged date-based CV on TRAIN and records each run. It never touches
-VALIDATION or TEST.
+Người dùng nhập một cấu hình cho một model; module kiểm schema, chạy purged CV
+chỉ trên TRAIN, chọn OOF threshold rồi ghi kết quả vào tuning history. Nó không
+đụng VALIDATION hoặc TEST và không tự tìm kiếm toàn bộ hyperparameter space.
 """
 
 import json

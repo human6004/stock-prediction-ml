@@ -155,27 +155,11 @@
     word-break: break-word;
 }
 
-/* Mốc dữ liệu / cảnh báo đi kèm câu trả lời */
-.chat-dock-entry .chat-dock-note {
-    margin: 6px 0 0;
-    color: var(--faint);
-    font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
 .chat-dock-entry-user {
     align-self: flex-end;
     background: var(--ink);
     color: var(--on-ink);
     border-bottom-right-radius: 4px;
-}
-
-.chat-dock-entry-user .chat-dock-note {
-    color: var(--on-ink);
-    opacity: 0.7;
 }
 
 .chat-dock-entry-assistant {

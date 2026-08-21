@@ -1,7 +1,11 @@
-"""Run the official rolling TRAIN/VALIDATION/TEST pipeline.
+"""Điểm vào chạy official pipeline TRAIN/VALIDATION/TEST kiểu rolling.
 
-Flow: raw -> clean/feature/label -> rolling split -> manual CV config -> choose on
-VALIDATION -> evaluate one refit winner on TEST -> publish artifact and reports.
+Đọc nhanh luồng:
+raw → clean → 20 feature + nhãn t+5 → rolling split → đọc cấu hình CV đã chốt
+→ fit 3 candidate trên TRAIN → chọn winner bằng VALIDATION → refit winner trên
+TRAIN+VALIDATION → mở TEST đúng một lần → publish model, metadata và report.
+
+File này chỉ điều phối thứ tự; logic từng bước nằm trong các module ``services``.
 """
 
 import sys

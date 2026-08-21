@@ -3,23 +3,23 @@
   "cv_gap": 5,
   "scoring": "f1",
   "source": "selected_tuning_run",
-  "dataset_fingerprint": "f90986c53a32",
+  "dataset_fingerprint": "2d19e6de5d15",
   "best_params": {
     "Logistic Regression": {
-      "C": 2.68012167507e-05,
+      "C": 2.1635350877613774e-05,
       "solver": "liblinear"
     },
     "Random Forest": {
-      "n_estimators": 130,
-      "max_depth": 8,
+      "n_estimators": 108,
+      "max_depth": 24,
       "min_samples_leaf": 100,
       "max_features": 0.2
     },
     "Gradient Boosting": {
-      "n_estimators": 110,
-      "learning_rate": 0.25,
+      "n_estimators": 100,
+      "learning_rate": 0.4,
       "max_depth": 2,
-      "subsample": 0.6
+      "subsample": 0.5
     }
   }
 }

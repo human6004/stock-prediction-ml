@@ -17,10 +17,6 @@
 <section class="alert" role="alert">{{ error }}</section>
 {% endif %}
 
-{% if baseline_warning %}
-<section class="alert warn" role="status">{{ baseline_warning }}</section>
-{% endif %}
-
 {% if all_rows is defined and not error %}
 <div class="screener-toolbar">
     <p class="screener-summary" role="status">
@@ -39,6 +35,12 @@
             <input type="search" id="screener-search" placeholder="Tìm mã…"
                    autocomplete="off" maxlength="12" aria-label="Tìm theo mã cổ phiếu">
         </label>
+        <form id="export-form" method="post" action="{{ url_for('screener_export') }}">
+            <input type="hidden" name="symbols" id="export-symbols">
+            <button type="submit" id="export-btn" class="btn-export" disabled>
+                Tải đã chọn (<span id="export-count">0</span>)
+            </button>
+        </form>
     </div>
 </div>
 
@@ -49,6 +51,7 @@
             Bảng xếp hạng {{ total_count }} mã theo điểm UP của model, sắp giảm dần.
         </caption>
         <colgroup>
+            <col class="col-check">
             <col class="col-rank">
             <col class="col-symbol">
             <col class="col-status">
@@ -58,6 +61,10 @@
         </colgroup>
         <thead>
             <tr>
+                <th scope="col" data-sort="none" class="cell-check">
+                    <input type="checkbox" id="screener-select-all"
+                           aria-label="Chọn tất cả mã đang hiển thị">
+                </th>
                 {# Cột thứ tự không cho sort: bảng đã sắp theo điểm UP giảm dần nên
                    "sort theo #" chính là thứ tự mặc định — nút chỉ thêm nhiễu, và
                    mũi ⇅ trong ô đẩy nhãn # lệch khỏi trục số bên dưới. #}
@@ -73,6 +80,10 @@
             {% for row in all_rows %}
             <tr data-symbol="{{ row.symbol }}"
                 data-status="{{ 'UP' if row.prediction == 'UP' else 'NOT_UP' }}">
+                <td class="cell-check">
+                    <input type="checkbox" class="screener-check" value="{{ row.symbol }}"
+                           aria-label="Chọn mã {{ row.symbol }}">
+                </td>
                 <td class="num cell-rank">{{ loop.index }}</td>
                 <th scope="row" class="cell-symbol">
                     <a href="{{ url_for('predict', symbol=row.symbol) }}">{{ row.symbol }}</a>
@@ -137,8 +148,31 @@
         const noMatch = document.getElementById("screener-no-match");
         const countLive = document.getElementById("screener-count-live");
         const filterButtons = Array.from(document.querySelectorAll(".filter-btn"));
+        const selectAll = document.getElementById("screener-select-all");
+        const exportForm = document.getElementById("export-form");
+        const exportBtn = document.getElementById("export-btn");
+        const exportSymbols = document.getElementById("export-symbols");
+        const exportCount = document.getElementById("export-count");
         let activeFilter = "all";
         let announceTimer = null;
+
+        // Chỉ tính các ô tích ở dòng ĐANG HIỂN THỊ (không lấy dòng bị lọc ẩn).
+        function visibleChecks() {
+            return Array.from(document.querySelectorAll("#screener-rows tr"))
+                .filter((tr) => !tr.hidden)
+                .map((tr) => tr.querySelector(".screener-check"));
+        }
+
+        function refreshExport() {
+            const checked = visibleChecks().filter((cb) => cb.checked);
+            exportBtn.disabled = checked.length === 0;
+            exportCount.textContent = String(checked.length);
+            // select-all ở trạng thái "đã chọn" khi mọi dòng đang hiển thị đều tích.
+            const visible = visibleChecks();
+            selectAll.checked = visible.length > 0 && visible.every((cb) => cb.checked);
+            selectAll.indeterminate = !selectAll.checked
+                && visible.some((cb) => cb.checked);
+        }
 
         // Gõ trong ô tìm gọi apply() mỗi ký tự. Ghi thẳng vào live region thì
         // screen reader đọc chồng từng lần gõ, nên hoãn 450ms và chỉ đọc kết quả
@@ -165,6 +199,7 @@
             });
             noMatch.hidden = visible !== 0;
             announce(visible);
+            refreshExport();
             // Số dòng đổi → chiều cao nội dung đổi → đo lại cho khớp bội số dòng.
             fitWrap();
         }
@@ -181,6 +216,26 @@
             });
         });
         search.addEventListener("input", apply);
+
+        // Chọn tất cả chỉ tác động lên các dòng đang hiển thị, để bấm "chọn tất cả"
+        // khi đang lọc UP không vô tình tích cả các mã NOT_UP đang bị ẩn.
+        selectAll.addEventListener("change", () => {
+            visibleChecks().forEach((cb) => { cb.checked = selectAll.checked; });
+            refreshExport();
+        });
+
+        // Mỗi lần tích/bỏ tích một ô, cập nhật nút + trạng thái chọn tất cả.
+        document.getElementById("screener-rows").addEventListener("change", (event) => {
+            if (event.target.classList.contains("screener-check")) { refreshExport(); }
+        });
+
+        // Khi submit: gom mã theo thứ tự hiển thị vào input ẩn rồi mới gửi.
+        exportForm.addEventListener("submit", () => {
+            exportSymbols.value = visibleChecks()
+                .filter((cb) => cb.checked)
+                .map((cb) => cb.value)
+                .join(",");
+        });
 
         // Khung bảng cao đúng SỐ DÒNG NGUYÊN vừa khoảng trống còn lại dưới toolbar:
         // chỉ còn một thanh cuộn dọc (thanh trong bảng), và mép dưới khung luôn trùng
@@ -273,6 +328,7 @@
         }
 
         fitWrap();
+        refreshExport();
         window.addEventListener("resize", fitWrap);
     })();
 </script>

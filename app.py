@@ -4,6 +4,7 @@ Thuật toán ML không nằm ở đây. Route prediction gọi prediction_servi
 tuning gọi tuning_lab; official pipeline được chạy qua scripts/run_pipeline.py.
 """
 
+import io
 import json
 import math
 import subprocess
@@ -14,8 +15,12 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from flask import (
     Flask,
+    Response,
     jsonify,
     redirect,
     render_template,
@@ -163,6 +168,108 @@ HISTORY_MODEL_LABELS = {
     "random_forest": "Random Forest",
     "gradient_boosting": "Gradient Boosting",
 }
+
+# Cột xuất ra file Excel khi tải các mã dự báo đã chọn từ trang Xếp hạng.
+# Mỗi phần tử là (nhãn tiếng Việt, khóa dữ liệu). Điểm UP, ngưỡng quyết định và
+# return/volatility trong `predict_all_symbols` là tỉ lệ 0..1 nên route export
+# đổi thành phần trăm trước khi đưa vào bảng, không xuất thẳng giá trị gốc khó đọc.
+EXPORT_HEADERS = [
+    ("Mã", "symbol"),
+    ("Dự báo", "prediction"),
+    ("Điểm UP (%)", "diem_up_pct"),
+    ("Ngưỡng quyết định (%)", "decision_threshold_pct"),
+    ("Giá tham chiếu", "close_at_reference"),
+    ("Ngày dữ liệu", "reference_date"),
+    ("Return 20 phiên (%)", "return_20d_pct"),
+    ("Volatility 20 phiên (%)", "volatility_20d_pct"),
+    ("Volume / AVG20", "volume_ratio_20"),
+    ("Dữ liệu cũ", "is_stale"),
+    ("Model", "model_name"),
+]
+
+# Bảng màu cố định cho file Excel (openpyxl không đọc biến CSS của giao diện).
+_HEADER_FILL = PatternFill("solid", fgColor="1F2937")
+_UP_FONT = Font(color="166534", bold=True)
+_UP_FILL = PatternFill("solid", fgColor="DCFCE7")
+_DOWN_FONT = Font(color="991B1B", bold=True)
+_DOWN_FILL = PatternFill("solid", fgColor="FEE2E2")
+_THIN = Side(style="thin", color="E5E7EB")
+_CELL_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+
+
+def _fmt_date_vi(iso: str) -> str:
+    """Đổi ngày ISO ``YYYY-MM-DD`` sang ``DD/MM/YYYY`` cho dễ đọc trên file."""
+    if not iso:
+        return ""
+    text = str(iso)[:10]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return str(iso)
+
+
+def _build_export_xlsx(rows: list[dict]) -> bytes:
+    """Dựng workbook Excel có style từ các dòng dự báo đã chuẩn hóa.
+
+    Style: header nền tối chữ trắng + freeze dòng đầu; cột Dự báo tô UP xanh /
+    NOT_UP đỏ; cột số căn phải kèm format thập phân; độ rộng cột tự co theo nội dung.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dự báo"
+
+    for col_idx, (label, _key) in enumerate(EXPORT_HEADERS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=label)
+        cell.font = Font(color="FFFFFF", bold=True, size=11)
+        cell.fill = _HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = _CELL_BORDER
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "A2"
+
+    for row_idx, r in enumerate(rows, start=2):
+        prediction = r.get("prediction")
+        for col_idx, (_label, key) in enumerate(EXPORT_HEADERS, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=r.get(key))
+            cell.border = _CELL_BORDER
+            if key in ("diem_up_pct", "decision_threshold_pct"):
+                cell.number_format = "0.0"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif key in ("return_20d_pct", "volatility_20d_pct", "volume_ratio_20"):
+                cell.number_format = "0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif key == "close_at_reference":
+                cell.number_format = "0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif key == "symbol":
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(vertical="center")
+            elif key == "prediction":
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                if prediction == "UP":
+                    cell.font = _UP_FONT
+                    cell.fill = _UP_FILL
+                else:
+                    cell.font = _DOWN_FONT
+                    cell.fill = _DOWN_FILL
+            elif key == "is_stale":
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.font = Font(color="B45309", bold=True) if r.get(key) else Font(color="9CA3AF")
+            else:
+                cell.alignment = Alignment(vertical="center")
+        ws.row_dimensions[row_idx].height = 20
+
+    for col_idx, (label, _key) in enumerate(EXPORT_HEADERS, start=1):
+        width = len(str(label))
+        for r in rows:
+            value = r.get(_key)
+            if value is not None:
+                width = max(width, len(str(value)))
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(width + 2, 26)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 HISTORY_PAGE_SIZE = 50
 
@@ -672,7 +779,6 @@ def screener():
         key=sort_key,
         reverse=True,
     )
-    baseline_warning = rows[0]["baseline_warning"] if rows else None
     # Một bảng thống nhất: UP trước (đã sort điểm giảm dần), rồi NOT_UP.
     all_rows = up_rows + not_up_rows
     context.update(
@@ -680,10 +786,64 @@ def screener():
         up_count=len(up_rows),
         not_up_count=len(not_up_rows),
         total_count=len(rows),
-        baseline_warning=baseline_warning,
         selected_model=rows[0]["model_name"] if rows else context["selected_model"],
     )
     return render_template("screener.html", **_template_context(**context))
+
+
+@app.route("/screener/export", methods=["POST"])
+def screener_export():
+    """Tải file Excel (.xlsx) gồm kết quả dự báo của các mã đã chọn trên trang Xếp hạng.
+
+    Không gọi lại model: lọc từ ``predict_all_symbols()`` (đã cache theo fingerprint
+    data+model). Giữ nguyên thứ tự mã client gửi — chính là thứ tự hiển thị trên
+    bảng. Bảng có style (header tô màu, UP/NOT_UP phân màu, số làm tròn) để người
+    dùng mở bằng Excel dễ đọc hơn CSV thô.
+    """
+    raw = request.form.get("symbols", "")
+    symbols = [s.strip().upper() for s in raw.split(",") if s.strip()]
+    if not symbols:
+        return "Chưa chọn mã nào.", 400
+
+    by_symbol = {row["symbol"]: row for row in predict_all_symbols()}
+    missing = [s for s in symbols if s not in by_symbol]
+    if missing:
+        return f"Mã không có trong dữ liệu: {', '.join(missing)}", 400
+
+    rows = []
+    for s in symbols:
+        r = by_symbol[s]
+        prob = r.get("probability_up")
+        rows.append(
+            {
+                "symbol": s,
+                "prediction": r.get("prediction"),
+                "diem_up_pct": round(prob * 100, 1) if prob is not None else None,
+                "decision_threshold_pct": round(
+                    float(r.get("decision_threshold", 0)) * 100, 1
+                ),
+                "close_at_reference": round(
+                    float(r.get("close_at_reference") or 0), 2
+                ),
+                "reference_date": _fmt_date_vi(r.get("reference_date")),
+                "return_20d_pct": round(float(r.get("return_20d") or 0) * 100, 2),
+                "volatility_20d_pct": round(
+                    float(r.get("volatility_20d") or 0) * 100, 2
+                ),
+                "volume_ratio_20": round(float(r.get("volume_ratio_20") or 0), 2),
+                "is_stale": "Có" if r.get("is_stale") else "",
+                "model_name": r.get("model_name"),
+            }
+        )
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    return Response(
+        _build_export_xlsx(rows),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=hose_du_bao_{stamp}.xlsx"
+        },
+    )
 
 
 @app.route("/reports/confusion_matrix.png", methods=["GET"])
@@ -700,7 +860,6 @@ def evaluation():
     return render_template(
         "evaluation.html",
         sections=sections,
-        baseline_warning=sections["baseline_warning"],
         selected_model=selected_model,
         dataset_max_date=get_dataset_meta()["dataset_max_date"],
         active_page="evaluation",

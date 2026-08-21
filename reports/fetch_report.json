@@ -1,10 +1,10 @@
 {
-  "fetched_at": "2026-07-31T16:55:43",
+  "fetched_at": "2026-08-21T11:14:46",
   "raw_path": "D:\\study\\niên luận\\shared_dataset\\hose_stock_raw.csv",
   "symbols_in_csv": 400,
-  "rows_before": 558195,
+  "rows_before": 561495,
   "fetch_start": "2025-10-09",
-  "fetch_end": "2026-07-31",
+  "fetch_end": "2026-08-21",
   "fetch_source": "KBS",
   "should_fetch": true,
   "success_symbols": [
@@ -410,8 +410,8 @@
     "YEG"
   ],
   "failed_symbols": [],
-  "new_rows": 0,
-  "rows_after": 558195,
+  "new_rows": 2157,
+  "rows_after": 563652,
   "date_min_after": "2019-08-14",
-  "date_max_after": "2026-07-31"
+  "date_max_after": "2026-08-21"
 }

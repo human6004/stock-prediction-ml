@@ -148,12 +148,6 @@
         </section>
         {% endif %}
 
-        {% if result.baseline_warning %}
-        <section class="alert warn" role="status">
-            {{ result.baseline_warning }}
-        </section>
-        {% endif %}
-
         <div class="verdict-card verdict-{{ result.prediction|lower }}">
             <p class="section-label">Kết luận</p>
             <p class="verdict-title">{{ result.prediction_label_vi }}</p>
@@ -335,57 +329,6 @@
             </li>
             {% endfor %}
         </ul>
-    </section>
-    {% endif %}
-
-    {% if model_health and model_health.model_name %}
-    <section class="aside-card">
-        <div class="aside-head">
-            <p class="section-label">Model đang phục vụ</p>
-            <a class="aside-link" href="{{ url_for('evaluation') }}">Chi tiết đánh giá →</a>
-        </div>
-        <p class="aside-model-name">{{ model_health.model_name }}</p>
-        <dl class="aside-facts">
-            <div>
-                <dt>Dữ liệu train tới</dt>
-                <dd>{{ model_health.train_through_date|date_vi }}</dd>
-            </div>
-            {% if model_health.decision_threshold is not none %}
-            <div>
-                <dt>Ngưỡng quyết định</dt>
-                <dd>{{ "%.1f"|format(model_health.decision_threshold * 100) }}%</dd>
-            </div>
-            {% endif %}
-        </dl>
-
-        {% if model_health.metrics %}
-        <ul class="aside-metrics">
-            {% for metric in model_health.metrics %}
-            <li>
-                <span class="aside-metric-label">
-                    {{ metric.label }}
-                    <button type="button" class="tip-mark" aria-label="{{ metric.label }} là gì"
-                            data-tip="{{ metric.hint }}">?</button>
-                </span>
-                <strong class="aside-metric-value">
-                    {% if metric.value is not none %}{{ "%.3f"|format(metric.value) }}{% else %}—{% endif %}
-                </strong>
-            </li>
-            {% endfor %}
-        </ul>
-        <p class="aside-note">Đo trên tập TEST, dữ liệu model chưa từng thấy khi train.</p>
-        {% else %}
-        {# Policy cũ: cố tình KHÔNG in metric TEST vì sinh bằng giao thức khác, đặt
-           cạnh model đang chạy sẽ bị đọc thành chất lượng của policy hiện hành. #}
-        <p class="aside-note">
-            Artifact thuộc policy cũ nên số liệu TEST không so sánh được với hiện hành.
-            Xem trang Đánh giá để biết chi tiết.
-        </p>
-        {% endif %}
-
-        {% if model_health.baseline_warning %}
-        <p class="aside-warn">{{ model_health.baseline_warning }}</p>
-        {% endif %}
     </section>
     {% endif %}
 

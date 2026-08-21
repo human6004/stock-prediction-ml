@@ -1,14 +1,14 @@
-"""State management for the Tuning Lab experiments folder.
+"""Quản lý toàn bộ trạng thái thí nghiệm trong thư mục ``experiments/``.
 
-Centralizes all IO under ``experiments/``:
-- dataset fingerprint (data version identity)
-- tuning history CSV (one row per manual training run)
-- manual_config.json (the chosen config used by the official pipeline)
-- evaluation_registry.json (rolling snapshots already evaluated)
-- pipeline.lock (prevents concurrent pipeline runs)
-- fetch.lock (prevents concurrent background data refresh)
-- last_pipeline_run.log (stdout/stderr of the most recent pipeline run)
-- last_fetch_run.log (stdout/stderr of the most recent fetch/refresh run)
+Đọc nhanh:
+- fingerprint: dấu vân tay nhận diện đúng phiên bản dữ liệu/config.
+- tuning history: sổ mọi lần chạy CV thủ công, kể cả lần lỗi.
+- manual config: cấu hình người dùng đã chốt cho official pipeline.
+- evaluation registry: ghi snapshot đã mở TEST để chặn đánh giá lặp.
+- pipeline/fetch lock: ngăn hai tiến trình cùng ghi dữ liệu hoặc artifact.
+- log: kết quả lần chạy pipeline/fetch gần nhất.
+
+Module này không train model; nó là sổ trạng thái và các cổng kiểm tra an toàn.
 """
 
 import csv

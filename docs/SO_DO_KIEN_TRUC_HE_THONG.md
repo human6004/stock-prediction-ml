@@ -112,7 +112,7 @@ sequenceDiagram
 flowchart LR
     A["User /chat"] --> B["POST /api/chat\nmessage + history"]
     B --> C["Validate payload\ntối đa 6 history message"]
-    C --> D["Một LLM call\nJSON decision"]
+    C --> D["LLM call 1\nJSON decision"]
     D --> E["Validate 5 action\n+ arguments"]
     E -->|"GENERAL_CHAT / OUT_OF_SCOPE"| I["Deterministic formatter"]
     E -->|"3 action dữ liệu"| F["Fixed dispatcher"]
@@ -120,11 +120,13 @@ flowchart LR
     G -->|"STOCK_SIGNAL / STOCK_RANKING"| H["prediction_service\nML inference"]
     H --> G
     G --> I
-    I --> J["answer + sources + warnings\n+ hai mốc ngày"]
+    I -->|"action dữ liệu có kết quả\nhoặc GENERAL_CHAT / OUT_OF_SCOPE"| L["LLM call 2 compose\nviết văn từ JSON backend"]
+    L --> J["answer + sources + warnings\n+ hai mốc ngày"]
+    I -->|"mã ngoài scope / compose tắt, lỗi"| J
     J --> K["Render bằng textContent"]
 ```
 
-LLM hiểu câu hỏi và chỉ trả JSON `{action, arguments}`; hội thoại chung hoặc câu hỏi làm rõ dùng câu cố định phía backend, LLM không tự viết câu trả lời. Backend chọn handler cố định, kiểm symbol scope, gọi ML model và format số liệu thật. Provider không nhận CSV, report, code hoặc artifact; không có keyword router dự phòng, tool loop, LLM call thứ hai hay regex grounding lớn. `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua dispatcher dữ liệu.
+LLM call 1 chỉ trả JSON `{action, arguments}`. Backend chọn handler cố định, kiểm symbol scope, gọi ML model và format số liệu thật; LLM call 2 (compose) diễn đạt lại câu trả lời — action dữ liệu từ đúng JSON số liệu đó (chỉ khi có kết quả thật), `GENERAL_CHAT`/`OUT_OF_SCOPE` từ `kind`/`reason` kèm danh sách năng lực, không có số liệu nào — lỗi/timeout thì giữ bản formatter/câu cố định, tắt bằng `CHATBOT_COMPOSE=0`. Call decision không nhận CSV, report, code hoặc artifact; không có keyword router dự phòng hay tool loop. `GENERAL_CHAT` và `OUT_OF_SCOPE` bỏ qua dispatcher dữ liệu, không chạm ML; mã ngoài scope giữ câu deterministic, không compose.
 
 ## 7. Report contract
 

@@ -27,6 +27,7 @@
     <div class="chat-suggestions" aria-label="Câu hỏi gợi ý">
         <button type="button" class="nav-link" data-prompt="FPT đang thế nào?">FPT đang thế nào?</button>
         <button type="button" class="nav-link" data-prompt="So sánh FPT với VNM">So sánh FPT với VNM</button>
+        <button type="button" class="nav-link" data-prompt="Top 5 cổ phiếu">Top 5 cổ phiếu</button>
         <button type="button" class="nav-link" data-prompt="Model học từ dữ liệu gì?">Model học từ dữ liệu gì?</button>
     </div>
 
@@ -37,12 +38,6 @@
             <p>Hỏi về tín hiệu một mã, so sánh, xếp hạng, model hoặc dataset.</p>
         </li>
     </ol>
-
-    <div id="chat-result" class="chat-result">
-        <section id="chat-dates" class="chat-meta" hidden></section>
-        <section id="chat-sources" class="chat-meta" hidden></section>
-        <section id="chat-warnings" class="chat-meta chat-meta-warn" hidden></section>
-    </div>
 
     <form id="chat-form" class="chat-compose" aria-busy="false">
         <label for="chat-message">Câu hỏi</label>
@@ -69,23 +64,10 @@
         const clear = document.getElementById("clear-chat");
         const transcript = document.getElementById("chat-transcript");
         const emptyState = document.getElementById("chat-empty");
-        const dates = document.getElementById("chat-dates");
-        const sources = document.getElementById("chat-sources");
-        const warnings = document.getElementById("chat-warnings");
         const promptButtons = [...document.querySelectorAll("[data-prompt]")];
         const kit = window.ChatClientKit;
         let busy = false;
         let pendingItem = null;
-
-        const sourceLabels = {
-            stock_signal: "Tín hiệu cổ phiếu",
-            ranking: "Bảng xếp hạng Điểm UP",
-            model_metadata: "Thông tin model",
-            dataset_info: "Thông tin dataset",
-            feature_importance: "Feature importance",
-            project_contract: "Thông tin project",
-            artifact: "Artifact đã publish"
-        };
 
         const syncEmpty = kit.createEmptyStateToggle(transcript, emptyState);
         const composer = kit.enhanceComposer({
@@ -124,62 +106,6 @@
             pendingItem.classList.add("is-pending");
         }
 
-        function setMeta(element, label, values, list = false) {
-            element.replaceChildren();
-            if (!values.length) {
-                element.hidden = true;
-                return;
-            }
-            const title = document.createElement("strong");
-            title.textContent = `${label}: `;
-            element.append(title);
-            if (list) {
-                const ul = document.createElement("ul");
-                values.forEach((value) => {
-                    const li = document.createElement("li");
-                    li.textContent = value;
-                    ul.append(li);
-                });
-                element.append(ul);
-            } else {
-                const text = document.createElement("span");
-                text.textContent = values.join(" · ");
-                element.append(text);
-            }
-            element.hidden = false;
-        }
-
-        function showMetadata(data) {
-            const dateValues = [];
-            if (data.data_as_of) dateValues.push(`Dữ liệu đến ${data.data_as_of}`);
-            if (data.model_trained_through) {
-                dateValues.push(`Model học đến ${data.model_trained_through}`);
-            }
-            setMeta(dates, "Mốc dữ liệu", dateValues);
-            setMeta(
-                sources,
-                "Nguồn",
-                (data.sources || []).map((source) => {
-                    const symbols = source.symbols?.length ? ` ${source.symbols.join(", ")}` : "";
-                    const asOf = source.as_of ? ` @ ${source.as_of}` : "";
-                    return `${sourceLabels[source.kind] || source.kind || "Artifact"}${symbols}${asOf}`;
-                })
-            );
-            setMeta(
-                warnings,
-                "Cảnh báo",
-                (data.warnings || []).map((warning) => warning.message || String(warning)),
-                true
-            );
-        }
-
-        function clearMetadata() {
-            [dates, sources, warnings].forEach((element) => {
-                element.replaceChildren();
-                element.hidden = true;
-            });
-        }
-
         function setBusy(value) {
             busy = value;
             input.disabled = value;
@@ -192,7 +118,6 @@
 
         kit.restoreSession((entry) => {
             const item = appendMessage(entry.role, entry.content);
-            if (entry.role === "assistant") showMetadata(entry);
             item.scrollIntoView({block: "nearest"});
         });
 
@@ -201,7 +126,6 @@
             if (busy) return;
             const message = input.value.trim();
             if (!message) return;
-            clearMetadata();
             appendMessage("user", message);
             input.value = "";
             composer.updateCounter();
@@ -210,7 +134,6 @@
             try {
                 const data = await kit.sendMessage(message);
                 const result = appendMessage("assistant", data.answer);
-                showMetadata(data);
                 result.focus();
             } catch (error) {
                 const messageText = error.name === "AbortError"
@@ -219,7 +142,6 @@
                         ? error.publicMessage
                         : "Không thể kết nối trợ lý lúc này. Vui lòng thử lại.";
                 const result = appendMessage("assistant", messageText);
-                setMeta(warnings, "Lỗi", [messageText], true);
                 result.focus();
             } finally {
                 setBusy(false);
@@ -231,7 +153,6 @@
             kit.clearSession();
             pendingItem = null;
             transcript.replaceChildren(emptyState);
-            clearMetadata();
             input.value = "";
             composer.updateCounter();
             syncEmpty();

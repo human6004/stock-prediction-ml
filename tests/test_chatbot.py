@@ -177,20 +177,25 @@ class DecisionTests(unittest.TestCase):
             ("provider_protocol_error", 502),
         )
 
-    def test_provider_request_has_one_call_six_history_messages_and_no_tools(self):
+    def test_decision_request_has_six_history_messages_and_no_tools(self):
         history = [
             {"role": "user" if index % 2 == 0 else "assistant", "content": f"m{index}"}
             for index in range(8)
         ]
         client = fake_client(
-            provider_response(decision_json("GENERAL_CHAT", {"kind": "greeting"}))
+            provider_response(decision_json("GENERAL_CHAT", {"kind": "greeting"})),
+            provider_response("Câu chào do LLM soạn."),
         )
         chatbot_service.chat("Chào", history, client=client)
-        request = client.chat.completions.create.call_args.kwargs
+        request = client.chat.completions.create.call_args_list[0].kwargs
         self.assertEqual(request["messages"][1:-1], history[-6:])
         for key in ("tools", "tool_choice", "response_format"):
             self.assertNotIn(key, request)
         self.assertNotIn("CONTEXT_JSON", request["messages"][0]["content"])
+
+        # Compose chỉ thấy prompt + JSON hiện tại: history không đi tiếp sang call 2.
+        compose_request = client.chat.completions.create.call_args_list[1].kwargs
+        self.assertEqual(len(compose_request["messages"]), 2)
 
     def test_monotonic_deadline_blocks_before_and_after_provider(self):
         response = provider_response(
@@ -780,32 +785,45 @@ class FormatterAndFlowTests(unittest.TestCase):
         self.assertIn("ABC", response["answer"])
         self.assertEqual(len(response["warnings"]), 1)
 
-    def test_five_actions_end_to_end_use_exactly_one_provider_call(self):
+    def test_five_actions_dispatch_correctly_and_skip_compose_when_data_is_empty(self):
         cases = (
-            ("GENERAL_CHAT", {"kind": "greeting"}, None),
-            ("STOCK_SIGNAL", {"symbols": ["FPT"]}, domain_result({"signals": []})),
+            ("GENERAL_CHAT", {"kind": "greeting"}, None, 2),
+            ("STOCK_SIGNAL", {"symbols": ["FPT"]}, domain_result({"signals": []}), 1),
             (
                 "STOCK_RANKING",
                 {"order": "highest", "top_n": 1},
                 domain_result({"ranking": []}),
+                1,
             ),
-            ("PROJECT_INFO", {"topic": "overview"}, domain_result({"topic": "overview"})),
-            ("OUT_OF_SCOPE", {"reason": "news"}, None),
+            (
+                "PROJECT_INFO",
+                {"topic": "overview"},
+                domain_result({"topic": "overview"}),
+                2,
+            ),
+            ("OUT_OF_SCOPE", {"reason": "news"}, None, 2),
         )
-        for action, arguments, action_result in cases:
+        for action, arguments, action_result, expected_calls in cases:
             with self.subTest(action=action):
-                client = fake_client(provider_response(decision_json(action, arguments)))
+                client = fake_client(
+                    provider_response(decision_json(action, arguments)),
+                    provider_response("Câu trả lời do LLM soạn."),
+                )
                 with patch.object(
                     chatbot_service.chatbot_tools,
                     "execute_action",
                     return_value=action_result,
                 ) as execute:
                     response = chatbot_service.chat("message", [], client=client)
-                client.chat.completions.create.assert_called_once()
+                self.assertEqual(
+                    client.chat.completions.create.call_count, expected_calls
+                )
                 if action in {"STOCK_SIGNAL", "STOCK_RANKING", "PROJECT_INFO"}:
                     execute.assert_called_once_with(action, arguments)
                 else:
                     execute.assert_not_called()
+                if expected_calls == 2:
+                    self.assertEqual(response["answer"], "Câu trả lời do LLM soạn.")
                 self.assertEqual(
                     set(response),
                     {"answer", "sources", "warnings", "data_as_of", "model_trained_through"},
@@ -860,7 +878,10 @@ class FormatterAndFlowTests(unittest.TestCase):
             ),
         )
         for message, history, action, arguments in cases:
-            client = fake_client(provider_response(decision_json(action, arguments)))
+            client = fake_client(
+                provider_response(decision_json(action, arguments)),
+                provider_response("Câu trả lời do LLM soạn."),
+            )
             result = domain_result(
                 {"signals": []} if action == "STOCK_SIGNAL" else {"topic": "model"}
             )
@@ -872,7 +893,10 @@ class FormatterAndFlowTests(unittest.TestCase):
                 execute.assert_called_once_with(action, arguments)
             else:
                 execute.assert_not_called()
-            request_messages = client.chat.completions.create.call_args.kwargs["messages"]
+            # Call đầu luôn là decision; call thứ hai (nếu có) là compose không nhận history.
+            request_messages = (
+                client.chat.completions.create.call_args_list[0].kwargs["messages"]
+            )
             self.assertEqual(request_messages[1:-1], history)
 
     def test_provider_errors_config_and_url_validation_have_stable_public_status(self):
@@ -900,6 +924,167 @@ class FormatterAndFlowTests(unittest.TestCase):
             with self.assertRaises(chatbot_service.ChatbotServiceError) as raised:
                 chatbot_service._validate_base_url(invalid)
             self.assertEqual(raised.exception.code, "llm_invalid_config")
+
+
+class ComposeTests(unittest.TestCase):
+    def setUp(self):
+        self.decision = provider_response(
+            decision_json("STOCK_SIGNAL", {"symbols": ["FPT"]})
+        )
+        self.result = domain_result(
+            {
+                "signals": [
+                    {
+                        "symbol": "FPT",
+                        "reference_date": "2026-07-31",
+                        "prediction": "UP",
+                        "up_score_percent": 62.35,
+                        "decision_threshold_percent": 49.0,
+                    }
+                ]
+            }
+        )
+
+    def _chat(self, client):
+        with patch.object(
+            chatbot_service.chatbot_tools, "execute_action", return_value=self.result
+        ):
+            return chatbot_service.chat("FPT thế nào?", [], client=client)
+
+    def _deterministic_answer(self):
+        return chatbot_service._format_response(
+            {"action": "STOCK_SIGNAL", "arguments": {"symbols": ["FPT"]}},
+            self.result,
+        )["answer"]
+
+    def test_compose_success_appends_disclaimer_and_grounds_on_backend_json(self):
+        client = fake_client(
+            self.decision, provider_response("FPT có Điểm UP 62.35%.")
+        )
+        response = self._chat(client)
+        self.assertEqual(
+            response["answer"],
+            "FPT có Điểm UP 62.35%.\n\n" + chatbot_service.STOCK_DISCLAIMER,
+        )
+        self.assertEqual(client.chat.completions.create.call_count, 2)
+        compose_request = client.chat.completions.create.call_args_list[1].kwargs
+        self.assertEqual(
+            compose_request["messages"][0]["content"], chatbot_service.COMPOSE_PROMPT
+        )
+        payload = json.loads(compose_request["messages"][1]["content"])
+        self.assertEqual(payload["question"], "FPT thế nào?")
+        self.assertEqual(payload["action"], "STOCK_SIGNAL")
+        self.assertEqual(payload["data"], self.result["data"])
+        for key in ("tools", "tool_choice", "response_format"):
+            self.assertNotIn(key, compose_request)
+
+    def test_compose_does_not_duplicate_disclaimer(self):
+        composed = "FPT có Điểm UP 62.35%. " + chatbot_service.STOCK_DISCLAIMER
+        client = fake_client(self.decision, provider_response(composed))
+        response = self._chat(client)
+        self.assertEqual(response["answer"], composed)
+
+    def test_compose_failures_fall_back_to_deterministic_answer(self):
+        failures = (
+            RuntimeError("boom"),
+            TimeoutError("slow"),
+            provider_response("   "),
+            provider_response("ok", tool_calls=[{"id": "x"}]),
+            provider_response("x" * (chatbot_service.MAX_COMPOSE_CHARS + 1)),
+        )
+        for index, failure in enumerate(failures):
+            with self.subTest(case=index):
+                client = fake_client(side_effect=[self.decision, failure])
+                response = self._chat(client)
+                self.assertEqual(response["answer"], self._deterministic_answer())
+                self.assertEqual(client.chat.completions.create.call_count, 2)
+
+    def test_compose_flag_off_keeps_single_call(self):
+        client = fake_client(self.decision, provider_response("không được dùng"))
+        with patch.object(chatbot_service, "CHATBOT_COMPOSE_ENABLED", False):
+            response = self._chat(client)
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+        self.assertEqual(response["answer"], self._deterministic_answer())
+
+    def test_compose_skipped_when_deadline_exhausted(self):
+        client = fake_client(self.decision, provider_response("không được dùng"))
+        clock = Mock(
+            side_effect=[0, 0, 0, chatbot_service.TOTAL_DEADLINE_SECONDS]
+        )
+        with patch.object(
+            chatbot_service.chatbot_tools, "execute_action", return_value=self.result
+        ):
+            response = chatbot_service.chat(
+                "FPT thế nào?", [], client=client, monotonic=clock
+            )
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+        self.assertEqual(response["answer"], self._deterministic_answer())
+
+    def test_compose_words_general_chat_and_out_of_scope_without_backend_data(self):
+        """Hai nhánh trả lời bằng lời vẫn compose, nhưng chỉ nhận lý do và capabilities."""
+        for action, arguments, question in (
+            ("GENERAL_CHAT", {"kind": "clarify_symbol"}, "phân tích giúp tôi"),
+            ("OUT_OF_SCOPE", {"reason": "trading_advice"}, "tôi nên mua mã nào?"),
+        ):
+            with self.subTest(action=action):
+                client = fake_client(
+                    provider_response(decision_json(action, arguments)),
+                    provider_response("Câu trả lời tự nhiên."),
+                )
+                dispatcher = Mock()
+                with patch.object(
+                    chatbot_service.chatbot_tools, "execute_action", dispatcher
+                ):
+                    response = chatbot_service.chat(question, [], client=client)
+
+                dispatcher.assert_not_called()
+                self.assertEqual(client.chat.completions.create.call_count, 2)
+                self.assertEqual(response["answer"], "Câu trả lời tự nhiên.")
+                self.assertNotIn(chatbot_service.STOCK_DISCLAIMER, response["answer"])
+
+                compose_request = client.chat.completions.create.call_args_list[1].kwargs
+                self.assertEqual(len(compose_request["messages"]), 2)
+                payload = json.loads(compose_request["messages"][1]["content"])
+                self.assertEqual(payload["question"], question)
+                self.assertEqual(payload["action"], action)
+                self.assertEqual(
+                    payload["data"],
+                    {**arguments, "capabilities": list(chatbot_service.CAPABILITIES)},
+                )
+
+    def test_compose_failure_keeps_fixed_refusal_and_clarify_text(self):
+        for action, arguments, expected in (
+            (
+                "GENERAL_CHAT",
+                {"kind": "greeting"},
+                chatbot_service.GENERAL_CHAT_MESSAGES["greeting"],
+            ),
+            (
+                "OUT_OF_SCOPE",
+                {"reason": "trading_advice"},
+                chatbot_service.OUT_OF_SCOPE_MESSAGES["trading_advice"],
+            ),
+        ):
+            with self.subTest(action=action):
+                client = fake_client(
+                    side_effect=[
+                        provider_response(decision_json(action, arguments)),
+                        RuntimeError("boom"),
+                    ]
+                )
+                response = chatbot_service.chat("chào", [], client=client)
+                self.assertEqual(client.chat.completions.create.call_count, 2)
+                self.assertEqual(response["answer"], expected)
+
+    def test_compose_never_runs_for_unsupported_symbols(self):
+        unsupported = domain_result({"unsupported_symbols": ["ABC"]})
+        client = fake_client(self.decision, provider_response("không được dùng"))
+        with patch.object(
+            chatbot_service.chatbot_tools, "execute_action", return_value=unsupported
+        ):
+            response = chatbot_service.chat("ABC?", [], client=client)
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+        self.assertIn("ngoài phạm vi", response["answer"])
 
 
 class ApiTests(unittest.TestCase):
